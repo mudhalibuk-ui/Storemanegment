@@ -1,6 +1,6 @@
 
 {
-  "name": "smartstock-pro",
+  "name": "smartstock_pro",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -15,7 +15,7 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "recharts": "^3.7.0",
-    "xlsx": "https://esm.sh/xlsx"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

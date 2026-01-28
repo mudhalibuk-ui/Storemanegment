@@ -1,5 +1,5 @@
 {
-  "name": "SmartStock Pro",
+  "name": "SmartStock_Pro",
   "description": "An advanced multi-branch inventory management system with real-time tracking, shelf-mapping (Iskafalo/Dog), and AI-powered insights.",
   "requestFramePermissions": [
     "camera"

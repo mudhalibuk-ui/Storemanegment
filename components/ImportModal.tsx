@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import * as XLSX from 'https://esm.sh/xlsx';
+import * as XLSX from 'xlsx';
 import { InventoryItem, Branch } from '../types';
 
 interface ImportModalProps {
