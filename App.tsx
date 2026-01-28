@@ -33,7 +33,6 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [insights, setInsights] = useState<string[]>([]);
   
-  // Settings initialization with localStorage persistence
   const [settings, setSettings] = useState<SystemSettings>(() => {
     const saved = localStorage.getItem('smartstock_settings');
     return saved ? JSON.parse(saved) : {
@@ -45,7 +44,6 @@ const App: React.FC = () => {
     };
   });
 
-  // Modal & Popup UI states
   const [isItemFormOpen, setIsItemFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [adjustmentModal, setAdjustmentModal] = useState<{ item: InventoryItem, type: TransactionType.IN | TransactionType.OUT } | null>(null);
@@ -56,38 +54,24 @@ const App: React.FC = () => {
   const [isBranchFormOpen, setIsBranchFormOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
 
-  // Sync settings to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('smartstock_settings', JSON.stringify(settings));
     document.documentElement.style.setProperty('--primary-color', settings.primaryColor);
   }, [settings]);
 
-  // Load Users
-  useEffect(() => {
-    const savedUsers = localStorage.getItem('smartstock_users');
-    if (savedUsers) {
-      setUsers(JSON.parse(savedUsers));
-    } else {
-      const initialUsers: User[] = [
-        { id: 'u1', name: 'Super Admin', username: 'admin', password: 'password', role: UserRole.ADMIN, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin' },
-        { id: 'u2', name: 'Staff Member', username: 'staff', password: 'password', role: UserRole.STAFF, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=staff' }
-      ];
-      setUsers(initialUsers);
-      localStorage.setItem('smartstock_users', JSON.stringify(initialUsers));
-    }
-  }, []);
-
   const refreshAllData = async () => {
     setIsLoading(true);
     try {
-      const [fetchedItems, fetchedBranches, fetchedTransactions] = await Promise.all([
+      const [fetchedItems, fetchedBranches, fetchedTransactions, fetchedUsers] = await Promise.all([
         API.items.getAll(),
         API.branches.getAll(),
-        API.transactions.getAll()
+        API.transactions.getAll(),
+        API.users.getAll()
       ]);
       setItems(fetchedItems);
       setBranches(fetchedBranches);
       setTransactions(fetchedTransactions);
+      setUsers(fetchedUsers);
 
       if (fetchedItems.length > 0) {
         const aiInsights = await getInventoryInsights(fetchedItems, fetchedTransactions);
@@ -124,7 +108,6 @@ const App: React.FC = () => {
   const handleStockAdjustment = async (data: any) => {
     if (!adjustmentModal) return;
     const { item, type } = adjustmentModal;
-
     const transaction = await API.transactions.create({
       itemId: item.id,
       itemName: item.name,
@@ -138,7 +121,6 @@ const App: React.FC = () => {
       status: TransactionStatus.APPROVED,
       requestedBy: user.id
     });
-
     const newQty = type === TransactionType.IN ? item.quantity + data.qty : item.quantity - data.qty;
     await API.items.save({
       ...item,
@@ -147,7 +129,6 @@ const App: React.FC = () => {
       sections: data.section || item.sections,
       branchId: data.branchId
     });
-
     setAdjustmentModal(null);
     setReceipt(transaction);
     refreshAllData();
@@ -156,7 +137,6 @@ const App: React.FC = () => {
   const handleTransfer = async (data: any) => {
     if (!transferModal) return;
     const item = transferModal;
-
     const transaction = await API.transactions.create({
       itemId: item.id,
       itemName: item.name,
@@ -169,33 +149,22 @@ const App: React.FC = () => {
       status: TransactionStatus.APPROVED,
       requestedBy: user.id
     });
-
     await API.items.save({ ...item, quantity: item.quantity - data.qty });
-    
     const targetItems = await API.items.getAll();
     const existingInTarget = targetItems.find(i => i.sku === item.sku && i.branchId === data.targetBranchId);
-    
     if (existingInTarget) {
       await API.items.save({ ...existingInTarget, quantity: existingInTarget.quantity + data.qty });
     } else {
-      await API.items.save({
-        ...item,
-        id: undefined as any,
-        branchId: data.targetBranchId,
-        quantity: data.qty
-      });
+      await API.items.save({ ...item, id: undefined, branchId: data.targetBranchId, quantity: data.qty });
     }
-
     setTransferModal(null);
     setReceipt(transaction);
     refreshAllData();
   };
 
-  const handleAddUser = (userData: Partial<User>) => {
-    const newUser = { ...userData, id: `u${Date.now()}` } as User;
-    const updatedUsers = [...users, newUser];
-    setUsers(updatedUsers);
-    localStorage.setItem('smartstock_users', JSON.stringify(updatedUsers));
+  const handleAddUser = async (userData: Partial<User>) => {
+    await API.users.save(userData);
+    refreshAllData();
   };
 
   const handleSaveSettings = (newSettings: SystemSettings) => {
@@ -206,160 +175,29 @@ const App: React.FC = () => {
   const pendingApprovalsCount = transactions.filter(t => t.status === TransactionStatus.PENDING).length;
 
   return (
-    <Layout 
-      activeTab={activeTab} 
-      setActiveTab={setActiveTab} 
-      user={user} 
-      onLogout={() => setUser(null)}
-      systemName={settings.systemName}
-      lowStockCount={lowStockCount}
-      pendingApprovalsCount={pendingApprovalsCount}
-    >
+    <Layout activeTab={activeTab} setActiveTab={setActiveTab} user={user} onLogout={() => setUser(null)} systemName={settings.systemName} lowStockCount={lowStockCount} pendingApprovalsCount={pendingApprovalsCount}>
       {isLoading && activeTab !== 'chat' && (
         <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 bg-indigo-600 text-white px-6 py-2 rounded-full text-xs font-black animate-bounce shadow-xl">
-          Sincronizing Data...
+          Cusboonaysiinaya Xogta...
         </div>
       )}
-
       {activeTab === 'dashboard' && <Dashboard items={items} transactions={transactions} insights={insights} settings={settings} />}
-      
-      {activeTab === 'inventory' && (
-        <InventoryList 
-          items={items} 
-          branches={branches} 
-          onAdd={() => setIsItemFormOpen(true)}
-          onImport={() => setIsImportModalOpen(true)}
-          onEdit={(item) => { setEditingItem(item); setIsItemFormOpen(true); }}
-          onTransaction={(item, type) => {
-            if (type === 'TRANSFER') setTransferModal(item);
-            else setAdjustmentModal({ item, type: type as any });
-          }}
-        />
-      )}
-
+      {activeTab === 'inventory' && <InventoryList items={items} branches={branches} onAdd={() => setIsItemFormOpen(true)} onImport={() => setIsImportModalOpen(true)} onEdit={(item) => { setEditingItem(item); setIsItemFormOpen(true); }} onTransaction={(item, type) => { if (type === 'TRANSFER') setTransferModal(item); else setAdjustmentModal({ item, type: type as any }); }} />}
       {activeTab === 'chat' && <AIChat items={items} transactions={transactions} onDataChange={refreshAllData} />}
-      
       {activeTab === 'map' && <WarehouseMap items={items} branches={branches} />}
-      
       {activeTab === 'transactions' && <TransactionHistory transactions={transactions} branches={branches} />}
-      
       {activeTab === 'reports' && <AdvancedReports items={items} transactions={transactions} branches={branches} />}
-      
-      {activeTab === 'approvals' && (
-        <ApprovalQueue 
-          transactions={transactions} 
-          onApprove={async (t) => {
-            await API.transactions.updateStatus(t.id, TransactionStatus.APPROVED, user.id);
-            refreshAllData();
-          }}
-          onReject={async (id) => {
-            await API.transactions.updateStatus(id, TransactionStatus.REJECTED, user.id);
-            refreshAllData();
-          }}
-        />
-      )}
-
-      {activeTab === 'branches' && (
-        <BranchList 
-          branches={branches} 
-          onAdd={() => { setIsBranchFormOpen(true); setEditingBranch(null); }} 
-          onEdit={(branch) => { setEditingBranch(branch); setIsBranchFormOpen(true); }} 
-          onDelete={async (id) => {
-             refreshAllData();
-          }} 
-        />
-      )}
-
-      {activeTab === 'users' && (
-        <UserManagement 
-          users={users} 
-          onAdd={handleAddUser} 
-          onSwitchUser={(u) => { setUser(u); setActiveTab('dashboard'); }} 
-        />
-      )}
-
-      {activeTab === 'settings' && (
-        <Settings 
-          settings={settings} 
-          onSave={handleSaveSettings} 
-          onResetData={() => {
-            localStorage.clear();
-            window.location.reload();
-          }} 
-        />
-      )}
-
-      {/* Dynamic Modals */}
-      {isItemFormOpen && (
-        <InventoryForm 
-          branches={branches} 
-          editingItem={editingItem} 
-          onSave={handleSaveItem} 
-          onCancel={() => { setIsItemFormOpen(false); setEditingItem(null); }} 
-        />
-      )}
-
-      {adjustmentModal && (
-        <StockAdjustmentModal 
-          item={adjustmentModal.item} 
-          branches={branches} 
-          type={adjustmentModal.type} 
-          onSave={handleStockAdjustment} 
-          onCancel={() => setAdjustmentModal(null)} 
-        />
-      )}
-
-      {transferModal && (
-        <TransferModal 
-          item={transferModal} 
-          branches={branches} 
-          onTransfer={handleTransfer} 
-          onCancel={() => setTransferModal(null)} 
-        />
-      )}
-
-      {receipt && (
-        <TransactionReceipt 
-          transaction={receipt} 
-          item={items.find(i => i.id === receipt.itemId)}
-          branch={branches.find(b => b.id === receipt.branchId)}
-          issuedBy={user.name}
-          onClose={() => setReceipt(null)}
-        />
-      )}
-
-      {isImportModalOpen && (
-        <ImportModal 
-          branches={branches} 
-          onImport={async (newItems) => {
-            await API.items.updateBulk(newItems);
-            setIsImportModalOpen(false);
-            refreshAllData();
-          }}
-          onCancel={() => setIsImportModalOpen(false)}
-        />
-      )}
-
-      {isScannerOpen && (
-        <ScannerModal 
-          onScan={(code) => {
-            setIsScannerOpen(false);
-          }} 
-          onCancel={() => setIsScannerOpen(false)} 
-        />
-      )}
-
-      {isBranchFormOpen && (
-        <BranchForm 
-          editingBranch={editingBranch} 
-          onSave={async (branchData) => {
-            await API.branches.save(branchData);
-            setIsBranchFormOpen(false);
-            refreshAllData();
-          }} 
-          onCancel={() => setIsBranchFormOpen(false)} 
-        />
-      )}
+      {activeTab === 'approvals' && <ApprovalQueue transactions={transactions} onApprove={async (t) => { await API.transactions.updateStatus(t.id, TransactionStatus.APPROVED, user.id); refreshAllData(); }} onReject={async (id) => { await API.transactions.updateStatus(id, TransactionStatus.REJECTED, user.id); refreshAllData(); }} />}
+      {activeTab === 'branches' && <BranchList branches={branches} onAdd={() => { setIsBranchFormOpen(true); setEditingBranch(null); }} onEdit={(branch) => { setEditingBranch(branch); setIsBranchFormOpen(true); }} onDelete={async (id) => { refreshAllData(); }} />}
+      {activeTab === 'users' && <UserManagement users={users} onAdd={handleAddUser} onSwitchUser={(u) => { setUser(u); setActiveTab('dashboard'); }} />}
+      {activeTab === 'settings' && <Settings settings={settings} onSave={handleSaveSettings} onResetData={() => { localStorage.clear(); window.location.reload(); }} />}
+      {isItemFormOpen && <InventoryForm branches={branches} editingItem={editingItem} onSave={handleSaveItem} onCancel={() => { setIsItemFormOpen(false); setEditingItem(null); }} />}
+      {adjustmentModal && <StockAdjustmentModal item={adjustmentModal.item} branches={branches} type={adjustmentModal.type} onSave={handleStockAdjustment} onCancel={() => setAdjustmentModal(null)} />}
+      {transferModal && <TransferModal item={transferModal} branches={branches} onTransfer={handleTransfer} onCancel={() => setTransferModal(null)} />}
+      {receipt && <TransactionReceipt transaction={receipt} item={items.find(i => i.id === receipt.itemId)} branch={branches.find(b => b.id === receipt.branchId)} issuedBy={user.name} onClose={() => setReceipt(null)} />}
+      {isImportModalOpen && <ImportModal branches={branches} onImport={async (newItems) => { await API.items.updateBulk(newItems); setIsImportModalOpen(false); refreshAllData(); }} onCancel={() => setIsImportModalOpen(false)} />}
+      {isScannerOpen && <ScannerModal onScan={(code) => { setIsScannerOpen(false); }} onCancel={() => setIsScannerOpen(false)} />}
+      {isBranchFormOpen && <BranchForm editingBranch={editingBranch} onSave={async (branchData) => { await API.branches.save(branchData); setIsBranchFormOpen(false); refreshAllData(); }} onCancel={() => setIsBranchFormOpen(false)} />}
     </Layout>
   );
 };

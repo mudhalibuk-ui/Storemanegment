@@ -15,8 +15,7 @@ const STORAGE_KEYS = {
 const toSnakeCase = (obj: any) => {
   const newObj: any = {};
   for (let key in obj) {
-    // Avoid mapping properties that are already handled manually
-    if (key === 'originOrSource') continue;
+    if (key === 'originOrSource' || key === 'minThreshold' || key === 'branchId' || key === 'targetBranchId' || key === 'requestedBy' || key === 'approvedBy' || key === 'lastUpdated') continue;
     const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
     newObj[snakeKey] = obj[key];
   }
@@ -24,6 +23,45 @@ const toSnakeCase = (obj: any) => {
 };
 
 export const API = {
+  users: {
+    async getAll(): Promise<User[]> {
+      if (isDbConnected()) {
+        const cloudData = await supabaseFetch('users_registry?select=*');
+        if (cloudData && cloudData.length > 0) {
+          return cloudData.map((u: any) => ({
+            id: u.id,
+            name: u.name,
+            username: u.username,
+            password: u.password,
+            role: u.role,
+            avatar: u.avatar
+          }));
+        }
+      }
+      const data = localStorage.getItem(STORAGE_KEYS.USERS);
+      return data ? JSON.parse(data) : [];
+    },
+    async save(user: Partial<User>): Promise<User> {
+      const newUser = {
+        ...user,
+        id: user.id || `u${Date.now()}`,
+        avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`
+      } as User;
+
+      if (isDbConnected()) {
+        await supabaseFetch('users_registry', {
+          method: 'POST',
+          body: JSON.stringify(newUser)
+        });
+      }
+
+      const users = await this.getAll();
+      const updated = [...users.filter(u => u.id !== newUser.id), newUser];
+      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
+      return newUser;
+    }
+  },
+
   items: {
     async getAll(): Promise<InventoryItem[]> {
       if (isDbConnected()) {
@@ -43,8 +81,6 @@ export const API = {
           }));
         }
       }
-
-      await delay(200);
       const data = localStorage.getItem(STORAGE_KEYS.ITEMS);
       if (!data) {
         localStorage.setItem(STORAGE_KEYS.ITEMS, JSON.stringify(INITIAL_ITEMS));
@@ -53,7 +89,6 @@ export const API = {
       return JSON.parse(data);
     },
     async save(item: Partial<InventoryItem>): Promise<InventoryItem> {
-      await delay();
       const items = await this.getAll();
       let updatedItem: InventoryItem;
 
@@ -62,9 +97,13 @@ export const API = {
         updatedItem = { ...existing, ...item, lastUpdated: new Date().toISOString() } as InventoryItem;
         
         if (isDbConnected()) {
+          const payload = toSnakeCase(updatedItem);
+          payload.min_threshold = updatedItem.minThreshold;
+          payload.branch_id = updatedItem.branchId;
+          payload.last_updated = updatedItem.lastUpdated;
           await supabaseFetch(`inventory_items?id=eq.${item.id}`, {
             method: 'PATCH',
-            body: JSON.stringify(toSnakeCase(updatedItem))
+            body: JSON.stringify(payload)
           });
         }
         
@@ -78,9 +117,12 @@ export const API = {
         } as InventoryItem;
 
         if (isDbConnected()) {
+          const payload = toSnakeCase(updatedItem);
+          payload.min_threshold = updatedItem.minThreshold;
+          payload.branch_id = updatedItem.branchId;
           await supabaseFetch('inventory_items', {
             method: 'POST',
-            body: JSON.stringify(toSnakeCase(updatedItem))
+            body: JSON.stringify(payload)
           });
         }
 
@@ -89,9 +131,7 @@ export const API = {
       return updatedItem;
     },
     async updateBulk(newItems: InventoryItem[]): Promise<void> {
-      await delay(100);
       const currentItems = await this.getAll();
-      
       const mergedItems = [...currentItems];
       newItems.forEach(newItem => {
         const index = mergedItems.findIndex(i => i.sku === newItem.sku && i.branchId === newItem.branchId);
@@ -101,9 +141,7 @@ export const API = {
           mergedItems.push(newItem);
         }
       });
-
       localStorage.setItem(STORAGE_KEYS.ITEMS, JSON.stringify(mergedItems));
-      
       if (isDbConnected()) {
         const mapped = newItems.map(item => {
           const snaked = toSnakeCase(item);
@@ -135,8 +173,6 @@ export const API = {
           }));
         }
       }
-
-      await delay(200);
       const data = localStorage.getItem(STORAGE_KEYS.BRANCHES);
       if (!data) {
         localStorage.setItem(STORAGE_KEYS.BRANCHES, JSON.stringify(INITIAL_BRANCHES));
@@ -147,31 +183,32 @@ export const API = {
     async save(branch: Partial<Branch>): Promise<Branch> {
       const branches = await this.getAll();
       let newBranch: Branch;
-      
       if (branch.id && branches.find(b => b.id === branch.id)) {
         newBranch = { ...branches.find(b => b.id === branch.id), ...branch } as Branch;
-        
         if (isDbConnected()) {
           const payload = toSnakeCase(newBranch);
+          payload.total_shelves = newBranch.totalShelves;
+          payload.total_sections = newBranch.totalSections;
+          payload.custom_sections = newBranch.customSections;
           await supabaseFetch(`branches?id=eq.${branch.id}`, {
             method: 'PATCH',
             body: JSON.stringify(payload)
           });
         }
-
         const updated = branches.map(b => b.id === branch.id ? newBranch : b);
         localStorage.setItem(STORAGE_KEYS.BRANCHES, JSON.stringify(updated));
       } else {
         newBranch = { ...branch, id: `b${Date.now()}` } as Branch;
-
         if (isDbConnected()) {
           const payload = toSnakeCase(newBranch);
+          payload.total_shelves = newBranch.totalShelves;
+          payload.total_sections = newBranch.totalSections;
+          payload.custom_sections = newBranch.customSections;
           await supabaseFetch('branches', {
             method: 'POST',
             body: JSON.stringify(payload)
           });
         }
-
         localStorage.setItem(STORAGE_KEYS.BRANCHES, JSON.stringify([...branches, newBranch]));
       }
       return newBranch;
@@ -202,8 +239,6 @@ export const API = {
           }));
         }
       }
-
-      await delay(200);
       const data = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
       if (!data) {
         localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(INITIAL_TRANSACTIONS));
@@ -212,7 +247,6 @@ export const API = {
       return JSON.parse(data);
     },
     async create(transaction: Partial<Transaction>): Promise<Transaction> {
-      await delay();
       const transactions = await this.getAll();
       const newTransaction = {
         ...transaction,
@@ -227,6 +261,7 @@ export const API = {
         mapped.branch_id = transaction.branchId;
         mapped.target_branch_id = transaction.targetBranchId;
         mapped.requested_by = transaction.requestedBy;
+        mapped.placement_info = transaction.placementInfo;
         
         await supabaseFetch('transactions', {
           method: 'POST',
@@ -247,7 +282,6 @@ export const API = {
           body: JSON.stringify({ status, approved_by: adminId })
         });
       }
-
       localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(updated));
     }
   }

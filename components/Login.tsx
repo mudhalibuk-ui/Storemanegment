@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { User, UserRole } from '../types';
+import { API } from '../services/api';
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -12,27 +13,35 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     
-    // Simulating a real authentication delay
-    setTimeout(() => {
-      const savedUsers = localStorage.getItem('smartstock_users');
-      const users: User[] = savedUsers ? JSON.parse(savedUsers) : [
+    try {
+      // Fetch users from API (Cloud + Local)
+      const users = await API.users.getAll();
+      
+      // Seed initial admin if cloud is empty and we use local fallback
+      const allUsers = users.length > 0 ? users : [
         { id: 'u1', name: 'Super Admin', username: 'admin', password: 'password', role: UserRole.ADMIN, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin' }
       ];
 
-      const foundUser = users.find(u => u.username === username && (u.password === password || (!u.password && password === 'password')));
+      const foundUser = allUsers.find(u => 
+        u.username.toLowerCase() === username.toLowerCase() && 
+        (u.password === password || (!u.password && password === 'password'))
+      );
 
       if (foundUser) {
         onLogin(foundUser);
       } else {
         setError('Username ama Password waa qalad!');
       }
+    } catch (err) {
+      setError('Cilad ayaa dhacday markii lala xiriirayay server-ka.');
+    } finally {
       setLoading(false);
-    }, 800);
+    }
   };
 
   return (
@@ -99,7 +108,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         </form>
 
         <div className="mt-10 text-center space-y-4">
-           <p className="text-[9px] text-slate-500 font-medium uppercase tracking-widest">Forgot your password? <span className="text-indigo-400 cursor-pointer hover:underline font-black">Contact IT</span></p>
+           <p className="text-[9px] text-slate-500 font-medium uppercase tracking-widest">Ma xasuusatid password-ka? <span className="text-indigo-400 cursor-pointer hover:underline font-black">Contact IT</span></p>
            <div className="flex items-center justify-center gap-4 pt-4 border-t border-white/5">
               <span className="text-[8px] font-black text-slate-600 uppercase tracking-tighter">Powered by SmartStock Enterprise</span>
            </div>
