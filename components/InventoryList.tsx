@@ -57,66 +57,71 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <div className="flex flex-col gap-4 bg-white p-4 md:p-6 rounded-[1.5rem] md:rounded-[2rem] shadow-sm border border-slate-200">
-        <div className="relative group flex items-center gap-2">
+      {/* Top Controls Container */}
+      <div className="bg-white p-4 md:p-6 rounded-[1.5rem] md:rounded-[2rem] shadow-sm border border-slate-200 space-y-4">
+        {/* Search and Scanner Row */}
+        <div className="flex items-center gap-2">
           <div className="flex-1 relative">
-            <span className="absolute left-4 md:left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors text-lg">🔍</span>
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300">🔍</span>
             <input 
               type="text" 
-              placeholder="Raadi alaabta ama sku..."
-              className="w-full pl-10 md:pl-14 pr-4 py-3 md:py-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl md:rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white outline-none transition-all font-medium text-slate-700 text-sm md:text-base"
+              placeholder="Raadi alaabta..."
+              className="w-full pl-11 pr-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-indigo-500 outline-none font-bold text-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
           <button 
             onClick={() => (window as any).toggleScanner?.()}
-            className="bg-indigo-600 p-3 rounded-xl shadow-lg text-white active:scale-90 transition-all flex items-center gap-2"
+            className="bg-indigo-600 p-3.5 rounded-xl shadow-lg text-white active:scale-90 transition-all"
           >
-            <span className="text-xl">📷</span>
-            <span className="hidden md:block text-[10px] font-black uppercase tracking-widest">Scan SKU</span>
+            📷
           </button>
         </div>
-        <div className="flex flex-wrap items-center gap-2 md:gap-3">
-          <select 
-            className="flex-1 min-w-[120px] bg-slate-50 border-2 border-slate-100 rounded-xl md:rounded-2xl px-4 py-2.5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none"
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
+
+        {/* Action Buttons Row - Highly Visible on Mobile */}
+        <div className="grid grid-cols-2 md:flex md:flex-wrap items-center gap-2">
+          <button 
+            onClick={onBulkAction}
+            className="col-span-2 bg-indigo-600 text-white p-4 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 active:scale-95 transition-all"
           >
-            <option value="all">Noocyada (Categories)</option>
-            {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-          </select>
-          <select 
-            className="flex-1 min-w-[120px] bg-slate-50 border-2 border-slate-100 rounded-xl md:rounded-2xl px-4 py-2.5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none"
-            value={branchFilter}
-            onChange={(e) => setBranchFilter(e.target.value)}
+            🚀 BULK ACTION (Multi-Entry)
+          </button>
+          <button 
+            onClick={onAdd}
+            className="bg-slate-900 text-white p-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2"
           >
-            <option value="all">Branch-yada</option>
-            {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </select>
-          <div className="flex flex-wrap gap-2 w-full md:w-auto">
-            <button 
-              onClick={onBulkAction}
-              className="flex-1 md:flex-none bg-indigo-50 text-indigo-600 border border-indigo-100 px-6 py-3 md:py-3.5 rounded-xl md:rounded-2xl text-[10px] md:text-xs font-black shadow-sm transition-all active:scale-95 uppercase tracking-widest"
+            ➕ Cusub
+          </button>
+          <button 
+            onClick={onImport}
+            className="bg-emerald-50 text-emerald-600 border border-emerald-100 p-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest"
+          >
+            📥 Import
+          </button>
+          
+          <div className="col-span-2 grid grid-cols-2 gap-2 mt-2 md:mt-0 md:flex md:flex-1">
+            <select 
+              className="bg-slate-50 border-2 border-slate-100 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-600 outline-none"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
             >
-              🚀 Bulk Action
-            </button>
-            <button 
-              onClick={onImport}
-              className="flex-1 md:flex-none bg-emerald-50 text-emerald-600 border border-emerald-100 px-6 py-3 md:py-3.5 rounded-xl md:rounded-2xl text-[10px] md:text-xs font-black shadow-sm transition-all active:scale-95 uppercase tracking-widest"
+              <option value="all">Categories</option>
+              {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
+            <select 
+              className="bg-slate-50 border-2 border-slate-100 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-600 outline-none"
+              value={branchFilter}
+              onChange={(e) => setBranchFilter(e.target.value)}
             >
-              📥 Import Excel
-            </button>
-            <button 
-              onClick={onAdd}
-              className="flex-1 md:flex-none bg-slate-900 text-white px-6 py-3 md:py-3.5 rounded-xl md:rounded-2xl text-[10px] md:text-xs font-black shadow-lg transition-all active:scale-95 uppercase tracking-widest"
-            >
-              ➕ Alaab Cusub
-            </button>
+              <option value="all">Branches</option>
+              {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
           </div>
         </div>
       </div>
 
+      {/* List Display (Desktop) */}
       <div className="hidden md:block bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto no-scrollbar">
           <table className="w-full text-left border-collapse">
@@ -166,15 +171,19 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
         </div>
       </div>
 
+      {/* List Display (Mobile Card View) */}
       <div className="md:hidden space-y-3">
         {filteredItems.map((item) => (
           <div key={item.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col gap-4">
              <div className="flex justify-between items-start">
                 <div>
                    <h3 className="font-black text-slate-800 text-lg leading-tight">{item.name}</h3>
-                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{item.sku}</p>
+                   <div className="flex gap-2 mt-1">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.sku}</p>
+                      <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-2 rounded">{formatPlacement(item.shelves, item.sections)}</span>
+                   </div>
                 </div>
-                <div className={`px-4 py-2 rounded-xl text-center ${item.quantity <= item.minThreshold ? 'bg-rose-50' : 'bg-slate-50'}`}>
+                <div className={`px-4 py-2 rounded-xl text-center ${item.quantity <= item.minThreshold ? 'bg-rose-50 border border-rose-100' : 'bg-slate-50 border border-slate-100'}`}>
                    <p className="text-xl font-black">{item.quantity}</p>
                    <p className="text-[8px] font-bold text-slate-400 uppercase">PCS</p>
                 </div>
@@ -182,7 +191,7 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
              <div className="flex gap-2">
                 <button onClick={() => onTransaction(item, 'IN')} className="flex-1 py-3 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest">Stock In</button>
                 <button onClick={() => onTransaction(item, 'OUT')} className="flex-1 py-3 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest">Stock Out</button>
-                <button onClick={() => printQRLabel(item)} className="p-3 bg-slate-100 rounded-xl text-lg">🖨️</button>
+                <button onClick={() => onEdit(item)} className="p-3 bg-slate-100 rounded-xl text-lg">⚙️</button>
              </div>
           </div>
         ))}

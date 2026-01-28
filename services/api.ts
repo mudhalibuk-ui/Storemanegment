@@ -37,7 +37,9 @@ export const API = {
               avatar: u.avatar
             }));
           }
-        } catch (e) { console.error(e); }
+        } catch (e) { 
+          console.error("Cloud User Fetch Error:", e); 
+        }
       }
       
       const local = localStorage.getItem(STORAGE_KEYS.USERS);
@@ -50,6 +52,12 @@ export const API = {
           merged.push(lu);
         }
       });
+
+      // Default Admin if empty
+      if (merged.length === 0) {
+        merged.push({ id: 'u1', name: 'Super Admin', username: 'admin', password: 'password', role: 'ADMIN' as any, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin' });
+      }
+
       return merged;
     },
     async save(user: Partial<User>): Promise<User> {
@@ -61,18 +69,25 @@ export const API = {
 
       if (isDbConnected()) {
         try {
-          // U dir Cloud-ka
+          // Hubi haddii uu jiro mar hore (Update) ama uu cusub yahay (Insert)
           await supabaseFetch('users_registry', {
             method: 'POST',
             body: JSON.stringify(newUser),
-            headers: { 'Prefer': 'resolution=merge-duplicates' }
+            headers: { 
+              'Prefer': 'resolution=merge-duplicates',
+              'Content-Type': 'application/json'
+            }
           });
-        } catch (e) { console.error("Cloud Save Failed:", e); }
+          console.log("Cloud User Saved Successfully");
+        } catch (e) { 
+          console.error("Cloud User Save Failed:", e); 
+        }
       }
 
       // Sync LocalStorage
-      const current = await this.getAll();
-      const updated = [...current.filter(u => u.username !== newUser.username), newUser];
+      const local = localStorage.getItem(STORAGE_KEYS.USERS);
+      const localUsers = local ? JSON.parse(local) : [];
+      const updated = [...localUsers.filter((u: any) => u.username !== newUser.username), newUser];
       localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
       
       return newUser;
