@@ -1,7 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
 import { API } from '../services/api';
+import { isDbConnected } from '../services/supabaseClient';
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -12,6 +13,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [cloudActive, setCloudActive] = useState(false);
+
+  useEffect(() => {
+    setCloudActive(isDbConnected());
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,25 +25,36 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setError('');
     
     try {
-      // Fetch users from API (Cloud + Local)
+      // 1. Fetch users from Cloud/API
       const users = await API.users.getAll();
       
-      // Seed initial admin if cloud is empty and we use local fallback
-      const allUsers = users.length > 0 ? users : [
-        { id: 'u1', name: 'Super Admin', username: 'admin', password: 'password', role: UserRole.ADMIN, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin' }
-      ];
+      // 2. Define Default Admin
+      const defaultAdmin: User = { 
+        id: 'u1', 
+        name: 'Super Admin', 
+        username: 'admin', 
+        password: 'password', 
+        role: UserRole.ADMIN, 
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin' 
+      };
+
+      // 3. Xaqiijin: Mar walba ku dar defaultAdmin liiska haddii uusan jirin admin kale oo database-ka ku jira
+      // Tani waxay ka hortageysaa in qofka laga xirto system-ka markuu user hal qof ku daro
+      const hasCloudAdmin = users.some(u => u.username.toLowerCase() === 'admin');
+      const allUsers = hasCloudAdmin ? users : [defaultAdmin, ...users];
 
       const foundUser = allUsers.find(u => 
-        u.username.toLowerCase() === username.toLowerCase() && 
+        u.username.toLowerCase() === username.trim().toLowerCase() && 
         (u.password === password || (!u.password && password === 'password'))
       );
 
       if (foundUser) {
         onLogin(foundUser);
       } else {
-        setError('Username ama Password waa qalad!');
+        setError('Username ama Password waa qalad! Hubi in Cloud-ku xiran yahay ama SQL-ka Supabase aad marisay.');
       }
     } catch (err) {
+      console.error("Login Error:", err);
       setError('Cilad ayaa dhacday markii lala xiriirayay server-ka.');
     } finally {
       setLoading(false);
@@ -55,11 +72,19 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             S
           </div>
           <h1 className="text-3xl font-black text-white tracking-tighter uppercase">SmartStock <span className="text-indigo-500">Pro</span></h1>
-          <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.3em] mt-3 italic">Maamulka Inventory-ga Xirfadaysan</p>
+          
+          <div className="mt-4 flex justify-center">
+            <div className={`flex items-center gap-2 px-3 py-1 rounded-full border ${cloudActive ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
+              <span className={`w-2 h-2 rounded-full ${cloudActive ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
+              <span className={`text-[9px] font-black uppercase tracking-widest ${cloudActive ? 'text-emerald-400' : 'text-amber-400'}`}>
+                {cloudActive ? 'Cloud Sync Active (Otomaatik)' : 'Local Mode (No Sync)'}
+              </span>
+            </div>
+          </div>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-rose-500/20 border border-rose-500/50 rounded-2xl text-rose-400 text-xs font-bold text-center animate-shake">
+          <div className="mb-6 p-4 bg-rose-500/20 border border-rose-500/50 rounded-2xl text-rose-400 text-[10px] font-bold text-center animate-shake">
             {error}
           </div>
         )}
@@ -67,32 +92,26 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         <form onSubmit={handleLogin} className="space-y-6">
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Username</label>
-            <div className="relative">
-              <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500">👤</span>
-              <input 
-                required
-                type="text" 
-                placeholder="admin"
-                className="w-full pl-12 pr-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white font-bold focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all placeholder:text-slate-600"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-              />
-            </div>
+            <input 
+              required
+              type="text" 
+              placeholder="admin"
+              className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white font-bold focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all placeholder:text-slate-600"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+            />
           </div>
 
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Password</label>
-            <div className="relative">
-              <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500">🔑</span>
-              <input 
-                required
-                type="password" 
-                placeholder="••••••••"
-                className="w-full pl-12 pr-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white font-bold focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all placeholder:text-slate-600"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-              />
-            </div>
+            <input 
+              required
+              type="password" 
+              placeholder="••••••••"
+              className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white font-bold focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all placeholder:text-slate-600"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+            />
           </div>
 
           <button 
@@ -106,13 +125,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             )}
           </button>
         </form>
-
-        <div className="mt-10 text-center space-y-4">
-           <p className="text-[9px] text-slate-500 font-medium uppercase tracking-widest">Ma xasuusatid password-ka? <span className="text-indigo-400 cursor-pointer hover:underline font-black">Contact IT</span></p>
-           <div className="flex items-center justify-center gap-4 pt-4 border-t border-white/5">
-              <span className="text-[8px] font-black text-slate-600 uppercase tracking-tighter">Powered by SmartStock Enterprise</span>
-           </div>
-        </div>
       </div>
     </div>
   );

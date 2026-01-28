@@ -3,8 +3,6 @@ import { InventoryItem, Transaction, Branch, User, TransactionStatus } from '../
 import { INITIAL_ITEMS, INITIAL_BRANCHES, INITIAL_TRANSACTIONS } from '../constants';
 import { isDbConnected, supabaseFetch } from './supabaseClient';
 
-const delay = (ms: number = 400) => new Promise(resolve => setTimeout(resolve, ms));
-
 const STORAGE_KEYS = {
   ITEMS: 'smartstock_items',
   BRANCHES: 'smartstock_branches',
@@ -25,21 +23,37 @@ const toSnakeCase = (obj: any) => {
 export const API = {
   users: {
     async getAll(): Promise<User[]> {
+      let users: User[] = [];
+      
+      // 1. Try Cloud
       if (isDbConnected()) {
-        const cloudData = await supabaseFetch('users_registry?select=*');
-        if (cloudData && cloudData.length > 0) {
-          return cloudData.map((u: any) => ({
-            id: u.id,
-            name: u.name,
-            username: u.username,
-            password: u.password,
-            role: u.role,
-            avatar: u.avatar
-          }));
+        try {
+          const cloudData = await supabaseFetch('users_registry?select=*');
+          if (cloudData && Array.isArray(cloudData)) {
+            users = cloudData.map((u: any) => ({
+              id: u.id,
+              name: u.name,
+              username: u.username,
+              password: u.password,
+              role: u.role,
+              avatar: u.avatar
+            }));
+          }
+        } catch (e) {
+          console.error("Supabase User Fetch Error:", e);
         }
       }
-      const data = localStorage.getItem(STORAGE_KEYS.USERS);
-      return data ? JSON.parse(data) : [];
+
+      // 2. Local Fallback/Merge
+      const localData = localStorage.getItem(STORAGE_KEYS.USERS);
+      const localUsers = localData ? JSON.parse(localData) : [];
+      
+      // If cloud didn't return anything, use local
+      if (users.length === 0) {
+        return localUsers;
+      }
+      
+      return users;
     },
     async save(user: Partial<User>): Promise<User> {
       const newUser = {
@@ -48,16 +62,25 @@ export const API = {
         avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`
       } as User;
 
+      // 1. Save to Cloud first
       if (isDbConnected()) {
-        await supabaseFetch('users_registry', {
-          method: 'POST',
-          body: JSON.stringify(newUser)
-        });
+        try {
+          await supabaseFetch('users_registry', {
+            method: 'POST',
+            body: JSON.stringify(newUser),
+            headers: { 'Prefer': 'resolution=merge-duplicates' }
+          });
+        } catch (e) {
+          console.error("Supabase Save Error:", e);
+        }
       }
 
-      const users = await this.getAll();
-      const updated = [...users.filter(u => u.id !== newUser.id), newUser];
+      // 2. Sync LocalStorage
+      const currentLocal = localStorage.getItem(STORAGE_KEYS.USERS);
+      const localUsers = currentLocal ? JSON.parse(currentLocal) : [];
+      const updated = [...localUsers.filter((u: any) => u.id !== newUser.id), newUser];
       localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
+      
       return newUser;
     }
   },
@@ -66,7 +89,7 @@ export const API = {
     async getAll(): Promise<InventoryItem[]> {
       if (isDbConnected()) {
         const cloudData = await supabaseFetch('inventory_items?select=*');
-        if (cloudData) {
+        if (cloudData && Array.isArray(cloudData)) {
           return cloudData.map((item: any) => ({
             id: item.id,
             name: item.name,
@@ -162,7 +185,7 @@ export const API = {
     async getAll(): Promise<Branch[]> {
       if (isDbConnected()) {
         const cloudData = await supabaseFetch('branches?select=id,name,location,total_shelves,total_sections,custom_sections');
-        if (cloudData) {
+        if (cloudData && Array.isArray(cloudData)) {
           return cloudData.map((b: any) => ({
             id: b.id,
             name: b.name,
@@ -219,7 +242,7 @@ export const API = {
     async getAll(): Promise<Transaction[]> {
       if (isDbConnected()) {
         const cloudData = await supabaseFetch('transactions?select=*&order=timestamp.desc');
-        if (cloudData) {
+        if (cloudData && Array.isArray(cloudData)) {
           return cloudData.map((t: any) => ({
             id: t.id,
             itemId: t.item_id,
