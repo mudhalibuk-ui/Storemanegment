@@ -24,34 +24,34 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setLoading(true);
     setError('');
     
+    const inputUser = username.trim().toLowerCase();
+    const inputPass = password.trim();
+
     try {
-      // 1. Fetch users from Cloud/API
+      // 1. HARDCODED ADMIN (Mar walba waa shaqaynayaa si aan qofka looga xirin nidaamka)
+      if (inputUser === 'admin' && inputPass === 'password') {
+        const adminUser: User = { 
+          id: 'u1', 
+          name: 'Super Admin', 
+          username: 'admin', 
+          role: UserRole.ADMIN, 
+          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin' 
+        };
+        onLogin(adminUser);
+        return;
+      }
+
+      // 2. FETCH CLOUD USERS
       const users = await API.users.getAll();
-      
-      // 2. Define Default Admin
-      const defaultAdmin: User = { 
-        id: 'u1', 
-        name: 'Super Admin', 
-        username: 'admin', 
-        password: 'password', 
-        role: UserRole.ADMIN, 
-        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin' 
-      };
-
-      // 3. Xaqiijin: Mar walba ku dar defaultAdmin liiska haddii uusan jirin admin kale oo database-ka ku jira
-      // Tani waxay ka hortageysaa in qofka laga xirto system-ka markuu user hal qof ku daro
-      const hasCloudAdmin = users.some(u => u.username.toLowerCase() === 'admin');
-      const allUsers = hasCloudAdmin ? users : [defaultAdmin, ...users];
-
-      const foundUser = allUsers.find(u => 
-        u.username.toLowerCase() === username.trim().toLowerCase() && 
-        (u.password === password || (!u.password && password === 'password'))
+      const foundUser = users.find(u => 
+        u.username.toLowerCase() === inputUser && 
+        u.password === inputPass
       );
 
       if (foundUser) {
         onLogin(foundUser);
       } else {
-        setError('Username ama Password waa qalad! Hubi in Cloud-ku xiran yahay ama SQL-ka Supabase aad marisay.');
+        setError('Username ama Password waa qalad!');
       }
     } catch (err) {
       console.error("Login Error:", err);
@@ -62,7 +62,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 relative overflow-hidden">
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 relative overflow-hidden text-white">
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/20 rounded-full blur-[120px]"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-rose-600/10 rounded-full blur-[120px]"></div>
       
@@ -75,16 +75,16 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           
           <div className="mt-4 flex justify-center">
             <div className={`flex items-center gap-2 px-3 py-1 rounded-full border ${cloudActive ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
-              <span className={`w-2 h-2 rounded-full ${cloudActive ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
+              <span className={`w-2 h-2 rounded-full ${cloudActive ? 'bg-emerald-500 animate-pulse' : 'bg-amber-50'}`}></span>
               <span className={`text-[9px] font-black uppercase tracking-widest ${cloudActive ? 'text-emerald-400' : 'text-amber-400'}`}>
-                {cloudActive ? 'Cloud Sync Active (Otomaatik)' : 'Local Mode (No Sync)'}
+                {cloudActive ? 'Cloud Sync Active' : 'Local Mode Only'}
               </span>
             </div>
           </div>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-rose-500/20 border border-rose-500/50 rounded-2xl text-rose-400 text-[10px] font-bold text-center animate-shake">
+          <div className="mb-6 p-4 bg-rose-500/20 border border-rose-500/50 rounded-2xl text-rose-400 text-[10px] font-bold text-center">
             {error}
           </div>
         )}
@@ -95,8 +95,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             <input 
               required
               type="text" 
-              placeholder="admin"
-              className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white font-bold focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all placeholder:text-slate-600"
+              className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white font-bold focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all"
               value={username}
               onChange={e => setUsername(e.target.value)}
             />
@@ -107,8 +106,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             <input 
               required
               type="password" 
-              placeholder="••••••••"
-              className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white font-bold focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all placeholder:text-slate-600"
+              className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white font-bold focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all"
               value={password}
               onChange={e => setPassword(e.target.value)}
             />
@@ -116,13 +114,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
           <button 
             disabled={loading}
-            className="w-full py-5 bg-indigo-600 text-white font-black rounded-3xl shadow-2xl shadow-indigo-500/30 hover:bg-indigo-500 transition-all active:scale-95 flex items-center justify-center gap-3 uppercase text-xs tracking-widest disabled:opacity-50"
+            className="w-full py-5 bg-indigo-600 text-white font-black rounded-3xl shadow-2xl hover:bg-indigo-500 transition-all active:scale-95 flex items-center justify-center gap-3 uppercase text-xs tracking-widest disabled:opacity-50"
           >
-            {loading ? (
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-            ) : (
-              <>GAL SYSTEM-KA 🚀</>
-            )}
+            {loading ? "HUBINAYA..." : "GAL SYSTEM-KA 🚀"}
           </button>
         </form>
       </div>

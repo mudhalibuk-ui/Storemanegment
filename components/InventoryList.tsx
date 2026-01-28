@@ -9,11 +9,12 @@ interface InventoryListProps {
   branches: Branch[];
   onAdd: () => void;
   onImport: () => void;
+  onBulkAction: () => void;
   onEdit: (item: InventoryItem) => void;
   onTransaction: (item: InventoryItem, type: 'IN' | 'OUT' | 'TRANSFER') => void;
 }
 
-const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, onImport, onEdit, onTransaction }) => {
+const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, onImport, onBulkAction, onEdit, onTransaction }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [branchFilter, setBranchFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -93,7 +94,13 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
             <option value="all">Branch-yada</option>
             {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
-          <div className="flex gap-2 w-full md:w-auto">
+          <div className="flex flex-wrap gap-2 w-full md:w-auto">
+            <button 
+              onClick={onBulkAction}
+              className="flex-1 md:flex-none bg-indigo-50 text-indigo-600 border border-indigo-100 px-6 py-3 md:py-3.5 rounded-xl md:rounded-2xl text-[10px] md:text-xs font-black shadow-sm transition-all active:scale-95 uppercase tracking-widest"
+            >
+              🚀 Bulk Action
+            </button>
             <button 
               onClick={onImport}
               className="flex-1 md:flex-none bg-emerald-50 text-emerald-600 border border-emerald-100 px-6 py-3 md:py-3.5 rounded-xl md:rounded-2xl text-[10px] md:text-xs font-black shadow-sm transition-all active:scale-95 uppercase tracking-widest"

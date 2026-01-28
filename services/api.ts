@@ -23,14 +23,12 @@ const toSnakeCase = (obj: any) => {
 export const API = {
   users: {
     async getAll(): Promise<User[]> {
-      let users: User[] = [];
-      
-      // 1. Try Cloud
+      let cloudUsers: User[] = [];
       if (isDbConnected()) {
         try {
-          const cloudData = await supabaseFetch('users_registry?select=*');
-          if (cloudData && Array.isArray(cloudData)) {
-            users = cloudData.map((u: any) => ({
+          const data = await supabaseFetch('users_registry?select=*');
+          if (data && Array.isArray(data)) {
+            cloudUsers = data.map(u => ({
               id: u.id,
               name: u.name,
               username: u.username,
@@ -39,21 +37,20 @@ export const API = {
               avatar: u.avatar
             }));
           }
-        } catch (e) {
-          console.error("Supabase User Fetch Error:", e);
+        } catch (e) { console.error(e); }
+      }
+      
+      const local = localStorage.getItem(STORAGE_KEYS.USERS);
+      const localUsers = local ? JSON.parse(local) : [];
+      
+      // Isku dar labada (Cloud priority)
+      const merged = [...cloudUsers];
+      localUsers.forEach((lu: any) => {
+        if (!merged.find(cu => cu.username === lu.username)) {
+          merged.push(lu);
         }
-      }
-
-      // 2. Local Fallback/Merge
-      const localData = localStorage.getItem(STORAGE_KEYS.USERS);
-      const localUsers = localData ? JSON.parse(localData) : [];
-      
-      // If cloud didn't return anything, use local
-      if (users.length === 0) {
-        return localUsers;
-      }
-      
-      return users;
+      });
+      return merged;
     },
     async save(user: Partial<User>): Promise<User> {
       const newUser = {
@@ -62,23 +59,20 @@ export const API = {
         avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`
       } as User;
 
-      // 1. Save to Cloud first
       if (isDbConnected()) {
         try {
+          // U dir Cloud-ka
           await supabaseFetch('users_registry', {
             method: 'POST',
             body: JSON.stringify(newUser),
             headers: { 'Prefer': 'resolution=merge-duplicates' }
           });
-        } catch (e) {
-          console.error("Supabase Save Error:", e);
-        }
+        } catch (e) { console.error("Cloud Save Failed:", e); }
       }
 
-      // 2. Sync LocalStorage
-      const currentLocal = localStorage.getItem(STORAGE_KEYS.USERS);
-      const localUsers = currentLocal ? JSON.parse(currentLocal) : [];
-      const updated = [...localUsers.filter((u: any) => u.id !== newUser.id), newUser];
+      // Sync LocalStorage
+      const current = await this.getAll();
+      const updated = [...current.filter(u => u.username !== newUser.username), newUser];
       localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
       
       return newUser;

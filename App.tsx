@@ -19,9 +19,11 @@ import TransferModal from './components/TransferModal';
 import TransactionReceipt from './components/TransactionReceipt';
 import ImportModal from './components/ImportModal';
 import ScannerModal from './components/ScannerModal';
+import BulkTransactionModal from './components/BulkTransactionModal';
 import { API } from './services/api';
 import { InventoryItem, Branch, Transaction, User, TransactionStatus, TransactionType, SystemSettings, UserRole } from './types';
 import { getInventoryInsights } from './services/geminiService';
+import { formatPlacement } from './services/mappingUtils';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -50,6 +52,7 @@ const App: React.FC = () => {
   const [transferModal, setTransferModal] = useState<InventoryItem | null>(null);
   const [receipt, setReceipt] = useState<Transaction | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isBranchFormOpen, setIsBranchFormOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
@@ -134,6 +137,53 @@ const App: React.FC = () => {
     refreshAllData();
   };
 
+  const handleBulkAction = async (type: TransactionType.IN | TransactionType.OUT, data: any) => {
+    setIsLoading(true);
+    try {
+      for (const row of data.items) {
+        const item = items.find(i => i.id === row.itemId);
+        if (!item) continue;
+
+        const placement = type === TransactionType.IN && row.shelf && row.section 
+          ? formatPlacement(row.shelf, row.section) 
+          : formatPlacement(item.shelves, item.sections);
+
+        // 1. Create Transaction
+        await API.transactions.create({
+          itemId: item.id,
+          itemName: item.name,
+          type: type,
+          quantity: row.qty,
+          branchId: data.branchId,
+          personnel: data.personnel,
+          originOrSource: data.source,
+          placementInfo: placement,
+          notes: data.notes + " (Bulk Action)",
+          status: TransactionStatus.APPROVED,
+          requestedBy: user.id
+        });
+
+        // 2. Update Item Quantity
+        const newQty = type === TransactionType.IN ? item.quantity + row.qty : item.quantity - row.qty;
+        await API.items.save({
+          ...item,
+          quantity: newQty,
+          shelves: row.shelf || item.shelves,
+          sections: row.section || item.sections,
+          branchId: data.branchId
+        });
+      }
+      setIsBulkModalOpen(false);
+      refreshAllData();
+      alert("Bulk transaction si guul leh ayaa loo qabtay! ✅");
+    } catch (err) {
+      console.error(err);
+      alert("Cilad ayaa dhacday intii bulk entry-ga la samaynayay.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleTransfer = async (data: any) => {
     if (!transferModal) return;
     const item = transferModal;
@@ -177,12 +227,12 @@ const App: React.FC = () => {
   return (
     <Layout activeTab={activeTab} setActiveTab={setActiveTab} user={user} onLogout={() => setUser(null)} systemName={settings.systemName} lowStockCount={lowStockCount} pendingApprovalsCount={pendingApprovalsCount}>
       {isLoading && activeTab !== 'chat' && (
-        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 bg-indigo-600 text-white px-6 py-2 rounded-full text-xs font-black animate-bounce shadow-xl">
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[30000] bg-indigo-600 text-white px-6 py-2 rounded-full text-xs font-black animate-bounce shadow-xl">
           Cusboonaysiinaya Xogta...
         </div>
       )}
       {activeTab === 'dashboard' && <Dashboard items={items} transactions={transactions} insights={insights} settings={settings} />}
-      {activeTab === 'inventory' && <InventoryList items={items} branches={branches} onAdd={() => setIsItemFormOpen(true)} onImport={() => setIsImportModalOpen(true)} onEdit={(item) => { setEditingItem(item); setIsItemFormOpen(true); }} onTransaction={(item, type) => { if (type === 'TRANSFER') setTransferModal(item); else setAdjustmentModal({ item, type: type as any }); }} />}
+      {activeTab === 'inventory' && <InventoryList items={items} branches={branches} onAdd={() => setIsItemFormOpen(true)} onImport={() => setIsImportModalOpen(true)} onBulkAction={() => setIsBulkModalOpen(true)} onEdit={(item) => { setEditingItem(item); setIsItemFormOpen(true); }} onTransaction={(item, type) => { if (type === 'TRANSFER') setTransferModal(item); else setAdjustmentModal({ item, type: type as any }); }} />}
       {activeTab === 'chat' && <AIChat items={items} transactions={transactions} onDataChange={refreshAllData} />}
       {activeTab === 'map' && <WarehouseMap items={items} branches={branches} />}
       {activeTab === 'transactions' && <TransactionHistory transactions={transactions} branches={branches} />}
@@ -191,11 +241,13 @@ const App: React.FC = () => {
       {activeTab === 'branches' && <BranchList branches={branches} onAdd={() => { setIsBranchFormOpen(true); setEditingBranch(null); }} onEdit={(branch) => { setEditingBranch(branch); setIsBranchFormOpen(true); }} onDelete={async (id) => { refreshAllData(); }} />}
       {activeTab === 'users' && <UserManagement users={users} onAdd={handleAddUser} onSwitchUser={(u) => { setUser(u); setActiveTab('dashboard'); }} />}
       {activeTab === 'settings' && <Settings settings={settings} onSave={handleSaveSettings} onResetData={() => { localStorage.clear(); window.location.reload(); }} />}
+      
       {isItemFormOpen && <InventoryForm branches={branches} editingItem={editingItem} onSave={handleSaveItem} onCancel={() => { setIsItemFormOpen(false); setEditingItem(null); }} />}
       {adjustmentModal && <StockAdjustmentModal item={adjustmentModal.item} branches={branches} type={adjustmentModal.type} onSave={handleStockAdjustment} onCancel={() => setAdjustmentModal(null)} />}
       {transferModal && <TransferModal item={transferModal} branches={branches} onTransfer={handleTransfer} onCancel={() => setTransferModal(null)} />}
       {receipt && <TransactionReceipt transaction={receipt} item={items.find(i => i.id === receipt.itemId)} branch={branches.find(b => b.id === receipt.branchId)} issuedBy={user.name} onClose={() => setReceipt(null)} />}
       {isImportModalOpen && <ImportModal branches={branches} onImport={async (newItems) => { await API.items.updateBulk(newItems); setIsImportModalOpen(false); refreshAllData(); }} onCancel={() => setIsImportModalOpen(false)} />}
+      {isBulkModalOpen && <BulkTransactionModal items={items} branches={branches} onSave={handleBulkAction} onCancel={() => setIsBulkModalOpen(false)} />}
       {isScannerOpen && <ScannerModal onScan={(code) => { setIsScannerOpen(false); }} onCancel={() => setIsScannerOpen(false)} />}
       {isBranchFormOpen && <BranchForm editingBranch={editingBranch} onSave={async (branchData) => { await API.branches.save(branchData); setIsBranchFormOpen(false); refreshAllData(); }} onCancel={() => setIsBranchFormOpen(false)} />}
     </Layout>
