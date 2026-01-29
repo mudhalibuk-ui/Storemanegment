@@ -45,7 +45,6 @@ export const API = {
       const local = localStorage.getItem(STORAGE_KEYS.USERS);
       const localUsers = local ? JSON.parse(local) : [];
       
-      // Isku dar labada (Cloud priority)
       const merged = [...cloudUsers];
       localUsers.forEach((lu: any) => {
         if (!merged.find(cu => cu.username === lu.username)) {
@@ -53,7 +52,6 @@ export const API = {
         }
       });
 
-      // Default Admin if empty
       if (merged.length === 0) {
         merged.push({ id: 'u1', name: 'Super Admin', username: 'admin', password: 'password', role: 'ADMIN' as any, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin' });
       }
@@ -69,7 +67,6 @@ export const API = {
 
       if (isDbConnected()) {
         try {
-          // Hubi haddii uu jiro mar hore (Update) ama uu cusub yahay (Insert)
           await supabaseFetch('users_registry', {
             method: 'POST',
             body: JSON.stringify(newUser),
@@ -78,13 +75,11 @@ export const API = {
               'Content-Type': 'application/json'
             }
           });
-          console.log("Cloud User Saved Successfully");
         } catch (e) { 
           console.error("Cloud User Save Failed:", e); 
         }
       }
 
-      // Sync LocalStorage
       const local = localStorage.getItem(STORAGE_KEYS.USERS);
       const localUsers = local ? JSON.parse(local) : [];
       const updated = [...localUsers.filter((u: any) => u.username !== newUser.username), newUser];
@@ -186,6 +181,24 @@ export const API = {
           headers: { 'Prefer': 'resolution=merge-duplicates' },
           body: JSON.stringify(mapped)
         });
+      }
+    },
+    async deleteAll(): Promise<void> {
+      // 1. Tirtir Local Storage
+      localStorage.setItem(STORAGE_KEYS.ITEMS, JSON.stringify([]));
+      
+      // 2. Tirtir Cloud Storage (Haddii uu ku xiran yahay)
+      if (isDbConnected()) {
+        try {
+          // MUHIIM: Supabase wuxuu u baahan yahay shuruud (Filter) si uu u tirtiro dhamaan xogta.
+          // Waxaan u sheegaynaa inuu tirtiro xariiq kasta oo ID leh.
+          await supabaseFetch('inventory_items?id=not.is.null', {
+            method: 'DELETE'
+          });
+          console.log("Cloud items deleted successfully.");
+        } catch (e) {
+          console.error("Cloud delete all failed", e);
+        }
       }
     }
   },
