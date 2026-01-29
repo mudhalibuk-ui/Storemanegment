@@ -184,22 +184,26 @@ export const API = {
       }
     },
     async deleteAll(): Promise<void> {
-      // 1. Tirtir Local Storage
-      localStorage.setItem(STORAGE_KEYS.ITEMS, JSON.stringify([]));
-      
-      // 2. Tirtir Cloud Storage (Haddii uu ku xiran yahay)
+      // 1. Tirtir Cloud (Supabase) - Adigoo isticmaalaya filter adag
       if (isDbConnected()) {
         try {
-          // MUHIIM: Supabase wuxuu u baahan yahay shuruud (Filter) si uu u tirtiro dhamaan xogta.
-          // Waxaan u sheegaynaa inuu tirtiro xariiq kasta oo ID leh.
-          await supabaseFetch('inventory_items?id=not.is.null', {
+          await supabaseFetch('inventory_items?id=neq.0', {
             method: 'DELETE'
           });
-          console.log("Cloud items deleted successfully.");
+          // Sidoo kale tirtir transactions-ka si stock-ga iyo dhaqdhaqaaqu u wada masaxmaan
+          await supabaseFetch('transactions?id=neq.0', {
+            method: 'DELETE'
+          });
         } catch (e) {
-          console.error("Cloud delete all failed", e);
+          console.error("Cloud delete failed:", e);
         }
       }
+      
+      // 2. Tirtir Local Storage
+      localStorage.removeItem(STORAGE_KEYS.ITEMS);
+      localStorage.removeItem(STORAGE_KEYS.TRANSACTIONS);
+      localStorage.setItem(STORAGE_KEYS.ITEMS, JSON.stringify([]));
+      localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify([]));
     }
   },
 
