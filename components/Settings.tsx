@@ -1,28 +1,50 @@
 
 import React, { useState } from 'react';
-import { SystemSettings } from '../types';
+import { SystemSettings, InventoryItem, Branch } from '../types';
 import { isDbConnected, supabaseFetch } from '../services/supabaseClient';
 import { API } from '../services/api';
+import * as XLSX from 'xlsx';
 
 interface SettingsProps {
   settings: SystemSettings;
   onSave: (settings: SystemSettings) => void;
   onResetData: () => void;
+  items: InventoryItem[];
+  branches: Branch[];
 }
 
-const Settings: React.FC<SettingsProps> = ({ settings, onSave, onResetData }) => {
+const Settings: React.FC<SettingsProps> = ({ settings, onSave, onResetData, items, branches }) => {
   const [localSettings, setLocalSettings] = useState<SystemSettings>(settings);
   const [testResult, setTestResult] = useState<{status: 'idle' | 'testing' | 'success' | 'fail', msg: string}>({ status: 'idle', msg: '' });
   const [isDeleting, setIsDeleting] = useState(false);
   
   const dbStatus = isDbConnected();
 
+  const handleExportExcel = () => {
+    const exportData = items.map(item => ({
+      'Magaca': item.name,
+      'SKU': item.sku,
+      'Nooca (Category)': item.category,
+      'Tirada (Qty)': item.quantity,
+      'Iskafalo (Shelf)': item.shelves,
+      'Godka (Section)': item.sections,
+      'Bakhaarka': branches.find(b => b.id === item.branchId)?.name || item.branchId,
+      'Halis (Min)': item.minThreshold,
+      'Cusboonaysiintii U Dambaysay': new Date(item.lastUpdated).toLocaleString()
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Inventory_Backup");
+    XLSX.writeFile(wb, `SmartStock_Backup_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
   const handleClearAllInventory = async () => {
-    if (confirm("DIGNIIN: Ma hubtaa inaad rabto inaad tirtirto DHAMAAN STOCK-GA (700+ items)? Tani lagama soo kaban karo!")) {
+    if (confirm("DIGNIIN: Ma hubtaa inaad rabto inaad tirtirto DHAMAAN STOCK-GA? Tani lagama soo kaban karo!")) {
       setIsDeleting(true);
       try {
         await API.items.deleteAll();
-        alert("DHAMAAN STOCK-GII WAA LA TIRTIRAY! ✅\nSystem-ka hadda waa faaruq.");
+        alert("DHAMAAN STOCK-GII WAA LA TIRTIRAY! ✅");
         window.location.reload();
       } catch (err) {
         alert("Cilad ayaa dhacday intii tirtirista lagu jiray.");
@@ -67,9 +89,27 @@ const Settings: React.FC<SettingsProps> = ({ settings, onSave, onResetData }) =>
       <div className="bg-white rounded-[3rem] shadow-sm border border-slate-200 overflow-hidden p-10 space-y-12">
         <h2 className="text-3xl font-black text-slate-800 tracking-tighter">System Configuration</h2>
 
+        {/* Backup & Export Section */}
+        <section className="space-y-6">
+          <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Backup & Recovery</h3>
+          <div className="p-8 bg-indigo-50 border border-indigo-100 rounded-[2.5rem] flex flex-col md:flex-row items-center gap-6">
+             <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-2xl shadow-sm">📥</div>
+             <div className="flex-1 text-center md:text-left">
+               <h4 className="text-indigo-900 font-black text-lg">Excel Backup</h4>
+               <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-widest">Soo degso dhamaan xogta stock-ga adoo u bedelaya Excel file.</p>
+             </div>
+             <button 
+              onClick={handleExportExcel}
+              className="w-full md:w-auto px-10 py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-100 uppercase text-[10px] tracking-widest active:scale-95 transition-all"
+             >
+               BACKUP HADA (EXCEL) 📄
+             </button>
+          </div>
+        </section>
+
         {/* Data Management Section */}
         <section className="space-y-6">
-          <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Data Management</h3>
+          <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Danger Zone</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
              <div className="p-6 bg-rose-50 border border-rose-100 rounded-[2rem] flex flex-col gap-4">
                 <div>

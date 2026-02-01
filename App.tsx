@@ -240,7 +240,7 @@ const App: React.FC = () => {
       {activeTab === 'approvals' && <ApprovalQueue transactions={transactions} onApprove={async (t) => { await API.transactions.updateStatus(t.id, TransactionStatus.APPROVED, user.id); refreshAllData(); }} onReject={async (id) => { await API.transactions.updateStatus(id, TransactionStatus.REJECTED, user.id); refreshAllData(); }} />}
       {activeTab === 'branches' && <BranchList branches={branches} onAdd={() => { setIsBranchFormOpen(true); setEditingBranch(null); }} onEdit={(branch) => { setEditingBranch(branch); setIsBranchFormOpen(true); }} onDelete={async (id) => { refreshAllData(); }} />}
       {activeTab === 'users' && <UserManagement users={users} onAdd={handleAddUser} onSwitchUser={(u) => { setUser(u); setActiveTab('dashboard'); }} />}
-      {activeTab === 'settings' && <Settings settings={settings} onSave={handleSaveSettings} onResetData={() => { localStorage.clear(); window.location.reload(); }} />}
+      {activeTab === 'settings' && <Settings settings={settings} onSave={handleSaveSettings} onResetData={() => { localStorage.clear(); window.location.reload(); }} items={items} branches={branches} />}
       
       {isItemFormOpen && <InventoryForm branches={branches} editingItem={editingItem} onSave={handleSaveItem} onCancel={() => { setIsItemFormOpen(false); setEditingItem(null); }} />}
       {adjustmentModal && <StockAdjustmentModal item={adjustmentModal.item} branches={branches} type={adjustmentModal.type} onSave={handleStockAdjustment} onCancel={() => setAdjustmentModal(null)} />}
