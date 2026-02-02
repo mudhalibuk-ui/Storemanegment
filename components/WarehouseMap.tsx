@@ -18,6 +18,16 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({ items, branches }) => {
 
   if (!selectedBranch) return <div className="p-10 text-center">Fadlan dooro Branch.</div>;
 
+  // Calculate shelves that contain matching items if search is active
+  const matchingItems = mapSearch 
+    ? branchItems.filter(i => 
+        i.name.toLowerCase().includes(mapSearch.toLowerCase()) || 
+        i.sku.toLowerCase().includes(mapSearch.toLowerCase())
+      )
+    : [];
+
+  const matchingShelves = new Set(matchingItems.map(i => i.shelves));
+
   let totalSlots = 0;
   for (let s = 1; s <= selectedBranch.totalShelves; s++) {
     totalSlots += selectedBranch.customSections?.[s] || selectedBranch.totalSections;
@@ -82,15 +92,21 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({ items, branches }) => {
       </div>
 
       {/* Visual Grid */}
-      <div className="bg-white p-6 md:p-10 rounded-[3rem] shadow-xl border border-slate-100 overflow-x-auto no-scrollbar">
+      <div className="bg-white p-6 md:p-10 rounded-[3rem] shadow-xl border border-slate-100 overflow-x-auto no-scrollbar min-h-[400px]">
          <div className="flex flex-col gap-8 min-w-[800px]">
             {Array.from({ length: selectedBranch.totalShelves }).map((_, sIdx) => {
               const shelfNum = sIdx + 1;
+              
+              // If search is active, hide shelves that don't contain matching items
+              if (mapSearch.trim() && !matchingShelves.has(shelfNum)) {
+                return null;
+              }
+
               const shelfLetter = numberToLetter(shelfNum);
               const shelfSectionCount = selectedBranch.customSections?.[shelfNum] || selectedBranch.totalSections;
               
               return (
-                <div key={shelfNum} className="flex items-start gap-4">
+                <div key={shelfNum} className="flex items-start gap-4 animate-in fade-in slide-in-from-left-4 duration-300">
                    <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg shrink-0">
                       {shelfLetter}
                    </div>
@@ -100,7 +116,10 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({ items, branches }) => {
                         const secNum = secIdx + 1;
                         const itemsInSlot = branchItems.filter(i => i.shelves === shelfNum && i.sections === secNum);
                         const isOccupied = itemsInSlot.length > 0;
-                        const isHighlighted = mapSearch && itemsInSlot.some(i => i.name.toLowerCase().includes(mapSearch.toLowerCase()) || i.sku.toLowerCase().includes(mapSearch.toLowerCase()));
+                        const isHighlighted = mapSearch.trim() && itemsInSlot.some(i => 
+                          i.name.toLowerCase().includes(mapSearch.toLowerCase()) || 
+                          i.sku.toLowerCase().includes(mapSearch.toLowerCase())
+                        );
 
                         return (
                           <button 
@@ -108,7 +127,7 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({ items, branches }) => {
                             onClick={() => handleSlotClick(shelfNum, secNum)}
                             className={`relative h-20 rounded-2xl border-2 transition-all flex flex-col items-center justify-center hover:scale-105 active:scale-95 ${
                               isHighlighted
-                                ? 'bg-indigo-600 border-indigo-400 shadow-indigo-200' 
+                                ? 'bg-indigo-600 border-indigo-400 shadow-indigo-200 ring-4 ring-indigo-500/20 z-10' 
                                 : isOccupied 
                                     ? 'bg-rose-50 border-rose-200' 
                                     : 'bg-emerald-50 border-emerald-100'
@@ -137,6 +156,15 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({ items, branches }) => {
                 </div>
               );
             })}
+            
+            {/* Message if search yields no results */}
+            {mapSearch.trim() && matchingShelves.size === 0 && (
+              <div className="py-20 text-center flex flex-col items-center justify-center animate-in zoom-in">
+                 <div className="text-6xl mb-6 opacity-20">🔍</div>
+                 <h4 className="text-xl font-black text-slate-400 uppercase tracking-widest">Alaabta lama helin</h4>
+                 <p className="text-sm text-slate-300 font-bold mt-2 uppercase">Iska hubi magaca ama SKU-ga aad qortay</p>
+              </div>
+            )}
          </div>
       </div>
 
