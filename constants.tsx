@@ -1,12 +1,14 @@
 
 import { InventoryItem, Branch, TransactionType, Transaction, TransactionStatus } from './types';
 
+// Initial branches with required xarunId
 export const INITIAL_BRANCHES: Branch[] = [
-  { id: 'b1', name: 'Main Warehouse', location: 'Mogadishu', totalShelves: 50, totalSections: 20 },
-  { id: 'b2', name: 'North Branch', location: 'Hargeisa', totalShelves: 30, totalSections: 15 },
-  { id: 'b3', name: 'South Hub', location: 'Kismayo', totalShelves: 20, totalSections: 10 },
+  { id: 'b1', name: 'Main Warehouse', location: 'Mogadishu', totalShelves: 50, totalSections: 20, xarunId: 'x1' },
+  { id: 'b2', name: 'North Branch', location: 'Hargeisa', totalShelves: 30, totalSections: 15, xarunId: 'x1' },
+  { id: 'b3', name: 'South Hub', location: 'Kismayo', totalShelves: 20, totalSections: 10, xarunId: 'x1' },
 ];
 
+// Initial items with required xarunId
 export const INITIAL_ITEMS: InventoryItem[] = [
   {
     id: 'i1',
@@ -18,7 +20,8 @@ export const INITIAL_ITEMS: InventoryItem[] = [
     quantity: 12,
     branchId: 'b1',
     lastUpdated: new Date().toISOString(),
-    minThreshold: 5
+    minThreshold: 5,
+    xarunId: 'x1'
   },
   {
     id: 'i2',
@@ -30,7 +33,8 @@ export const INITIAL_ITEMS: InventoryItem[] = [
     quantity: 45,
     branchId: 'b1',
     lastUpdated: new Date().toISOString(),
-    minThreshold: 20
+    minThreshold: 20,
+    xarunId: 'x1'
   },
   {
     id: 'i3',
@@ -42,10 +46,12 @@ export const INITIAL_ITEMS: InventoryItem[] = [
     quantity: 4,
     branchId: 'b2',
     lastUpdated: new Date().toISOString(),
-    minThreshold: 10
+    minThreshold: 10,
+    xarunId: 'x1'
   }
 ];
 
+// Initial transactions with required xarunId
 export const INITIAL_TRANSACTIONS: Transaction[] = [
   {
     id: 't1',
@@ -56,8 +62,8 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     branchId: 'b1',
     timestamp: new Date().toISOString(),
     notes: 'Restock from supplier',
-    // Fix: Added missing required properties for Transaction type
     status: TransactionStatus.APPROVED,
-    requestedBy: 'u1'
+    requestedBy: 'u1',
+    xarunId: 'x1'
   }
 ];

@@ -12,7 +12,7 @@ interface BulkRow {
 interface BulkTransactionModalProps {
   items: InventoryItem[];
   branches: Branch[];
-  onSave: (type: TransactionType.IN | TransactionType.OUT, data: { items: BulkRow[]; notes: string; personnel: string; source: string; branchId: string }) => void;
+  onSave: (type: TransactionType.IN | TransactionType.OUT, data: { items: BulkRow[]; notes: string; personnel: string; source: string; branchId: string; date: string }) => void;
   onCancel: () => void;
 }
 
@@ -22,6 +22,7 @@ const BulkTransactionModal: React.FC<BulkTransactionModalProps> = ({ items, bran
   const [personnel, setPersonnel] = useState('');
   const [source, setSource] = useState('');
   const [notes, setNotes] = useState('');
+  const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0]);
   
   const [rows, setRows] = useState<BulkRow[]>(
     Array(3).fill(null).map(() => ({ itemId: '', qty: 1 }))
@@ -47,7 +48,14 @@ const BulkTransactionModal: React.FC<BulkTransactionModalProps> = ({ items, bran
       alert("Fadlan dooro ugu yaraan hal alaab oo tiri leh!");
       return;
     }
-    onSave(type, { items: validRows, notes, personnel, source, branchId: selectedBranchId });
+    onSave(type, { 
+      items: validRows, 
+      notes, 
+      personnel, 
+      source, 
+      branchId: selectedBranchId,
+      date: transactionDate
+    });
   };
 
   return (
@@ -78,21 +86,33 @@ const BulkTransactionModal: React.FC<BulkTransactionModalProps> = ({ items, bran
 
         {/* Scrollable Content */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5 no-scrollbar">
-          {/* Metadata Section - Compact Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Metadata Section - Date and Branch */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase px-1 tracking-widest">Taariikhda (Date)</label>
+              <input 
+                type="date" 
+                className="w-full p-3 rounded-xl border-2 border-slate-100 font-bold text-[11px] bg-white focus:border-indigo-500 outline-none" 
+                value={transactionDate} 
+                onChange={e => setTransactionDate(e.target.value)} 
+              />
+            </div>
             <div className="space-y-1">
               <label className="text-[9px] font-black text-slate-400 uppercase px-1 tracking-widest">Bakhaarka</label>
-              <select className="w-full p-3 rounded-xl border-2 border-slate-100 font-bold text-[11px] bg-slate-50 focus:border-indigo-500 outline-none" value={selectedBranchId} onChange={e => setSelectedBranchId(e.target.value)}>
+              <select className="w-full p-3 rounded-xl border-2 border-slate-100 font-bold text-[11px] bg-white focus:border-indigo-500 outline-none" value={selectedBranchId} onChange={e => setSelectedBranchId(e.target.value)}>
                 {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-[9px] font-black text-slate-400 uppercase px-1 tracking-widest">Operator</label>
-              <input required placeholder="Magaca" className="w-full p-3 rounded-xl border-2 border-slate-100 font-bold text-[11px] bg-slate-50 focus:border-indigo-500 outline-none" value={personnel} onChange={e => setPersonnel(e.target.value)} />
+              <input required placeholder="Magaca Qofka" className="w-full p-3 rounded-xl border-2 border-slate-100 font-bold text-[11px] bg-slate-50 focus:border-indigo-500 outline-none" value={personnel} onChange={e => setPersonnel(e.target.value)} />
             </div>
             <div className="space-y-1">
               <label className="text-[9px] font-black text-slate-400 uppercase px-1 tracking-widest">{type === 'IN' ? 'Laga keenay' : 'Loo diray'}</label>
-              <input required placeholder="Source/Dest" className="w-full p-3 rounded-xl border-2 border-slate-100 font-bold text-[11px] bg-slate-50 focus:border-indigo-500 outline-none" value={source} onChange={e => setSource(e.target.value)} />
+              <input required placeholder="Source/Destination" className="w-full p-3 rounded-xl border-2 border-slate-100 font-bold text-[11px] bg-slate-50 focus:border-indigo-500 outline-none" value={source} onChange={e => setSource(e.target.value)} />
             </div>
           </div>
 

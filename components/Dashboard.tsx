@@ -104,7 +104,7 @@ const Dashboard: React.FC<DashboardProps> = ({ items, transactions, insights, se
                 <th className="px-8 py-4">Item</th>
                 <th className="px-8 py-4">Action</th>
                 <th className="px-8 py-4 text-center">Qty</th>
-                <th className="px-8 py-4 text-right">Time</th>
+                <th className="px-8 py-4 text-right">Date & Time</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -119,7 +119,12 @@ const Dashboard: React.FC<DashboardProps> = ({ items, transactions, insights, se
                     </span>
                   </td>
                   <td className="px-8 py-4 text-center font-black text-slate-600">{t.quantity}</td>
-                  <td className="px-8 py-4 text-right text-[10px] font-black text-slate-300 uppercase">{new Date(t.timestamp).toLocaleTimeString()}</td>
+                  <td className="px-8 py-4 text-right">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black text-slate-800 uppercase leading-none">{new Date(t.timestamp).toLocaleDateString()}</span>
+                      <span className="text-[9px] font-bold text-slate-300 uppercase mt-1">{new Date(t.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -135,7 +140,7 @@ const Dashboard: React.FC<DashboardProps> = ({ items, transactions, insights, se
                   </div>
                   <div>
                      <p className="font-black text-slate-800 text-sm leading-none mb-1">{t.itemName}</p>
-                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{new Date(t.timestamp).toLocaleTimeString()} • {t.type}</p>
+                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{new Date(t.timestamp).toLocaleDateString()} • {new Date(t.timestamp).toLocaleTimeString()}</p>
                   </div>
                </div>
                <div className="text-right">

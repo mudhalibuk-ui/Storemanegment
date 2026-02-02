@@ -12,8 +12,15 @@ export enum TransactionStatus {
 }
 
 export enum UserRole {
-  ADMIN = 'ADMIN',
+  SUPER_ADMIN = 'SUPER_ADMIN',
+  MANAGER = 'MANAGER',
   STAFF = 'STAFF'
+}
+
+export interface Xarun {
+  id: string;
+  name: string;
+  location: string;
 }
 
 export interface User {
@@ -23,6 +30,7 @@ export interface User {
   password?: string;
   role: UserRole;
   avatar?: string;
+  xarunId?: string; 
 }
 
 export interface Branch {
@@ -30,17 +38,9 @@ export interface Branch {
   name: string;
   location: string;
   totalShelves: number; 
-  totalSections: number; // Tani waa default-ka haddii aan mid gaar ah loo qoondeyn
-  customSections?: Record<number, number>; // { [shelfNumber]: sectionCount }
-}
-
-export interface Supplier {
-  id: string;
-  name: string;
-  contactName: string;
-  email: string;
-  phone: string;
-  category: string;
+  totalSections: number; 
+  customSections?: Record<number, number>;
+  xarunId: string; 
 }
 
 export interface InventoryItem {
@@ -51,10 +51,10 @@ export interface InventoryItem {
   shelves: number; 
   sections: number; 
   quantity: number;
-  branchId: string;
+  branchId: string; 
   lastUpdated: string;
   minThreshold: number;
-  supplierId?: string;
+  xarunId: string; 
 }
 
 export interface Transaction {
@@ -73,6 +73,16 @@ export interface Transaction {
   status: TransactionStatus; 
   requestedBy: string;      
   approvedBy?: string;     
+  xarunId: string;
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  category: string;
 }
 
 export interface SystemSettings {

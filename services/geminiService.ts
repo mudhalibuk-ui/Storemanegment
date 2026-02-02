@@ -2,7 +2,8 @@
 import { GoogleGenAI, Type, FunctionDeclaration } from "@google/genai";
 import { InventoryItem, Transaction, TransactionType } from "../types";
 
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+// Always initialize the client using the apiKey named parameter from process.env.API_KEY.
+const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const controlTools: FunctionDeclaration[] = [
   {
@@ -61,6 +62,7 @@ export const chatWithInventory = async (message: string, items: InventoryItem[],
   `;
 
   try {
+    // Correctly call generateContent with model name and contents.
     const response = await ai.models.generateContent({
       model,
       contents: message,
@@ -86,6 +88,7 @@ export const getInventoryInsights = async (items: InventoryItem[], transactions:
       contents: prompt,
       config: { responseMimeType: "application/json" }
     });
+    // Access the extracted string output directly via the .text property.
     return JSON.parse(response.text || "[]");
   } catch (e) { 
     return ["Falanqaynta xogta hadda lama heli karo.", "Hubi in stock-gu uu yahay mid sax ah.", "Codso caawinaad AI haddii loo baahdo."]; 
@@ -99,6 +102,7 @@ export const generateReportSummary = async (filteredTransactions: Transaction[],
       model: 'gemini-3-flash-preview',
       contents: `Provide a professional management summary in Somali for these transactions: ${JSON.stringify(filteredTransactions.slice(0,15))}`
     });
+    // Access the extracted string output directly via the .text property.
     return response.text;
   } catch (e) { return "Cilad ayaa dhacday soo saarista warbixinta."; }
 };

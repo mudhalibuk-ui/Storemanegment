@@ -43,7 +43,7 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, b
                 <th className="px-10 py-6">Qty</th>
                 <th className="px-10 py-6">From/To</th>
                 <th className="px-10 py-6">Personnel</th>
-                <th className="px-10 py-6 text-right">Date & Time</th>
+                <th className="px-10 py-6 text-right">Taariikhda (Date)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -75,8 +75,10 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, b
                   </td>
                   <td className="px-10 py-5 text-xs font-black text-slate-400 uppercase">{t.personnel || 'System'}</td>
                   <td className="px-10 py-5 text-right">
-                    <p className="text-xs font-bold text-slate-700">{new Date(t.timestamp).toLocaleDateString()}</p>
-                    <p className="text-[9px] text-slate-400 font-medium uppercase">{new Date(t.timestamp).toLocaleTimeString()}</p>
+                    <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 inline-block">
+                        <p className="text-xs font-black text-slate-800 leading-none">{new Date(t.timestamp).toLocaleDateString()}</p>
+                        <p className="text-[9px] text-indigo-400 font-black uppercase tracking-widest mt-1">{new Date(t.timestamp).toLocaleTimeString()}</p>
+                    </div>
                   </td>
                 </tr>
               ))}

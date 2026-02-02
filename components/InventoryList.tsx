@@ -57,9 +57,7 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
 
   return (
     <div className="space-y-4 md:space-y-6">
-      {/* Top Controls Container */}
       <div className="bg-white p-4 md:p-6 rounded-[1.5rem] md:rounded-[2rem] shadow-sm border border-slate-200 space-y-4">
-        {/* Search and Scanner Row */}
         <div className="flex items-center gap-2">
           <div className="flex-1 relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300">🔍</span>
@@ -79,11 +77,10 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
           </button>
         </div>
 
-        {/* Action Buttons Row - Highly Visible on Mobile */}
         <div className="grid grid-cols-2 md:flex md:flex-wrap items-center gap-2">
           <button 
-            onClick={onBulkAction}
-            className="col-span-2 bg-indigo-600 text-white p-4 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 active:scale-95 transition-all"
+            onClick={(e) => { e.preventDefault(); onBulkAction(); }}
+            className="col-span-2 bg-indigo-600 text-white p-4 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer z-10"
           >
             🚀 BULK ACTION (Multi-Entry)
           </button>
@@ -121,7 +118,6 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
         </div>
       </div>
 
-      {/* List Display (Desktop) */}
       <div className="hidden md:block bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto no-scrollbar">
           <table className="w-full text-left border-collapse">
@@ -130,6 +126,7 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
                 <th className="px-8 py-6">Product</th>
                 <th className="px-8 py-6">Placement</th>
                 <th className="px-8 py-6">Qty</th>
+                <th className="px-8 py-6">Updated</th>
                 <th className="px-8 py-6 text-center">Controls</th>
                 <th className="px-8 py-6 text-right">Label</th>
               </tr>
@@ -154,10 +151,13 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
                       <span className={`text-2xl font-black ${isLow ? 'text-rose-600' : 'text-slate-900'}`}>{item.quantity}</span>
                     </td>
                     <td className="px-8 py-6">
+                       <span className="text-[9px] font-black text-slate-400 uppercase">{new Date(item.lastUpdated).toLocaleDateString()}</span>
+                    </td>
+                    <td className="px-8 py-6">
                       <div className="flex items-center justify-center gap-2">
                         <button onClick={() => onTransaction(item, 'IN')} className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-90" title="Stock In">📥</button>
                         <button onClick={() => onTransaction(item, 'OUT')} className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all shadow-sm active:scale-90" title="Stock Out">📤</button>
-                        <button onClick={() => onEdit(item)} className="w-10 h-10 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-90" title="Edit">⚙️</button>
+                        <button onClick={() => onEdit(item)} className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-90" title="Edit Item Info">📝</button>
                       </div>
                     </td>
                     <td className="px-8 py-6 text-right">
@@ -171,7 +171,6 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
         </div>
       </div>
 
-      {/* List Display (Mobile Card View) */}
       <div className="md:hidden space-y-3">
         {filteredItems.map((item) => (
           <div key={item.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col gap-4">
@@ -182,6 +181,7 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.sku}</p>
                       <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-2 rounded">{formatPlacement(item.shelves, item.sections)}</span>
                    </div>
+                   <p className="text-[8px] font-black text-slate-300 uppercase mt-2">Updated: {new Date(item.lastUpdated).toLocaleDateString()}</p>
                 </div>
                 <div className={`px-4 py-2 rounded-xl text-center ${item.quantity <= item.minThreshold ? 'bg-rose-50 border border-rose-100' : 'bg-slate-50 border border-slate-100'}`}>
                    <p className="text-xl font-black">{item.quantity}</p>
@@ -189,9 +189,9 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
                 </div>
              </div>
              <div className="flex gap-2">
-                <button onClick={() => onTransaction(item, 'IN')} className="flex-1 py-3 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest">Stock In</button>
-                <button onClick={() => onTransaction(item, 'OUT')} className="flex-1 py-3 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest">Stock Out</button>
-                <button onClick={() => onEdit(item)} className="p-3 bg-slate-100 rounded-xl text-lg">⚙️</button>
+                <button onClick={() => onTransaction(item, 'IN')} className="flex-1 py-3 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest">In</button>
+                <button onClick={() => onTransaction(item, 'OUT')} className="flex-1 py-3 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest">Out</button>
+                <button onClick={() => onEdit(item)} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest">Bedel</button>
              </div>
           </div>
         ))}

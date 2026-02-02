@@ -34,7 +34,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           id: 'u1', 
           name: 'Super Admin', 
           username: 'admin', 
-          role: UserRole.ADMIN, 
+          // Fix: UserRole.ADMIN does not exist, using UserRole.SUPER_ADMIN instead
+          role: UserRole.SUPER_ADMIN, 
           avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin' 
         };
         onLogin(adminUser);
