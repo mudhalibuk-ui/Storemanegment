@@ -20,78 +20,97 @@ const Layout: React.FC<LayoutProps> = ({
   const isCloud = isDbConnected();
   
   const tabs = [
-    { id: 'dashboard', label: 'Dashboard', icon: '📊', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF] },
-    { id: 'inventory', label: 'Stock-ga', icon: '📦', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF] },
-    { id: 'approvals', label: 'Ogolaanshaha', icon: '🛡️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], badge: pendingApprovalsCount },
-    { id: 'transactions', label: 'Dhaqdhaqaaqa', icon: '🔄', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF] },
-    { id: 'map', label: 'Khariidadda', icon: '🗺️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF] },
-    { id: 'reports', label: 'Warbixin', icon: '📄', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
-    { id: 'users', label: 'Admin Users', icon: '🔐', roles: [UserRole.SUPER_ADMIN] },
-    { id: 'xarumo', label: 'Xarumaha', icon: '📍', roles: [UserRole.SUPER_ADMIN] },
-    { id: 'bakhaarada', label: 'Bakhaarada', icon: '🏢', roles: [UserRole.SUPER_ADMIN] },
-    { id: 'settings', label: 'Settings', icon: '⚙️', roles: [UserRole.SUPER_ADMIN] },
-  ].filter(tab => tab.roles.includes(user.role));
+    { section: 'MAIN', items: [
+      { id: 'dashboard', label: 'Dashboard', icon: '📊', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF] },
+      { id: 'inventory', label: 'Stock-ga', icon: '📦', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF] },
+      { id: 'transactions', label: 'Dhaqdhaqaaqa', icon: '🔄', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF] },
+      { id: 'approvals', label: 'Ogolaanshaha', icon: '🛡️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], badge: pendingApprovalsCount },
+    ]},
+    { section: 'HRM', items: [
+      { id: 'hr-staff', label: 'Shaqaalaha', icon: '👥', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
+      { id: 'hr-attendance', label: 'Iimaanshaha', icon: '☝️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
+      { id: 'hr-payroll', label: 'Mushaharka', icon: '💰', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
+    ]},
+    { section: 'LOGISTICS', items: [
+      { id: 'map', label: 'Khariidadda', icon: '🗺️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF] },
+      { id: 'reports', label: 'Warbixin', icon: '📄', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
+      { id: 'xarumo', label: 'Xarumaha', icon: '📍', roles: [UserRole.SUPER_ADMIN] },
+      { id: 'bakhaarada', label: 'Bakhaarada', icon: '🏢', roles: [UserRole.SUPER_ADMIN] },
+    ]},
+    { section: 'SYSTEM', items: [
+      { id: 'users', label: 'Admin Users', icon: '🔐', roles: [UserRole.SUPER_ADMIN] },
+      { id: 'settings', label: 'Settings', icon: '⚙️', roles: [UserRole.SUPER_ADMIN] },
+    ]}
+  ];
 
   return (
     <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-slate-50 text-slate-900">
-      <aside className="hidden md:flex flex-col w-72 bg-slate-900 text-white p-8 shadow-2xl z-20 shrink-0 print:hidden">
-        <div className="flex items-center gap-4 mb-12">
-          <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-2xl font-black shadow-lg">S</div>
+      <aside className="hidden md:flex flex-col w-64 bg-slate-900 text-white p-6 shadow-2xl z-20 shrink-0 print:hidden">
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-xl font-black">S</div>
           <div>
-            <h2 className="text-xl font-black tracking-tight">{systemName}</h2>
-            <p className="text-indigo-400 text-[10px] font-black uppercase tracking-widest">Stock Management</p>
+            <h2 className="text-lg font-black tracking-tight">{systemName}</h2>
+            <p className="text-indigo-400 text-[8px] font-black uppercase tracking-widest">Enterprise Suite</p>
           </div>
         </div>
 
-        <nav className="flex-1 space-y-2 overflow-y-auto no-scrollbar">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${
-                activeTab === tab.id ? 'bg-indigo-600 shadow-xl' : 'hover:bg-slate-800 text-slate-400'
-              }`}
-            >
-              <div className="flex items-center gap-4">
-                <span className="text-xl">{tab.icon}</span>
-                <span className="font-bold text-sm tracking-tight">{tab.label}</span>
+        <nav className="flex-1 space-y-6 overflow-y-auto no-scrollbar">
+          {tabs.map((section) => {
+            const visibleItems = section.items.filter(item => item.roles.includes(user.role));
+            if (visibleItems.length === 0) return null;
+            
+            return (
+              <div key={section.section} className="space-y-1">
+                <p className="px-4 text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2">{section.section}</p>
+                {visibleItems.map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
+                      activeTab === tab.id ? 'bg-indigo-600 shadow-lg text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg">{tab.icon}</span>
+                      <span className="font-bold text-xs tracking-tight">{tab.label}</span>
+                    </div>
+                    {tab.badge && tab.badge > 0 && (
+                      <span className="bg-rose-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full">{tab.badge}</span>
+                    )}
+                  </button>
+                ))}
               </div>
-              {tab.badge && tab.badge > 0 && (
-                <span className="bg-rose-500 text-white text-[8px] font-black px-2 py-0.5 rounded-full">{tab.badge}</span>
-              )}
-            </button>
-          ))}
+            );
+          })}
         </nav>
 
-        <div className="mt-auto pt-8 border-t border-slate-800">
-          <button onClick={onLogout} className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-slate-400 hover:text-white transition-all group">
-             <div className="w-10 h-10 rounded-xl overflow-hidden border-2 border-slate-700 group-hover:border-indigo-500">
+        <div className="mt-auto pt-6 border-t border-slate-800">
+          <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white transition-all group">
+             <div className="w-8 h-8 rounded-lg overflow-hidden border border-slate-700">
                <img src={user.avatar} alt="User" />
              </div>
              <div className="text-left">
-               <p className="text-xs font-black truncate max-w-[120px]">{user.name}</p>
-               <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">
-                  {user.role}
-               </p>
+               <p className="text-[10px] font-black truncate max-w-[100px]">{user.name}</p>
+               <p className="text-[8px] font-bold text-indigo-400 uppercase">{user.role}</p>
              </div>
           </button>
         </div>
       </aside>
 
       <main className="flex-1 flex flex-col overflow-hidden relative">
-        <header className="bg-white/80 backdrop-blur-xl border-b border-slate-100 h-20 md:h-24 flex items-center justify-between px-6 md:px-10 shrink-0 z-30 print:hidden">
-          <h1 className="text-xl md:text-3xl font-black text-slate-800 tracking-tighter uppercase">{activeTab}</h1>
+        <header className="bg-white border-b border-slate-100 h-16 md:h-20 flex items-center justify-between px-6 md:px-10 shrink-0 z-30 print:hidden">
+          <h1 className="text-lg md:text-xl font-black text-slate-800 tracking-tighter uppercase">{activeTab.replace('hr-', 'HR ')}</h1>
           <div className="flex items-center gap-4">
-             <div className={`hidden sm:flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-sm ${isCloud ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
-                {isCloud ? 'Cloud Sync' : 'Local Mode'}
+             <div className={`hidden sm:flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${isCloud ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                {isCloud ? 'Connected' : 'Offline'}
              </div>
-             <div className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-indigo-600 overflow-hidden shadow-xl border-2 border-white">
+             <div className="w-10 h-10 rounded-xl bg-indigo-600 overflow-hidden shadow-lg border-2 border-white">
                 <img src={user.avatar} alt="Profile" />
              </div>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-12 no-scrollbar print:p-0 print:overflow-visible">
+        <div className="flex-1 overflow-y-auto p-4 md:p-10 no-scrollbar">
           {children}
         </div>
       </main>

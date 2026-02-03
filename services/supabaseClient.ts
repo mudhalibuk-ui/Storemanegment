@@ -34,8 +34,16 @@ export const supabaseFetch = async (endpoint: string, options: RequestInit = {})
     }
     
     if (response.status === 204) return {};
-    const data = await response.json();
-    return data;
+    
+    const text = await response.text();
+    if (!text) return {};
+    
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      console.error('Failed to parse JSON response:', text);
+      return {};
+    }
   } catch (err) {
     console.error('Supabase Fetch/Network Error:', err);
     return null;

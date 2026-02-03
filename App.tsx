@@ -20,8 +20,15 @@ import TransferModal from './components/TransferModal';
 import TransactionReceipt from './components/TransactionReceipt';
 import BulkTransactionModal from './components/BulkTransactionModal';
 import ImportModal from './components/ImportModal';
+
+// HRM Components
+import HRMEmployeeManagement from './components/HRMEmployeeManagement';
+import HRMAttendanceTracker from './components/HRMAttendanceTracker';
+import HRMPayroll from './components/HRMPayroll';
+import HRMReports from './components/HRMReports';
+
 import { API } from './services/api';
-import { InventoryItem, Branch, Transaction, User, TransactionStatus, TransactionType, SystemSettings, UserRole, Xarun } from './types';
+import { InventoryItem, Branch, Transaction, User, TransactionStatus, TransactionType, SystemSettings, UserRole, Xarun, Employee, Attendance, Payroll } from './types';
 import { getInventoryInsights } from './services/geminiService';
 
 const App: React.FC = () => {
@@ -31,10 +38,13 @@ const App: React.FC = () => {
   const [xarumo, setXarumo] = useState<Xarun[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [attendance, setAttendance] = useState<Attendance[]>([]);
+  const [payrolls, setPayrolls] = useState<Payroll[]>([]);
+  
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(false);
   const [insights, setInsights] = useState<string[]>([]);
-  
   const [filterXarunId, setFilterXarunId] = useState<string | null>(null);
 
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
@@ -69,23 +79,31 @@ const App: React.FC = () => {
     const xarunIdFilter = user.role === UserRole.SUPER_ADMIN ? undefined : user.xarunId;
     
     try {
-      const fetchedXarumo = await API.xarumo.getAll();
-      setXarumo(fetchedXarumo);
-
-      const [fetchedItems, fetchedBranches, fetchedTransactions, fetchedUsers] = await Promise.all([
+      const [fXarumo, fItems, fBranches, fTransactions, fUsers, fEmployees, fPayrolls] = await Promise.all([
+        API.xarumo.getAll(),
         API.items.getAll(xarunIdFilter),
         API.branches.getAll(xarunIdFilter),
         API.transactions.getAll(xarunIdFilter),
-        API.users.getAll()
+        API.users.getAll(),
+        API.employees.getAll(xarunIdFilter),
+        API.payroll.getAll()
       ]);
 
-      setItems(fetchedItems);
-      setBranches(fetchedBranches);
-      setTransactions(fetchedTransactions);
-      setUsers(fetchedUsers);
+      setXarumo(fXarumo);
+      setItems(fItems || []);
+      setBranches(fBranches || []);
+      setTransactions(fTransactions || []);
+      setUsers(fUsers || []);
+      setEmployees(fEmployees || []);
+      setPayrolls(fPayrolls || []);
+
+      // Fetch attendance for today
+      const today = new Date().toISOString().split('T')[0];
+      const fAttendance = await API.attendance.getByDate(today);
+      setAttendance(fAttendance || []);
       
-      if (fetchedItems.length > 0) {
-        getInventoryInsights(fetchedItems, fetchedTransactions)
+      if (fItems && fItems.length > 0) {
+        getInventoryInsights(fItems, fTransactions || [])
           .then(setInsights)
           .catch(() => setInsights(["AI Insights lama heli karo hadda."]));
       }
@@ -100,65 +118,6 @@ const App: React.FC = () => {
     if (user) refreshAllData();
   }, [user, refreshAllData]);
 
-  const handleTransfer = async (data: { qty: number; targetBranchId: string; notes: string; personnel: string }) => {
-    if (!transferModalItem || !user) return;
-
-    const sourceItem = transferModalItem;
-    const targetBranch = branches.find(b => b.id === data.targetBranchId);
-    
-    if (!targetBranch) return;
-
-    // 1. Create Transfer Transaction
-    const transaction = await API.transactions.create({
-      itemId: sourceItem.id,
-      itemName: sourceItem.name,
-      type: TransactionType.TRANSFER,
-      quantity: data.qty,
-      branchId: sourceItem.branchId,
-      targetBranchId: data.targetBranchId,
-      notes: data.notes,
-      personnel: data.personnel,
-      status: TransactionStatus.APPROVED,
-      requestedBy: user.id,
-      xarunId: sourceItem.xarunId
-    });
-
-    // 2. Decrease Qty in Source
-    await API.items.save({
-      ...sourceItem,
-      quantity: sourceItem.quantity - data.qty
-    });
-
-    // 3. Update or Create Item in Target
-    // Find item with same SKU in target branch
-    const allItems = await API.items.getAll();
-    const targetItem = allItems.find(i => i.sku === sourceItem.sku && i.branchId === data.targetBranchId);
-
-    if (targetItem) {
-      await API.items.save({
-        ...targetItem,
-        quantity: targetItem.quantity + data.qty
-      });
-    } else {
-      await API.items.save({
-        name: sourceItem.name,
-        category: sourceItem.category,
-        sku: sourceItem.sku,
-        shelves: 1,
-        sections: 1,
-        quantity: data.qty,
-        branchId: data.targetBranchId,
-        minThreshold: sourceItem.minThreshold,
-        xarunId: sourceItem.xarunId,
-        id: `i-move-${Date.now()}`
-      });
-    }
-
-    setTransferModalItem(null);
-    setReceipt(transaction);
-    await refreshAllData();
-  };
-
   if (!user) return <Login onLogin={setUser} />;
 
   return (
@@ -167,23 +126,49 @@ const App: React.FC = () => {
       systemName={settings.systemName} lowStockCount={items.filter(i => i.quantity <= i.minThreshold).length} 
       pendingApprovalsCount={transactions.filter(t => t.status === TransactionStatus.PENDING).length}
     >
-      {activeTab === 'dashboard' && <Dashboard items={items} transactions={transactions} insights={insights} settings={settings} />}
+      {isLoading && (
+        <div className="fixed top-0 left-0 w-full h-1 bg-indigo-100 z-[99999]">
+          <div className="h-full bg-indigo-600 animate-[loading_2s_infinite_linear]" style={{width: '30%'}}></div>
+        </div>
+      )}
+      
+      {activeTab === 'dashboard' && <Dashboard items={items} transactions={transactions} insights={insights} branches={branches} settings={settings} />}
       {activeTab === 'inventory' && (
         <InventoryList 
-          items={items} branches={branches} onAdd={() => { setEditingItem(null); setIsItemFormOpen(true); }} 
-          onImport={() => setIsImportModalOpen(true)} onBulkAction={() => setIsBulkModalOpen(true)} 
+          items={items} branches={branches} 
+          onAdd={() => { setEditingItem(null); setIsItemFormOpen(true); }} 
+          onImport={() => setIsImportModalOpen(true)} 
+          onBulkAction={() => setIsBulkModalOpen(true)} 
           onEdit={(item) => { setEditingItem(item); setIsItemFormOpen(true); }} 
           onTransaction={(item, type) => { 
-            if (type === 'TRANSFER') {
-              setTransferModalItem(item);
-            } else {
-              setAdjustmentModal({ item, type: type as any }); 
-            }
+            if (type === 'TRANSFER') setTransferModalItem(item);
+            else setAdjustmentModal({ item, type: type as any }); 
           }} 
         />
       )}
-      {activeTab === 'map' && <WarehouseMap items={items} branches={branches} />}
       {activeTab === 'transactions' && <TransactionHistory transactions={transactions} branches={branches} />}
+      {activeTab === 'map' && <WarehouseMap items={items} branches={branches} />}
+      {activeTab === 'reports' && <AdvancedReports items={items} transactions={transactions} branches={branches} />}
+      
+      {/* HRM Section */}
+      {activeTab === 'hr-staff' && (
+        <HRMEmployeeManagement 
+          employees={employees} branches={branches} xarumo={xarumo} 
+          attendance={attendance} payrolls={payrolls} hardwareUrl={settings.hardwareAgentUrl}
+          onAdd={() => alert("Shaqaale cusub waxaa lagu daraa 'Xogta Guud' ee Settings ama HRM Form.")}
+          onEdit={(e) => alert("Edit is currently under construction for HRM.")}
+          onDelete={async (id) => { if(confirm('Ma hubtaa?')) { await API.employees.delete(id); refreshAllData(); } }}
+        />
+      )}
+      {activeTab === 'hr-attendance' && (
+        <HRMAttendanceTracker 
+          employees={employees} xarumo={xarumo} hardwareUrl={settings.hardwareAgentUrl}
+          zkIp={settings.zkDeviceIp} zkPort={settings.zkDevicePort}
+        />
+      )}
+      {activeTab === 'hr-payroll' && <HRMPayroll employees={employees} xarumo={xarumo} />}
+      
+      {/* System Section */}
       {activeTab === 'approvals' && (
         <ApprovalQueue 
           transactions={transactions} 
@@ -194,152 +179,170 @@ const App: React.FC = () => {
               await API.items.save({ ...item, quantity: newQty });
             }
             await API.transactions.create({ ...t, status: TransactionStatus.APPROVED, approvedBy: user.id }); 
-            await refreshAllData(); 
+            refreshAllData(); 
           }} 
-          onReject={async (id) => { await refreshAllData(); }} 
+          onReject={async () => refreshAllData()} 
         />
       )}
-      {activeTab === 'reports' && <AdvancedReports items={items} transactions={transactions} branches={branches} />}
       {activeTab === 'users' && <UserManagement users={users} xarumo={xarumo} onAdd={() => { setEditingUser(null); setIsUserFormOpen(true); }} onEdit={(u) => { setEditingUser(u); setIsUserFormOpen(true); }} onSwitchUser={setUser} />}
+      {activeTab === 'xarumo' && <XarunList xarumo={xarumo} onAdd={() => setIsXarunFormOpen(true)} onEdit={(x) => { setEditingXarun(x); setIsXarunFormOpen(true); }} onDelete={async (id) => { await API.xarumo.delete(id); refreshAllData(); }} onSelectXarun={id => { setFilterXarunId(id); setActiveTab('bakhaarada'); }} />}
       {activeTab === 'bakhaarada' && (
         <BakhaarList 
-          branches={branches} xarumo={xarumo} filterXarunId={filterXarunId} onClearFilter={() => setFilterXarunId(null)} 
-          onAdd={() => { 
-            if (xarumo.length === 0) {
-              alert("Fadlan marka hore Xarun abuur ka hor intaadan Bakhaar darin.");
-              setActiveTab('xarumo');
-              return;
-            }
-            setEditingBakhaar(null); 
-            setIsBakhaarFormOpen(true); 
-          }} 
-          onEdit={(b) => { setEditingBakhaar(b); setIsBakhaarFormOpen(true); }} 
-          onDelete={async (id) => { if(confirm('Ma hubtaa?')) { await API.branches.delete(id); await refreshAllData(); } }} 
+          branches={branches} xarumo={xarumo} filterXarunId={filterXarunId} 
+          onClearFilter={() => setFilterXarunId(null)} 
+          onAdd={() => setIsBakhaarFormOpen(true)} 
+          onEdit={(b) => { setEditingBakhaar(b); setIsBakhaarFormOpen(true); }}
+          onDelete={async (id) => { if(confirm('Ma hubtaa?')) { await API.branches.delete(id); refreshAllData(); } }}
         />
       )}
-      {activeTab === 'xarumo' && (
-        <XarunList 
-          xarumo={xarumo} onAdd={() => { setEditingXarun(null); setIsXarunFormOpen(true); }} 
-          onEdit={(x) => { setEditingXarun(x); setIsXarunFormOpen(true); }} 
-          onDelete={async (id) => { if(confirm('Ma hubtaa?')) { await API.xarumo.delete(id); await refreshAllData(); } }} 
-          onSelectXarun={(id) => { setFilterXarunId(id); setActiveTab('bakhaarada'); }} 
-        />
-      )}
-      {activeTab === 'settings' && <Settings settings={settings} onSave={(s) => { setSettings(s); localStorage.setItem('smartstock_settings', JSON.stringify(s)); }} onResetData={() => {}} items={items} branches={branches} />}
+      {activeTab === 'settings' && <Settings settings={settings} onSave={(s) => { setSettings(s); localStorage.setItem('smartstock_settings', JSON.stringify(s)); }} items={items} branches={branches} onResetData={() => {}} />}
 
+      {/* Modals Overlay */}
       {(isItemFormOpen || isBakhaarFormOpen || isXarunFormOpen || isUserFormOpen || isBulkModalOpen || isImportModalOpen || adjustmentModal || transferModalItem) && (
         <div className="fixed inset-0 bg-slate-900/40 z-[9998] backdrop-blur-sm animate-in fade-in duration-300" />
       )}
-      
-      {isItemFormOpen && <InventoryForm branches={branches} editingItem={editingItem} onSave={async (i) => { 
-        const selectedBranch = branches.find(b => b.id === i.branchId);
-        const centerId = selectedBranch?.xarunId || user.xarunId || xarumo[0]?.id;
-        if(!centerId) { alert("Cilad: Xarun lama helin. Hubi in xarun ay jirto."); return; }
-        await API.items.save({...i, xarunId: centerId}); 
-        setIsItemFormOpen(false); 
-        await refreshAllData(); 
-      }} onCancel={() => setIsItemFormOpen(false)} />}
-      
-      {isBakhaarFormOpen && <BranchForm xarumo={xarumo} editingBranch={editingBakhaar} onSave={async (b) => { 
-        await API.branches.save(b); 
-        setIsBakhaarFormOpen(false); 
-        await refreshAllData(); 
-      }} onCancel={() => setIsBakhaarFormOpen(false)} />}
-      
+
+      {/* Modals Rendering */}
+      {isItemFormOpen && (
+        <InventoryForm 
+          branches={branches} editingItem={editingItem} 
+          onSave={async (item) => { await API.items.save(item); setIsItemFormOpen(false); refreshAllData(); }} 
+          onCancel={() => setIsItemFormOpen(false)} 
+        />
+      )}
+      {adjustmentModal && (
+        <StockAdjustmentModal 
+          item={adjustmentModal.item} branches={branches} type={adjustmentModal.type}
+          onSave={async (data) => {
+            const t = await API.transactions.create({
+              itemId: adjustmentModal.item.id,
+              itemName: adjustmentModal.item.name,
+              type: adjustmentModal.type,
+              quantity: data.qty,
+              branchId: data.branchId,
+              personnel: data.personnel,
+              originOrSource: data.source,
+              placementInfo: data.placement,
+              status: TransactionStatus.APPROVED,
+              requestedBy: user.id,
+              notes: data.notes,
+              xarunId: adjustmentModal.item.xarunId
+            });
+            const newQty = adjustmentModal.type === TransactionType.IN 
+              ? adjustmentModal.item.quantity + data.qty 
+              : adjustmentModal.item.quantity - data.qty;
+            await API.items.save({ ...adjustmentModal.item, quantity: newQty, shelves: data.shelf || adjustmentModal.item.shelves, sections: data.section || adjustmentModal.item.sections });
+            setAdjustmentModal(null);
+            setReceipt(t);
+            refreshAllData();
+          }}
+          onCancel={() => setAdjustmentModal(null)}
+        />
+      )}
+      {transferModalItem && (
+        <TransferModal 
+          item={transferModalItem} branches={branches}
+          onTransfer={async (data) => {
+            // Register movement as OUT
+            await API.transactions.create({
+              itemId: transferModalItem.id,
+              itemName: transferModalItem.name,
+              type: TransactionType.OUT,
+              quantity: data.qty,
+              branchId: transferModalItem.branchId,
+              targetBranchId: data.targetBranchId,
+              personnel: data.personnel,
+              notes: `Transfer to ${branches.find(b => b.id === data.targetBranchId)?.name}. ${data.notes}`,
+              status: TransactionStatus.APPROVED,
+              requestedBy: user.id,
+              xarunId: transferModalItem.xarunId
+            });
+            // Update quantity
+            await API.items.save({ ...transferModalItem, quantity: transferModalItem.quantity - data.qty });
+            setTransferModalItem(null);
+            refreshAllData();
+          }}
+          onCancel={() => setTransferModalItem(null)}
+        />
+      )}
+      {isBakhaarFormOpen && (
+        <BranchForm 
+          xarumo={xarumo} editingBranch={editingBakhaar} 
+          onSave={async (b) => { await API.branches.save(b); setIsBakhaarFormOpen(false); refreshAllData(); }}
+          onCancel={() => setIsBakhaarFormOpen(false)}
+        />
+      )}
       {isXarunFormOpen && (
         <div className="fixed inset-0 z-[30000] flex items-center justify-center p-4">
-          <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-slate-100 animate-in zoom-in duration-300">
-            <h2 className="text-xl font-black mb-4 tracking-tighter uppercase">{editingXarun ? 'Bedel Xarun' : 'Xarun Cusub'}</h2>
+          <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-slate-100">
+            <h2 className="text-xl font-black mb-4 uppercase">{editingXarun ? 'Bedel Xarun' : 'Xarun Cusub'}</h2>
             <div className="space-y-4">
-              <input className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold outline-none" placeholder="Magaca Xarunta" defaultValue={editingXarun?.name} id="xname" />
-              <input className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold outline-none" placeholder="Location" defaultValue={editingXarun?.location} id="xloc" />
+              <input className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold" placeholder="Magaca Xarunta" id="xname" defaultValue={editingXarun?.name} />
+              <input className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold" placeholder="Magaalada" id="xloc" defaultValue={editingXarun?.location} />
             </div>
             <div className="flex gap-3 mt-8">
-               <button onClick={() => setIsXarunFormOpen(false)} className="flex-1 py-4 bg-slate-100 rounded-xl font-black uppercase text-[10px] tracking-widest">Jooji</button>
+               <button onClick={() => setIsXarunFormOpen(false)} className="flex-1 py-4 bg-slate-100 rounded-xl font-black uppercase text-[10px]">Jooji</button>
                <button onClick={async () => {
-                 const nameInput = (document.getElementById('xname') as HTMLInputElement);
-                 const locationInput = (document.getElementById('xloc') as HTMLInputElement);
-                 if(!nameInput.value.trim()){ alert("Fadlan qor magaca!"); return; }
-                 await API.xarumo.save({ 
-                   id: editingXarun?.id || `x${Date.now()}`, 
-                   name: nameInput.value, 
-                   location: locationInput.value 
-                 });
+                 const n = (document.getElementById('xname') as HTMLInputElement).value;
+                 const l = (document.getElementById('xloc') as HTMLInputElement).value;
+                 await API.xarumo.save({ id: editingXarun?.id, name: n, location: l });
                  setIsXarunFormOpen(false);
-                 await refreshAllData();
-               }} className="flex-[2] py-4 bg-indigo-600 text-white rounded-xl font-black uppercase text-[10px] tracking-widest">Keydi</button>
+                 refreshAllData();
+               }} className="flex-[2] py-4 bg-indigo-600 text-white rounded-xl font-black uppercase text-[10px]">Keydi</button>
             </div>
           </div>
         </div>
       )}
-
-      {isUserFormOpen && <UserForm xarumo={xarumo} editingUser={editingUser} onSave={async (u) => { await API.users.save(u); setIsUserFormOpen(false); await refreshAllData(); }} onCancel={() => setIsUserFormOpen(false)} />}
-      
-      {isBulkModalOpen && <BulkTransactionModal items={items} branches={branches} onSave={async (type, data) => {
-          for (const row of data.items) {
-            const item = items.find(i => i.id === row.itemId);
-            if (item) {
-              const status = (type === TransactionType.OUT && user?.role === UserRole.STAFF) ? TransactionStatus.PENDING : TransactionStatus.APPROVED;
-              await API.transactions.create({
-                itemId: item.id, itemName: item.name, type: type, quantity: row.qty,
-                branchId: data.branchId, personnel: data.personnel, originOrSource: data.source,
-                notes: data.notes, status: status,
-                requestedBy: user?.id || 'system', xarunId: item.xarunId
-              });
-              if (status === TransactionStatus.APPROVED) {
+      {isUserFormOpen && (
+        <UserForm 
+          xarumo={xarumo} editingUser={editingUser} 
+          onSave={async (u) => { await API.users.save(u); setIsUserFormOpen(false); refreshAllData(); }}
+          onCancel={() => setIsUserFormOpen(false)}
+        />
+      )}
+      {isBulkModalOpen && (
+        <BulkTransactionModal 
+          items={items} branches={branches}
+          onSave={async (type, data) => {
+            for (const row of data.items) {
+              const item = items.find(i => i.id === row.itemId);
+              if (item) {
+                await API.transactions.create({
+                  itemId: item.id, itemName: item.name, type, quantity: row.qty,
+                  branchId: data.branchId, personnel: data.personnel, originOrSource: data.source,
+                  status: TransactionStatus.APPROVED, requestedBy: user.id, notes: data.notes,
+                  xarunId: item.xarunId
+                });
                 const newQty = type === TransactionType.IN ? item.quantity + row.qty : item.quantity - row.qty;
                 await API.items.save({ ...item, quantity: newQty });
               }
             }
-          }
-          setIsBulkModalOpen(false);
-          await refreshAllData();
-      }} onCancel={() => setIsBulkModalOpen(false)} />}
-      
-      {isImportModalOpen && <ImportModal branches={branches} onImport={async (newItems) => {
-          for (const item of newItems) {
-            const centerId = user?.xarunId || xarumo[0]?.id;
-            await API.items.save({ ...item, xarunId: centerId });
-          }
-          setIsImportModalOpen(false);
-          await refreshAllData();
-      }} onCancel={() => setIsImportModalOpen(false)} />}
-
-      {adjustmentModal && <StockAdjustmentModal item={adjustmentModal.item} branches={branches} type={adjustmentModal.type} onSave={async (data) => {
-        const status = (adjustmentModal.type === TransactionType.OUT && user.role === UserRole.STAFF) ? TransactionStatus.PENDING : TransactionStatus.APPROVED;
-        
-        const transaction = await API.transactions.create({
-          itemId: adjustmentModal.item.id, itemName: adjustmentModal.item.name, type: adjustmentModal.type, quantity: data.qty,
-          branchId: data.branchId, personnel: data.personnel, originOrSource: data.source,
-          placementInfo: data.placement, notes: data.notes, status: status,
-          requestedBy: user.id, xarunId: adjustmentModal.item.xarunId
-        });
-
-        if (status === TransactionStatus.APPROVED) {
-          const newQty = adjustmentModal.type === TransactionType.IN ? adjustmentModal.item.quantity + data.qty : adjustmentModal.item.quantity - data.qty;
-          const updatedItem: Partial<InventoryItem> = { ...adjustmentModal.item, quantity: newQty, branchId: data.branchId };
-          if (adjustmentModal.type === TransactionType.IN && data.shelf !== undefined && data.section !== undefined) {
-             updatedItem.shelves = data.shelf;
-             updatedItem.sections = data.section;
-          }
-          await API.items.save(updatedItem);
-          setReceipt(transaction);
-        }
-        
-        setAdjustmentModal(null);
-        await refreshAllData();
-      }} onCancel={() => setAdjustmentModal(null)} />}
-
-      {transferModalItem && (
-        <TransferModal 
-          item={transferModalItem} 
-          branches={branches} 
-          onTransfer={handleTransfer} 
-          onCancel={() => setTransferModalItem(null)} 
+            setIsBulkModalOpen(false);
+            refreshAllData();
+          }}
+          onCancel={() => setIsBulkModalOpen(false)}
         />
       )}
-      
-      {receipt && <TransactionReceipt transaction={receipt} item={items.find(i => i.id === receipt.itemId)} branch={branches.find(b => b.id === receipt.branchId)} issuedBy={user.name} onClose={() => setReceipt(null)} />}
+      {isImportModalOpen && (
+        <ImportModal 
+          branches={branches} 
+          onImport={async (newItems) => { 
+            await API.items.bulkSave(newItems); 
+            setIsImportModalOpen(false); 
+            refreshAllData(); 
+          }}
+          onCancel={() => setIsImportModalOpen(false)}
+        />
+      )}
+      {receipt && (
+        <TransactionReceipt 
+          transaction={receipt} 
+          item={items.find(i => i.id === receipt.itemId)} 
+          branch={branches.find(b => b.id === receipt.branchId)} 
+          issuedBy={user.name} 
+          onClose={() => setReceipt(null)} 
+        />
+      )}
     </Layout>
   );
 };

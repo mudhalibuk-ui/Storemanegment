@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { SystemSettings, InventoryItem, Branch } from '../types';
 import { isDbConnected } from '../services/supabaseClient';
-import { utils, writeFile } from 'xlsx';
+import * as XLSX from 'xlsx';
 
 interface SettingsProps {
   settings: SystemSettings;
@@ -29,10 +29,10 @@ const Settings: React.FC<SettingsProps> = ({ settings, onSave, items, branches }
       'Halista (Alert)': item.minThreshold
     }));
 
-    const ws = utils.json_to_sheet(exportData);
-    const wb = utils.book_new();
-    utils.book_append_sheet(wb, ws, "Inventory");
-    writeFile(wb, `${localSettings.systemName}_Backup_${new Date().toISOString().split('T')[0]}.xlsx`);
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Inventory");
+    XLSX.writeFile(wb, `${localSettings.systemName}_Backup_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const handleSave = () => {

@@ -82,7 +82,7 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
             onClick={onBulkAction}
             className="col-span-2 bg-indigo-600 text-white p-4 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer"
           >
-            🚀 BULK ACTION (Gali xog badan)
+            🚀 BULK ACTION (GALI XOG BADAN)
           </button>
           <button 
             onClick={onAdd}
@@ -132,75 +132,93 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredItems.map((item) => {
-                const isLow = item.quantity <= item.minThreshold;
-                return (
-                  <tr key={item.id} className="hover:bg-slate-50 transition-colors group">
-                    <td className="px-8 py-6">
-                      <div className="flex flex-col">
-                        <span className="font-black text-slate-800 text-base">{item.name}</span>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.sku}</span>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg border border-indigo-100 uppercase">
-                        {formatPlacement(item.shelves, item.sections)}
-                      </span>
-                    </td>
-                    <td className="px-8 py-6">
-                      <span className={`text-2xl font-black ${isLow ? 'text-rose-600' : 'text-slate-900'}`}>{item.quantity}</span>
-                    </td>
-                    <td className="px-8 py-6">
-                       <span className="text-[9px] font-black text-slate-400 uppercase">{new Date(item.lastUpdated).toLocaleDateString()}</span>
-                    </td>
-                    <td className="px-8 py-6">
-                      <div className="flex items-center justify-center gap-2">
-                        <button onClick={() => onTransaction(item, 'IN')} className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-90" title="Stock In">📥</button>
-                        <button onClick={() => onTransaction(item, 'OUT')} className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all shadow-sm active:scale-90" title="Stock Out">📤</button>
-                        <button onClick={() => onTransaction(item, 'TRANSFER')} className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center hover:bg-amber-600 hover:text-white transition-all shadow-sm active:scale-90" title="Transfer to Branch">🚛</button>
-                        <button onClick={() => onEdit(item)} className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-90" title="Edit Item Info">📝</button>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6 text-right">
-                      <button onClick={() => printQRLabel(item)} className="p-3 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all" title="Print QR Label">🖨️</button>
-                    </td>
-                  </tr>
-                );
-              })}
+              {filteredItems.length > 0 ? (
+                filteredItems.map((item) => {
+                  const isLow = item.quantity <= item.minThreshold;
+                  return (
+                    <tr key={item.id} className="hover:bg-slate-50 transition-colors group">
+                      <td className="px-8 py-6">
+                        <div className="flex flex-col">
+                          <span className="font-black text-slate-800 text-base">{item.name}</span>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.sku}</span>
+                        </div>
+                      </td>
+                      <td className="px-8 py-6">
+                        <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg border border-indigo-100 uppercase">
+                          {formatPlacement(item.shelves, item.sections)}
+                        </span>
+                      </td>
+                      <td className="px-8 py-6">
+                        <span className={`text-2xl font-black ${isLow ? 'text-rose-600' : 'text-slate-900'}`}>{item.quantity}</span>
+                      </td>
+                      <td className="px-8 py-6">
+                         <span className="text-[9px] font-black text-slate-400 uppercase">{new Date(item.lastUpdated).toLocaleDateString()}</span>
+                      </td>
+                      <td className="px-8 py-6">
+                        <div className="flex items-center justify-center gap-2">
+                          <button onClick={() => onTransaction(item, 'IN')} className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-90" title="Stock In">📥</button>
+                          <button onClick={() => onTransaction(item, 'OUT')} className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all shadow-sm active:scale-90" title="Stock Out">📤</button>
+                          <button onClick={() => onTransaction(item, 'TRANSFER')} className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center hover:bg-amber-600 hover:text-white transition-all shadow-sm active:scale-90" title="Transfer to Branch">🚛</button>
+                          <button onClick={() => onEdit(item)} className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-90" title="Edit Item Info">📝</button>
+                        </div>
+                      </td>
+                      <td className="px-8 py-6 text-right">
+                        <button onClick={() => printQRLabel(item)} className="p-3 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all" title="Print QR Label">🖨️</button>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={6} className="py-24 text-center">
+                    <div className="flex flex-col items-center justify-center opacity-20">
+                      <div className="text-7xl mb-4">📦</div>
+                      <p className="font-black uppercase tracking-[0.3em] text-xs text-slate-500">Wali wax xog ah lama helin</p>
+                      <p className="font-bold text-[10px] mt-2 uppercase">Hubi filter-ka ama soo gali xog cusub (Import)</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
       <div className="md:hidden grid grid-cols-1 gap-4">
-        {filteredItems.map((item) => {
-          const isLow = item.quantity <= item.minThreshold;
-          return (
-            <div key={item.id} className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-200 flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2">
-               <div className="flex justify-between items-start">
-                  <div>
-                     <h3 className="font-black text-slate-800 text-lg leading-tight uppercase tracking-tighter">{item.name}</h3>
-                     <div className="flex items-center gap-2 mt-1">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.sku}</p>
-                        <span className="w-1 h-1 rounded-full bg-slate-200"></span>
-                        <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-2 rounded uppercase">{formatPlacement(item.shelves, item.sections)}</span>
-                     </div>
-                  </div>
-                  <div className={`px-4 py-3 rounded-2xl text-center border-2 ${isLow ? 'bg-rose-50 border-rose-100 text-rose-600 shadow-rose-100 shadow-xl' : 'bg-slate-50 border-slate-100 text-slate-900'}`}>
-                     <p className="text-2xl font-black leading-none">{item.quantity}</p>
-                     <p className="text-[8px] font-black uppercase mt-1">Units</p>
-                  </div>
-               </div>
+        {filteredItems.length > 0 ? (
+          filteredItems.map((item) => {
+            const isLow = item.quantity <= item.minThreshold;
+            return (
+              <div key={item.id} className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-200 flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2">
+                 <div className="flex justify-between items-start">
+                    <div>
+                       <h3 className="font-black text-slate-800 text-lg leading-tight uppercase tracking-tighter">{item.name}</h3>
+                       <div className="flex items-center gap-2 mt-1">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.sku}</p>
+                          <span className="w-1 h-1 rounded-full bg-slate-200"></span>
+                          <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-2 rounded uppercase">{formatPlacement(item.shelves, item.sections)}</span>
+                       </div>
+                    </div>
+                    <div className={`px-4 py-3 rounded-2xl text-center border-2 ${isLow ? 'bg-rose-50 border-rose-100 text-rose-600 shadow-rose-100 shadow-xl' : 'bg-slate-50 border-slate-100 text-slate-900'}`}>
+                       <p className="text-2xl font-black leading-none">{item.quantity}</p>
+                       <p className="text-[8px] font-black uppercase mt-1">Units</p>
+                    </div>
+                 </div>
 
-               <div className="flex gap-2">
-                  <button onClick={() => onTransaction(item, 'IN')} className="flex-1 py-3.5 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100 active:scale-95 transition-all">IN</button>
-                  <button onClick={() => onTransaction(item, 'OUT')} className="flex-1 py-3.5 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-rose-100 active:scale-95 transition-all">OUT</button>
-                  <button onClick={() => onTransaction(item, 'TRANSFER')} className="flex-1 py-3.5 bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-amber-100 active:scale-95 transition-all">MOVE</button>
-                  <button onClick={() => onEdit(item)} className="flex-1 py-3.5 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100 active:scale-95 transition-all">EDIT</button>
-               </div>
-            </div>
-          );
-        })}
+                 <div className="flex gap-2">
+                    <button onClick={() => onTransaction(item, 'IN')} className="flex-1 py-3.5 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100 active:scale-95 transition-all">IN</button>
+                    <button onClick={() => onTransaction(item, 'OUT')} className="flex-1 py-3.5 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-rose-100 active:scale-95 transition-all">OUT</button>
+                    <button onClick={() => onTransaction(item, 'TRANSFER')} className="flex-1 py-3.5 bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-amber-100 active:scale-95 transition-all">MOVE</button>
+                    <button onClick={() => onEdit(item)} className="flex-1 py-3.5 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100 active:scale-95 transition-all">EDIT</button>
+                 </div>
+              </div>
+            );
+          })
+        ) : (
+          <div className="bg-white p-20 rounded-[2rem] border-2 border-dashed border-slate-100 text-center opacity-30">
+            <p className="font-black uppercase tracking-widest text-xs">Ma jiro wax alaab ah</p>
+          </div>
+        )}
       </div>
     </div>
   );
