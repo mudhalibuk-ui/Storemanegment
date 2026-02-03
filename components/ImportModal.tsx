@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import * as XLSX from 'xlsx';
+import { read, utils } from 'xlsx';
 import { InventoryItem, Branch } from '../types';
 import { letterToNumber } from '../services/mappingUtils';
 
@@ -34,22 +34,31 @@ const ImportModal: React.FC<ImportModalProps> = ({ branches, onImport, onCancel 
     reader.onload = (evt) => {
       try {
         const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
+        if (!bstr) throw new Error("File could not be read");
+        
+        // Use read from named imports
+        const wb = read(bstr, { type: 'array' });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws);
+        
+        // Use utils from named imports
+        const data = utils.sheet_to_json(ws);
         setPreviewData(data);
       } catch (err) {
-        alert("Cilad ayaa ku dhacday aqrinta faylka.");
+        console.error("Import Error:", err);
+        alert("Cilad ayaa ku dhacday aqrinta faylka Excel. Hubi in faylka uu sax yahay.");
       } finally {
         setLoading(false);
       }
     };
 
-    reader.readAsBinaryString(file);
+    // Use readAsArrayBuffer for better browser compatibility in production
+    reader.readAsArrayBuffer(file);
   };
 
   const processImport = () => {
+    if (previewData.length === 0) return;
+    
     const newItems: InventoryItem[] = previewData.map((row, index) => {
       const branchNameInput = (findVal(row, ['Branch', 'Bakhaar', 'Bakhaarka', 'Bakhaar_Name']) || '').toString().toLowerCase();
       const branchMatch = branches.find(b => b.name.toLowerCase() === branchNameInput);
@@ -62,12 +71,13 @@ const ImportModal: React.FC<ImportModalProps> = ({ branches, onImport, onCancel 
         name: findVal(row, ['Name', 'Magaca', 'Item', 'Product']) || 'No Name',
         category: findVal(row, ['Category', 'Nooca', 'Cat']) || 'General',
         sku: (findVal(row, ['SKU', 'Code', 'Barcode']) || `SKU-${Math.random().toString(36).substr(2, 5).toUpperCase()}`).toString(),
-        shelves: letterToNumber(rawShelf), // Halkan ayaa lagu saxayaa haddii ay tahay "A" ama "1"
+        shelves: letterToNumber(rawShelf),
         sections: parseInt(rawSection) || 1,
         quantity: parseInt(findVal(row, ['Quantity', 'Tirada', 'Qty', 'Stock'])) || 0,
         branchId: branchMatch?.id || branches[0].id,
         lastUpdated: new Date().toISOString(),
-        minThreshold: parseInt(findVal(row, ['MinThreshold', 'Halis', 'Alert'])) || 5
+        minThreshold: parseInt(findVal(row, ['MinThreshold', 'Halis', 'Alert'])) || 5,
+        xarunId: branchMatch?.xarunId || branches[0]?.xarunId || 'x1'
       };
     });
 
@@ -82,7 +92,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ branches, onImport, onCancel 
             <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-2xl">📥</div>
             <div>
               <h2 className="text-2xl font-black tracking-tight">Import Excel 🚀</h2>
-              <p className="text-[10px] font-bold uppercase opacity-60 tracking-widest">Excel-kaaga hadda "A" ama "1" waa laga aqbalayaa Iskafalada.</p>
+              <p className="text-[10px] font-bold uppercase opacity-60 tracking-widest">Soo gali xogta adigoo isticmaalaya faylka Excel.</p>
             </div>
           </div>
           <button onClick={onCancel} className="w-10 h-10 rounded-full hover:bg-white/20 flex items-center justify-center transition-all">✕</button>

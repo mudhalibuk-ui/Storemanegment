@@ -15,7 +15,7 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ 
-  children, activeTab, setActiveTab, systemName = "SmartStock Pro", lowStockCount = 0, pendingApprovalsCount = 0, user, onLogout 
+  children, activeTab, setActiveTab, systemName = "SmartStock Pro", lowStockCount = 0, pendingApprovalsCount = 0, user, onLogout
 }) => {
   const isCloud = isDbConnected();
   
@@ -26,7 +26,7 @@ const Layout: React.FC<LayoutProps> = ({
     { id: 'transactions', label: 'Dhaqdhaqaaqa', icon: '🔄', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF] },
     { id: 'map', label: 'Khariidadda', icon: '🗺️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF] },
     { id: 'reports', label: 'Warbixin', icon: '📄', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
-    { id: 'users', label: 'Users-ka', icon: '👥', roles: [UserRole.SUPER_ADMIN] },
+    { id: 'users', label: 'Admin Users', icon: '🔐', roles: [UserRole.SUPER_ADMIN] },
     { id: 'xarumo', label: 'Xarumaha', icon: '📍', roles: [UserRole.SUPER_ADMIN] },
     { id: 'bakhaarada', label: 'Bakhaarada', icon: '🏢', roles: [UserRole.SUPER_ADMIN] },
     { id: 'settings', label: 'Settings', icon: '⚙️', roles: [UserRole.SUPER_ADMIN] },
@@ -34,12 +34,12 @@ const Layout: React.FC<LayoutProps> = ({
 
   return (
     <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-slate-50 text-slate-900">
-      <aside className="hidden md:flex flex-col w-72 bg-slate-900 text-white p-8 shadow-2xl z-20 shrink-0">
+      <aside className="hidden md:flex flex-col w-72 bg-slate-900 text-white p-8 shadow-2xl z-20 shrink-0 print:hidden">
         <div className="flex items-center gap-4 mb-12">
           <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-2xl font-black shadow-lg">S</div>
           <div>
             <h2 className="text-xl font-black tracking-tight">{systemName}</h2>
-            <p className="text-indigo-400 text-[10px] font-black uppercase tracking-widest">Inventory v2.0</p>
+            <p className="text-indigo-400 text-[10px] font-black uppercase tracking-widest">Stock Management</p>
           </div>
         </div>
 
@@ -64,22 +64,14 @@ const Layout: React.FC<LayoutProps> = ({
         </nav>
 
         <div className="mt-auto pt-8 border-t border-slate-800">
-           <div className="mb-4 px-4">
-              <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-md ${
-                user.role === UserRole.SUPER_ADMIN ? 'bg-amber-500/20 text-amber-500' : 
-                user.role === UserRole.MANAGER ? 'bg-indigo-500/20 text-indigo-400' : 'bg-slate-500/20 text-slate-400'
-              }`}>
-                {user.role}
-              </span>
-           </div>
           <button onClick={onLogout} className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-slate-400 hover:text-white transition-all group">
              <div className="w-10 h-10 rounded-xl overflow-hidden border-2 border-slate-700 group-hover:border-indigo-500">
                <img src={user.avatar} alt="User" />
              </div>
              <div className="text-left">
                <p className="text-xs font-black truncate max-w-[120px]">{user.name}</p>
-               <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest truncate max-w-[120px]">
-                  {user.role === UserRole.SUPER_ADMIN ? 'Dhamaan Xarumaha' : `Xarunta: ${user.xarunId}`}
+               <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">
+                  {user.role}
                </p>
              </div>
           </button>
@@ -87,11 +79,11 @@ const Layout: React.FC<LayoutProps> = ({
       </aside>
 
       <main className="flex-1 flex flex-col overflow-hidden relative">
-        <header className="bg-white/80 backdrop-blur-xl border-b border-slate-100 h-20 md:h-24 flex items-center justify-between px-6 md:px-10 shrink-0 z-30">
+        <header className="bg-white/80 backdrop-blur-xl border-b border-slate-100 h-20 md:h-24 flex items-center justify-between px-6 md:px-10 shrink-0 z-30 print:hidden">
           <h1 className="text-xl md:text-3xl font-black text-slate-800 tracking-tighter uppercase">{activeTab}</h1>
-          <div className="flex items-center gap-3">
-             <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${isCloud ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                {isCloud ? 'Cloud Connected' : 'Local Mode'}
+          <div className="flex items-center gap-4">
+             <div className={`hidden sm:flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-sm ${isCloud ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                {isCloud ? 'Cloud Sync' : 'Local Mode'}
              </div>
              <div className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-indigo-600 overflow-hidden shadow-xl border-2 border-white">
                 <img src={user.avatar} alt="Profile" />
@@ -99,7 +91,7 @@ const Layout: React.FC<LayoutProps> = ({
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-12 no-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 md:p-12 no-scrollbar print:p-0 print:overflow-visible">
           {children}
         </div>
       </main>

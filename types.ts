@@ -91,4 +91,45 @@ export interface SystemSettings {
   language: 'EN' | 'SO';
   primaryColor: string;
   lowStockGlobalThreshold: number;
+  hardwareAgentUrl?: string; 
+  zkDeviceIp?: string;    
+  zkDevicePort?: number;  
+}
+
+// Added missing HRM interfaces
+export interface Employee {
+  id: string;
+  name: string;
+  employeeIdCode: string;
+  position: string;
+  status: 'ACTIVE' | 'INACTIVE';
+  joinedDate: string;
+  xarunId: string;
+  branchId?: string;
+  salary: number;
+  avatar: string;
+  fingerprintHash?: string;
+}
+
+export interface Attendance {
+  id: string;
+  employeeId: string;
+  date: string;
+  status: 'PRESENT' | 'ABSENT' | 'LATE' | 'LEAVE';
+  clockIn?: string;
+  notes?: string;
+}
+
+export interface Payroll {
+  id: string;
+  employeeId: string;
+  month: string;
+  year: number;
+  baseSalary: number;
+  bonus: number;
+  deduction: number;
+  netPay: number;
+  status: 'PAID' | 'UNPAID';
+  paymentDate?: string;
+  xarunId: string;
 }

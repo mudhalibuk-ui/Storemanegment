@@ -1,8 +1,6 @@
 
 /**
  * SUPABASE CONNECTION CLIENT
- * --------------------------
- * URL: https://htmrapyxzfhvooxqacjd.supabase.co
  */
 
 export const SUPABASE_URL = 'https://htmrapyxzfhvooxqacjd.supabase.co'; 
@@ -11,57 +9,35 @@ export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 export const isDbConnected = () => {
   const url = (SUPABASE_URL as string || '').trim();
   const key = (SUPABASE_ANON_KEY as string || '').trim();
-  
-  const isUrlValid = url.startsWith('https://') && url.includes('.supabase.co');
-  const isKeyValid = key.startsWith('eyJ') && key.length > 50;
-  
-  return isUrlValid && isKeyValid;
+  return url.startsWith('https://') && key.length > 50;
 };
 
-/**
- * Helper function si loola hadlo Supabase REST API
- */
 export const supabaseFetch = async (endpoint: string, options: RequestInit = {}) => {
-  if (!isDbConnected()) {
-    console.warn("Supabase is not connected. Check environment variables.");
-    return null;
-  }
+  if (!isDbConnected()) return null;
 
   const headers = {
     'apikey': SUPABASE_ANON_KEY,
     'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
     'Content-Type': 'application/json',
-    'Accept': 'application/json',
+    'Prefer': 'return=representation',
     ...options.headers,
   };
 
   try {
     const url = `${SUPABASE_URL}/rest/v1/${endpoint}`;
-    const response = await fetch(url, {
-      ...options,
-      headers
-    });
+    const response = await fetch(url, { ...options, headers });
     
     if (!response.ok) {
-      const errorDetail = await response.text();
-      console.error(`Supabase API Error [${response.status}] for ${endpoint}:`, errorDetail);
-      
-      // Handle PGRST205 specifically by suggesting a schema reload
-      if (errorDetail.includes('PGRST205')) {
-        console.error("CRITICAL: Schema cache error detected. Please run 'NOTIFY pgrst, \"reload schema\";' in your Supabase SQL editor.");
-      }
-      
-      return null;
+      const errorMsg = await response.text();
+      console.error(`DATABASE ERROR [${response.status}]:`, errorMsg);
+      throw new Error(errorMsg);
     }
     
-    if (response.status === 204) {
-      return {};
-    }
-
-    const text = await response.text();
-    return text ? JSON.parse(text) : {};
+    if (response.status === 204) return {};
+    const data = await response.json();
+    return data;
   } catch (err) {
-    console.error('Supabase Network/Fetch Error:', err);
+    console.error('Supabase Fetch/Network Error:', err);
     return null;
   }
 };

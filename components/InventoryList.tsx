@@ -63,14 +63,14 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300">🔍</span>
             <input 
               type="text" 
-              placeholder="Raadi alaabta..."
+              placeholder="Raadi alaabta ama SKU..."
               className="w-full pl-11 pr-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-indigo-500 outline-none font-bold text-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
           <button 
-            onClick={() => (window as any).toggleScanner?.()}
+            onClick={() => alert("Scanner-ku hadda waa beta.")}
             className="bg-indigo-600 p-3.5 rounded-xl shadow-lg text-white active:scale-90 transition-all"
           >
             📷
@@ -79,39 +79,39 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
 
         <div className="grid grid-cols-2 md:flex md:flex-wrap items-center gap-2">
           <button 
-            onClick={(e) => { e.preventDefault(); onBulkAction(); }}
-            className="col-span-2 bg-indigo-600 text-white p-4 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer z-10"
+            onClick={onBulkAction}
+            className="col-span-2 bg-indigo-600 text-white p-4 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer"
           >
-            🚀 BULK ACTION (Multi-Entry)
+            🚀 BULK ACTION (Gali xog badan)
           </button>
           <button 
             onClick={onAdd}
-            className="bg-slate-900 text-white p-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2"
+            className="bg-slate-900 text-white p-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 flex-1"
           >
             ➕ Cusub
           </button>
           <button 
             onClick={onImport}
-            className="bg-emerald-50 text-emerald-600 border border-emerald-100 p-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest"
+            className="bg-emerald-50 text-emerald-600 border border-emerald-100 p-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex-1"
           >
             📥 Import
           </button>
           
           <div className="col-span-2 grid grid-cols-2 gap-2 mt-2 md:mt-0 md:flex md:flex-1">
             <select 
-              className="bg-slate-50 border-2 border-slate-100 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-600 outline-none"
+              className="bg-slate-50 border-2 border-slate-100 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-600 outline-none cursor-pointer"
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
             >
-              <option value="all">Categories</option>
+              <option value="all">Noocyada</option>
               {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
             </select>
             <select 
-              className="bg-slate-50 border-2 border-slate-100 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-600 outline-none"
+              className="bg-slate-50 border-2 border-slate-100 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-600 outline-none cursor-pointer"
               value={branchFilter}
               onChange={(e) => setBranchFilter(e.target.value)}
             >
-              <option value="all">Branches</option>
+              <option value="all">Bakhaarada</option>
               {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           </div>
@@ -157,6 +157,7 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
                       <div className="flex items-center justify-center gap-2">
                         <button onClick={() => onTransaction(item, 'IN')} className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-90" title="Stock In">📥</button>
                         <button onClick={() => onTransaction(item, 'OUT')} className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all shadow-sm active:scale-90" title="Stock Out">📤</button>
+                        <button onClick={() => onTransaction(item, 'TRANSFER')} className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center hover:bg-amber-600 hover:text-white transition-all shadow-sm active:scale-90" title="Transfer to Branch">🚛</button>
                         <button onClick={() => onEdit(item)} className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-90" title="Edit Item Info">📝</button>
                       </div>
                     </td>
@@ -171,30 +172,35 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
         </div>
       </div>
 
-      <div className="md:hidden space-y-3">
-        {filteredItems.map((item) => (
-          <div key={item.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col gap-4">
-             <div className="flex justify-between items-start">
-                <div>
-                   <h3 className="font-black text-slate-800 text-lg leading-tight">{item.name}</h3>
-                   <div className="flex gap-2 mt-1">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.sku}</p>
-                      <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-2 rounded">{formatPlacement(item.shelves, item.sections)}</span>
-                   </div>
-                   <p className="text-[8px] font-black text-slate-300 uppercase mt-2">Updated: {new Date(item.lastUpdated).toLocaleDateString()}</p>
-                </div>
-                <div className={`px-4 py-2 rounded-xl text-center ${item.quantity <= item.minThreshold ? 'bg-rose-50 border border-rose-100' : 'bg-slate-50 border border-slate-100'}`}>
-                   <p className="text-xl font-black">{item.quantity}</p>
-                   <p className="text-[8px] font-bold text-slate-400 uppercase">PCS</p>
-                </div>
-             </div>
-             <div className="flex gap-2">
-                <button onClick={() => onTransaction(item, 'IN')} className="flex-1 py-3 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest">In</button>
-                <button onClick={() => onTransaction(item, 'OUT')} className="flex-1 py-3 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest">Out</button>
-                <button onClick={() => onEdit(item)} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest">Bedel</button>
-             </div>
-          </div>
-        ))}
+      <div className="md:hidden grid grid-cols-1 gap-4">
+        {filteredItems.map((item) => {
+          const isLow = item.quantity <= item.minThreshold;
+          return (
+            <div key={item.id} className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-200 flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2">
+               <div className="flex justify-between items-start">
+                  <div>
+                     <h3 className="font-black text-slate-800 text-lg leading-tight uppercase tracking-tighter">{item.name}</h3>
+                     <div className="flex items-center gap-2 mt-1">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.sku}</p>
+                        <span className="w-1 h-1 rounded-full bg-slate-200"></span>
+                        <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-2 rounded uppercase">{formatPlacement(item.shelves, item.sections)}</span>
+                     </div>
+                  </div>
+                  <div className={`px-4 py-3 rounded-2xl text-center border-2 ${isLow ? 'bg-rose-50 border-rose-100 text-rose-600 shadow-rose-100 shadow-xl' : 'bg-slate-50 border-slate-100 text-slate-900'}`}>
+                     <p className="text-2xl font-black leading-none">{item.quantity}</p>
+                     <p className="text-[8px] font-black uppercase mt-1">Units</p>
+                  </div>
+               </div>
+
+               <div className="flex gap-2">
+                  <button onClick={() => onTransaction(item, 'IN')} className="flex-1 py-3.5 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100 active:scale-95 transition-all">IN</button>
+                  <button onClick={() => onTransaction(item, 'OUT')} className="flex-1 py-3.5 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-rose-100 active:scale-95 transition-all">OUT</button>
+                  <button onClick={() => onTransaction(item, 'TRANSFER')} className="flex-1 py-3.5 bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-amber-100 active:scale-95 transition-all">MOVE</button>
+                  <button onClick={() => onEdit(item)} className="flex-1 py-3.5 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100 active:scale-95 transition-all">EDIT</button>
+               </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
