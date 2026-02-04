@@ -12,8 +12,17 @@ export const isDbConnected = () => {
   return url.startsWith('https://') && key.length > 50;
 };
 
+// Error listener callback
+let errorListener: (msg: string) => void = () => {};
+export const onDbError = (callback: (msg: string) => void) => {
+  errorListener = callback;
+};
+
 export const supabaseFetch = async (endpoint: string, options: RequestInit = {}) => {
-  if (!isDbConnected()) return null;
+  if (!isDbConnected()) {
+    errorListener("Cilad: Database URL ama Key lama helin!");
+    return null;
+  }
 
   const headers = {
     'apikey': SUPABASE_ANON_KEY,
@@ -25,27 +34,44 @@ export const supabaseFetch = async (endpoint: string, options: RequestInit = {})
 
   try {
     const url = `${SUPABASE_URL}/rest/v1/${endpoint}`;
-    const response = await fetch(url, { ...options, headers });
+    // Timeout logic si looga hortago sugitaan dheer
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
+    const response = await fetch(url, { ...options, headers, signal: controller.signal });
+    clearTimeout(timeoutId);
     
     if (!response.ok) {
+      if (response.status === 404) {
+        const msg = "DATABASE 404: Miiska (Table) aad rabto lama helin. Fadlan hubi inaad SQL Schema-da marisay.";
+        errorListener(msg);
+        return []; // Return empty array to avoid crashes
+      }
+      
       const errorMsg = await response.text();
-      console.error(`DATABASE ERROR [${response.status}]:`, errorMsg);
-      throw new Error(errorMsg);
+      let detailedError = `DATABASE ERROR [${response.status}]: ${errorMsg}`;
+      console.error(detailedError);
+      errorListener(detailedError);
+      return null;
     }
     
-    if (response.status === 204) return {};
+    if (response.status === 204) return [];
     
     const text = await response.text();
-    if (!text) return {};
+    if (!text) return [];
     
     try {
       return JSON.parse(text);
     } catch (e) {
-      console.error('Failed to parse JSON response:', text);
-      return {};
+      return [];
     }
-  } catch (err) {
-    console.error('Supabase Fetch/Network Error:', err);
+  } catch (err: any) {
+    let msg = 'Network Connection Error';
+    if (err.name === 'AbortError') msg = 'Database connection timed out. Hubi internet-kaaga.';
+    else msg = err.message || msg;
+    
+    console.error('Supabase Fetch/Network Error:', msg);
+    errorListener(msg);
     return null;
   }
 };

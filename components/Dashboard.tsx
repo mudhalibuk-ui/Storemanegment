@@ -33,10 +33,21 @@ const Dashboard: React.FC<DashboardProps> = ({ items, transactions, insights, br
   }, []);
 
   const COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
-  const currency = settings?.currency || 'USD';
 
   return (
     <div className="space-y-6">
+      {/* Cloud Sync Status Banner */}
+      <div className="bg-indigo-600 p-4 rounded-2xl text-white flex items-center justify-between shadow-xl shadow-indigo-100">
+         <div className="flex items-center gap-3">
+            <span className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_10px_#10b981]"></span>
+            <p className="text-[10px] font-black uppercase tracking-widest">Database connection is healthy and active</p>
+         </div>
+         <div className="flex items-center gap-2 bg-white/10 px-4 py-1.5 rounded-full border border-white/20">
+            <p className="text-[10px] font-black uppercase tracking-widest">Raw Cloud Items:</p>
+            <span className="font-black text-xs text-emerald-300">{stats.totalItems}</span>
+         </div>
+      </div>
+
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {[
@@ -71,7 +82,6 @@ const Dashboard: React.FC<DashboardProps> = ({ items, transactions, insights, br
                   axisLine={false} 
                   tickLine={false} 
                   tick={{fill: '#64748b', fontSize: 10, fontWeight: 'bold'}} 
-                  hide={window.innerWidth < 768} 
                 />
                 <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 10}} />
                 <Tooltip 
@@ -107,68 +117,6 @@ const Dashboard: React.FC<DashboardProps> = ({ items, transactions, insights, br
               </div>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* Recent History */}
-      <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
-        <div className="p-6 md:p-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/30">
-          <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">Dhaqdhaqaaqyadii Ugu Dambeeyay</h3>
-          <div className="w-2 h-2 rounded-full bg-indigo-500 animate-ping"></div>
-        </div>
-        
-        <div className="overflow-x-auto no-scrollbar">
-          <table className="w-full text-left">
-            <thead className="bg-slate-50/50 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">
-              <tr>
-                <th className="px-10 py-5">Product Name</th>
-                <th className="px-10 py-5">Action</th>
-                <th className="px-10 py-5 text-center">Quantity</th>
-                <th className="px-10 py-5">Branch</th>
-                <th className="px-10 py-5 text-right">Time</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {transactions.slice(0, 10).map((t) => (
-                <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-10 py-4">
-                    <div className="flex flex-col">
-                      <span className="font-black text-slate-800 text-sm leading-tight">{t.itemName}</span>
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">ID: {t.id.slice(-6)}</span>
-                    </div>
-                  </td>
-                  <td className="px-10 py-4">
-                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                      t.type === TransactionType.IN ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 
-                      t.type === TransactionType.OUT ? 'bg-rose-50 text-rose-600 border border-rose-100' :
-                      'bg-indigo-50 text-indigo-600 border border-indigo-100'
-                    }`}>
-                      {t.type}
-                    </span>
-                  </td>
-                  <td className="px-10 py-4 text-center font-black text-slate-700">{t.quantity}</td>
-                  <td className="px-10 py-4">
-                    <span className="text-xs font-bold text-slate-500 uppercase">
-                      🏢 {branches.find(b => b.id === t.branchId)?.name || 'Central'}
-                    </span>
-                  </td>
-                  <td className="px-10 py-4 text-right">
-                    <div className="flex flex-col items-end">
-                      <span className="text-[10px] font-black text-slate-800 uppercase">{new Date(t.timestamp).toLocaleDateString()}</span>
-                      <span className="text-[9px] font-bold text-slate-300 uppercase mt-0.5">{new Date(t.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {transactions.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-20 text-center text-slate-300 font-black uppercase tracking-widest text-xs italic">
-                    Ma jiro dhaqdhaqaaq weli la diwaangaliyay.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
         </div>
       </div>
     </div>

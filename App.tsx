@@ -12,6 +12,7 @@ import UserManagement from './components/UserManagement';
 import UserForm from './components/UserForm';
 import BakhaarList from './components/BakhaarList';
 import XarunList from './components/XarunList';
+import XarunForm from './components/XarunForm';
 import BranchForm from './components/BranchForm';
 import Settings from './components/Settings';
 import Login from './components/Login';
@@ -20,14 +21,15 @@ import TransferModal from './components/TransferModal';
 import TransactionReceipt from './components/TransactionReceipt';
 import BulkTransactionModal from './components/BulkTransactionModal';
 import ImportModal from './components/ImportModal';
+import ItemMovementHistoryModal from './components/ItemMovementHistoryModal';
 
 // HRM Components
 import HRMEmployeeManagement from './components/HRMEmployeeManagement';
 import HRMAttendanceTracker from './components/HRMAttendanceTracker';
 import HRMPayroll from './components/HRMPayroll';
-import HRMReports from './components/HRMReports';
 
 import { API } from './services/api';
+import { onDbError } from './services/supabaseClient';
 import { InventoryItem, Branch, Transaction, User, TransactionStatus, TransactionType, SystemSettings, UserRole, Xarun, Employee, Attendance, Payroll } from './types';
 import { getInventoryInsights } from './services/geminiService';
 
@@ -44,15 +46,17 @@ const App: React.FC = () => {
   
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(false);
+  const [dbError, setDbError] = useState<string | null>(null);
   const [insights, setInsights] = useState<string[]>([]);
   const [filterXarunId, setFilterXarunId] = useState<string | null>(null);
 
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [isItemFormOpen, setIsItemFormOpen] = useState(false);
+  const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null);
   const [adjustmentModal, setAdjustmentModal] = useState<{ item: InventoryItem; type: TransactionType.IN | TransactionType.OUT } | null>(null);
   const [transferModalItem, setTransferModalItem] = useState<InventoryItem | null>(null);
   const [editingBakhaar, setEditingBakhaar] = useState<Branch | null>(null);
-  const [isBakhaarFormOpen, setIsBakhaarFormOpen] = useState(false);
+  const [isBakhaarOpen, setIsBakhaarOpen] = useState(false);
   const [editingXarun, setEditingXarun] = useState<Xarun | null>(null);
   const [isXarunFormOpen, setIsXarunFormOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -72,9 +76,19 @@ const App: React.FC = () => {
     };
   });
 
+  // Listen for database errors
+  useEffect(() => {
+    onDbError((msg) => {
+      setDbError(msg);
+      // Automatically clear after 10 seconds
+      setTimeout(() => setDbError(null), 10000);
+    });
+  }, []);
+
   const refreshAllData = useCallback(async () => {
     if (!user) return;
     setIsLoading(true);
+    setDbError(null);
     
     const xarunIdFilter = user.role === UserRole.SUPER_ADMIN ? undefined : user.xarunId;
     
@@ -89,7 +103,7 @@ const App: React.FC = () => {
         API.payroll.getAll()
       ]);
 
-      setXarumo(fXarumo);
+      setXarumo(fXarumo || []);
       setItems(fItems || []);
       setBranches(fBranches || []);
       setTransactions(fTransactions || []);
@@ -97,7 +111,6 @@ const App: React.FC = () => {
       setEmployees(fEmployees || []);
       setPayrolls(fPayrolls || []);
 
-      // Fetch attendance for today
       const today = new Date().toISOString().split('T')[0];
       const fAttendance = await API.attendance.getByDate(today);
       setAttendance(fAttendance || []);
@@ -118,6 +131,30 @@ const App: React.FC = () => {
     if (user) refreshAllData();
   }, [user, refreshAllData]);
 
+  const handleDeleteAllItems = async () => {
+    const confirmed = confirm("KA TAXADAR: Ma hubtaa inaad masaxdo DHAMMAAN alaabta? Xogtan lama soo celin karo.");
+    if (!confirmed) return;
+
+    setIsLoading(true);
+    try {
+      // Super Admins can clear everything, others only their center
+      const xarunIdToClear = user?.role === UserRole.SUPER_ADMIN ? undefined : user?.xarunId;
+      const success = await API.items.deleteAll(xarunIdToClear);
+      
+      if (success) {
+        setItems([]); 
+        alert("Waa lagu guuleystay! Dhammaan alaabtii waa la tirtiray.");
+        await refreshAllData();
+      } else {
+        alert("Masaxiddu ma dhicin. Hubi permissions-kaaga.");
+      }
+    } catch (error) {
+      console.error("Delete all failed:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (!user) return <Login onLogin={setUser} />;
 
   return (
@@ -126,6 +163,20 @@ const App: React.FC = () => {
       systemName={settings.systemName} lowStockCount={items.filter(i => i.quantity <= i.minThreshold).length} 
       pendingApprovalsCount={transactions.filter(t => t.status === TransactionStatus.PENDING).length}
     >
+      {/* ERROR DISPLAY */}
+      {dbError && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[99999] w-[90%] max-w-2xl bg-rose-600 text-white p-4 rounded-2xl shadow-2xl animate-bounce border-2 border-white/20">
+          <div className="flex items-start gap-3">
+             <span className="text-xl">⚠️</span>
+             <div className="flex-1">
+                <p className="font-black text-[10px] uppercase tracking-widest opacity-70 mb-1">Cilad Database-ka ah:</p>
+                <p className="font-bold text-xs">{dbError}</p>
+             </div>
+             <button onClick={() => setDbError(null)} className="font-black text-sm p-1">✕</button>
+          </div>
+        </div>
+      )}
+
       {isLoading && (
         <div className="fixed top-0 left-0 w-full h-1 bg-indigo-100 z-[99999]">
           <div className="h-full bg-indigo-600 animate-[loading_2s_infinite_linear]" style={{width: '30%'}}></div>
@@ -144,19 +195,21 @@ const App: React.FC = () => {
             if (type === 'TRANSFER') setTransferModalItem(item);
             else setAdjustmentModal({ item, type: type as any }); 
           }} 
+          onViewHistory={(item) => setHistoryItem(item)}
+          onRefresh={() => refreshAllData()}
+          onDeleteAll={handleDeleteAllItems}
         />
       )}
       {activeTab === 'transactions' && <TransactionHistory transactions={transactions} branches={branches} />}
       {activeTab === 'map' && <WarehouseMap items={items} branches={branches} />}
       {activeTab === 'reports' && <AdvancedReports items={items} transactions={transactions} branches={branches} />}
       
-      {/* HRM Section */}
       {activeTab === 'hr-staff' && (
         <HRMEmployeeManagement 
           employees={employees} branches={branches} xarumo={xarumo} 
           attendance={attendance} payrolls={payrolls} hardwareUrl={settings.hardwareAgentUrl}
-          onAdd={() => alert("Shaqaale cusub waxaa lagu daraa 'Xogta Guud' ee Settings ama HRM Form.")}
-          onEdit={(e) => alert("Edit is currently under construction for HRM.")}
+          onAdd={() => alert("Shaqaale cusub waxaa lagu daraa Settings ama HRM Form.")}
+          onEdit={(e) => alert("Edit is under construction.")}
           onDelete={async (id) => { if(confirm('Ma hubtaa?')) { await API.employees.delete(id); refreshAllData(); } }}
         />
       )}
@@ -168,7 +221,6 @@ const App: React.FC = () => {
       )}
       {activeTab === 'hr-payroll' && <HRMPayroll employees={employees} xarumo={xarumo} />}
       
-      {/* System Section */}
       {activeTab === 'approvals' && (
         <ApprovalQueue 
           transactions={transactions} 
@@ -185,29 +237,35 @@ const App: React.FC = () => {
         />
       )}
       {activeTab === 'users' && <UserManagement users={users} xarumo={xarumo} onAdd={() => { setEditingUser(null); setIsUserFormOpen(true); }} onEdit={(u) => { setEditingUser(u); setIsUserFormOpen(true); }} onSwitchUser={setUser} />}
-      {activeTab === 'xarumo' && <XarunList xarumo={xarumo} onAdd={() => setIsXarunFormOpen(true)} onEdit={(x) => { setEditingXarun(x); setIsXarunFormOpen(true); }} onDelete={async (id) => { await API.xarumo.delete(id); refreshAllData(); }} onSelectXarun={id => { setFilterXarunId(id); setActiveTab('bakhaarada'); }} />}
+      {activeTab === 'xarumo' && <XarunList xarumo={xarumo} onAdd={() => { setEditingXarun(null); setIsXarunFormOpen(true); }} onEdit={(x) => { setEditingXarun(x); setIsXarunFormOpen(true); }} onDelete={async (id) => { await API.xarumo.delete(id); refreshAllData(); }} onSelectXarun={id => { setFilterXarunId(id); setActiveTab('bakhaarada'); }} />}
       {activeTab === 'bakhaarada' && (
         <BakhaarList 
           branches={branches} xarumo={xarumo} filterXarunId={filterXarunId} 
           onClearFilter={() => setFilterXarunId(null)} 
-          onAdd={() => setIsBakhaarFormOpen(true)} 
-          onEdit={(b) => { setEditingBakhaar(b); setIsBakhaarFormOpen(true); }}
+          onAdd={() => { setEditingBakhaar(null); setIsBakhaarOpen(true); }} 
+          onEdit={(b) => { setEditingBakhaar(b); setIsBakhaarOpen(true); }}
           onDelete={async (id) => { if(confirm('Ma hubtaa?')) { await API.branches.delete(id); refreshAllData(); } }}
         />
       )}
       {activeTab === 'settings' && <Settings settings={settings} onSave={(s) => { setSettings(s); localStorage.setItem('smartstock_settings', JSON.stringify(s)); }} items={items} branches={branches} onResetData={() => {}} />}
 
-      {/* Modals Overlay */}
-      {(isItemFormOpen || isBakhaarFormOpen || isXarunFormOpen || isUserFormOpen || isBulkModalOpen || isImportModalOpen || adjustmentModal || transferModalItem) && (
+      {(isItemFormOpen || isBakhaarOpen || isXarunFormOpen || isUserFormOpen || isBulkModalOpen || isImportModalOpen || adjustmentModal || transferModalItem || historyItem) && (
         <div className="fixed inset-0 bg-slate-900/40 z-[9998] backdrop-blur-sm animate-in fade-in duration-300" />
       )}
 
-      {/* Modals Rendering */}
       {isItemFormOpen && (
         <InventoryForm 
           branches={branches} editingItem={editingItem} 
           onSave={async (item) => { await API.items.save(item); setIsItemFormOpen(false); refreshAllData(); }} 
           onCancel={() => setIsItemFormOpen(false)} 
+        />
+      )}
+      {historyItem && (
+        <ItemMovementHistoryModal 
+          item={historyItem} 
+          transactions={transactions} 
+          branches={branches} 
+          onClose={() => setHistoryItem(null)} 
         />
       )}
       {adjustmentModal && (
@@ -243,7 +301,6 @@ const App: React.FC = () => {
         <TransferModal 
           item={transferModalItem} branches={branches}
           onTransfer={async (data) => {
-            // Register movement as OUT
             await API.transactions.create({
               itemId: transferModalItem.id,
               itemName: transferModalItem.name,
@@ -257,7 +314,6 @@ const App: React.FC = () => {
               requestedBy: user.id,
               xarunId: transferModalItem.xarunId
             });
-            // Update quantity
             await API.items.save({ ...transferModalItem, quantity: transferModalItem.quantity - data.qty });
             setTransferModalItem(null);
             refreshAllData();
@@ -265,33 +321,19 @@ const App: React.FC = () => {
           onCancel={() => setTransferModalItem(null)}
         />
       )}
-      {isBakhaarFormOpen && (
+      {isBakhaarOpen && (
         <BranchForm 
           xarumo={xarumo} editingBranch={editingBakhaar} 
-          onSave={async (b) => { await API.branches.save(b); setIsBakhaarFormOpen(false); refreshAllData(); }}
-          onCancel={() => setIsBakhaarFormOpen(false)}
+          onSave={async (b) => { await API.branches.save(b); setIsBakhaarOpen(false); refreshAllData(); }}
+          onCancel={() => setIsBakhaarOpen(false)}
         />
       )}
       {isXarunFormOpen && (
-        <div className="fixed inset-0 z-[30000] flex items-center justify-center p-4">
-          <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-slate-100">
-            <h2 className="text-xl font-black mb-4 uppercase">{editingXarun ? 'Bedel Xarun' : 'Xarun Cusub'}</h2>
-            <div className="space-y-4">
-              <input className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold" placeholder="Magaca Xarunta" id="xname" defaultValue={editingXarun?.name} />
-              <input className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold" placeholder="Magaalada" id="xloc" defaultValue={editingXarun?.location} />
-            </div>
-            <div className="flex gap-3 mt-8">
-               <button onClick={() => setIsXarunFormOpen(false)} className="flex-1 py-4 bg-slate-100 rounded-xl font-black uppercase text-[10px]">Jooji</button>
-               <button onClick={async () => {
-                 const n = (document.getElementById('xname') as HTMLInputElement).value;
-                 const l = (document.getElementById('xloc') as HTMLInputElement).value;
-                 await API.xarumo.save({ id: editingXarun?.id, name: n, location: l });
-                 setIsXarunFormOpen(false);
-                 refreshAllData();
-               }} className="flex-[2] py-4 bg-indigo-600 text-white rounded-xl font-black uppercase text-[10px]">Keydi</button>
-            </div>
-          </div>
-        </div>
+        <XarunForm 
+          editingXarun={editingXarun}
+          onSave={async (x) => { await API.xarumo.save(x); setIsXarunFormOpen(false); refreshAllData(); }}
+          onCancel={() => setIsXarunFormOpen(false)}
+        />
       )}
       {isUserFormOpen && (
         <UserForm 
@@ -326,10 +368,19 @@ const App: React.FC = () => {
       {isImportModalOpen && (
         <ImportModal 
           branches={branches} 
+          userXarunId={user?.xarunId}
           onImport={async (newItems) => { 
-            await API.items.bulkSave(newItems); 
-            setIsImportModalOpen(false); 
-            refreshAllData(); 
+            try {
+              const success = await API.items.bulkSave(newItems); 
+              if (success) {
+                await refreshAllData(); 
+                return true;
+              }
+              return false;
+            } catch (err: any) {
+              console.error("Bulk Import Failure:", err);
+              return false;
+            }
           }}
           onCancel={() => setIsImportModalOpen(false)}
         />

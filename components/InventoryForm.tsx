@@ -25,9 +25,26 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
     if (editingItem) setFormData(editingItem);
   }, [editingItem]);
 
+  // Shaqada abuureysa SKU-ga Automatic-ga ah
+  const generateAutoSKU = () => {
+    const prefix = formData.category 
+      ? formData.category.substring(0, 3).toUpperCase() 
+      : 'ITM';
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    const timestamp = Date.now().toString().slice(-4);
+    const newSKU = `${prefix}-${randomNum}${timestamp}`;
+    setFormData({ ...formData, sku: newSKU });
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    // Haddii SKU-gu uu maran yahay, mid automatic ah sii
+    const finalData = { ...formData };
+    if (!finalData.sku || finalData.sku.trim() === '') {
+      const prefix = finalData.category ? finalData.category.substring(0, 3).toUpperCase() : 'ITM';
+      finalData.sku = `${prefix}-${Math.floor(100000 + Math.random() * 900000)}`;
+    }
+    onSave(finalData);
   };
 
   return (
@@ -59,12 +76,26 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
 
             <div className="grid grid-cols-2 gap-4">
                <div className="space-y-1">
-                 <label className="text-[10px] font-black text-slate-400 uppercase px-1">SKU Code</label>
-                 <input required className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold" value={formData.sku} onChange={e => setFormData({...formData, sku: e.target.value})} />
-               </div>
-               <div className="space-y-1">
                  <label className="text-[10px] font-black text-slate-400 uppercase px-1">Nooca (Category)</label>
                  <input required className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} />
+               </div>
+               <div className="space-y-1">
+                 <label className="text-[10px] font-black text-slate-400 uppercase px-1">SKU Code</label>
+                 <div className="relative">
+                    <input 
+                      required 
+                      className="w-full p-4 pr-16 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold focus:border-indigo-500 transition-all" 
+                      value={formData.sku} 
+                      onChange={e => setFormData({...formData, sku: e.target.value})} 
+                    />
+                    <button 
+                      type="button"
+                      onClick={generateAutoSKU}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 bg-indigo-600 text-white text-[9px] font-black px-3 py-2 rounded-xl hover:bg-indigo-700 active:scale-90 transition-all shadow-lg"
+                    >
+                      AUTO
+                    </button>
+                 </div>
                </div>
             </div>
 

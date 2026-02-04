@@ -12,14 +12,19 @@ interface InventoryListProps {
   onBulkAction: () => void;
   onEdit: (item: InventoryItem) => void;
   onTransaction: (item: InventoryItem, type: 'IN' | 'OUT' | 'TRANSFER') => void;
+  onViewHistory: (item: InventoryItem) => void;
+  onRefresh?: () => void; 
+  onDeleteAll?: () => void; // Added prop for deleting all items
 }
 
-const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, onImport, onBulkAction, onEdit, onTransaction }) => {
+const InventoryList: React.FC<InventoryListProps> = ({ 
+  items, branches, onAdd, onImport, onBulkAction, onEdit, onTransaction, onViewHistory, onRefresh, onDeleteAll 
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [branchFilter, setBranchFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
 
-  const categories = Array.from(new Set(items.map(item => item.category))).filter(Boolean);
+  const categories: string[] = Array.from(new Set(items.map(item => item.category))).filter(Boolean) as string[];
 
   const filteredItems = items.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -28,6 +33,23 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
     const matchesCategory = categoryFilter === 'all' || item.category === categoryFilter;
     return matchesSearch && matchesBranch && matchesCategory;
   });
+
+  const isFilterActive = searchTerm !== '' || branchFilter !== 'all' || categoryFilter !== 'all';
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setBranchFilter('all');
+    setCategoryFilter('all');
+  };
+
+  const handleDeleteAllWithConfirm = () => {
+    if (!onDeleteAll) return;
+    if (confirm("DIGNIIN HALIS AH: Ma hubtaa inaad tirtirto DHAMMAAN alaabta database-ka ku jirta? Xogtan dib looma soo celin karo!")) {
+      if (confirm("FADLAN XAQUUJI MAR KALE: Ma hubtaa si dhab ah? Tani waxay masaxi doontaa dhammaan SKU-yada iyo tirada stock-ga.")) {
+        onDeleteAll();
+      }
+    }
+  };
 
   const printQRLabel = async (item: InventoryItem) => {
     try {
@@ -70,10 +92,11 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
             />
           </div>
           <button 
-            onClick={() => alert("Scanner-ku hadda waa beta.")}
-            className="bg-indigo-600 p-3.5 rounded-xl shadow-lg text-white active:scale-90 transition-all"
+            onClick={onRefresh}
+            className="bg-indigo-50 text-indigo-600 p-3.5 rounded-xl border border-indigo-100 shadow-sm active:scale-90 transition-all font-bold hover:bg-indigo-600 hover:text-white"
+            title="Refresh Data"
           >
-            📷
+            🔄
           </button>
         </div>
 
@@ -96,23 +119,30 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
           >
             📥 Import
           </button>
+          <button 
+            onClick={handleDeleteAllWithConfirm}
+            className="bg-rose-50 text-rose-600 border border-rose-100 p-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex-1 hover:bg-rose-600 hover:text-white transition-all"
+            title="Masax dhamaan alaabta"
+          >
+            🗑️ Masax Dhamaan
+          </button>
           
           <div className="col-span-2 grid grid-cols-2 gap-2 mt-2 md:mt-0 md:flex md:flex-1">
             <select 
-              className="bg-slate-50 border-2 border-slate-100 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-600 outline-none cursor-pointer"
+              className={`border-2 rounded-xl px-3 py-2 text-[10px] font-black outline-none cursor-pointer transition-all ${categoryFilter !== 'all' ? 'bg-indigo-50 border-indigo-500 text-indigo-600' : 'bg-slate-50 border-slate-100 text-slate-600'}`}
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
             >
-              <option value="all">Noocyada</option>
-              {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              <option value="all">DHAMMAAN NOOCYADA</option>
+              {categories.map(cat => <option key={cat} value={cat}>{cat.toUpperCase()}</option>)}
             </select>
             <select 
-              className="bg-slate-50 border-2 border-slate-100 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-600 outline-none cursor-pointer"
+              className={`border-2 rounded-xl px-3 py-2 text-[10px] font-black outline-none cursor-pointer transition-all ${branchFilter !== 'all' ? 'bg-indigo-50 border-indigo-500 text-indigo-600' : 'bg-slate-50 border-slate-100 text-slate-600'}`}
               value={branchFilter}
               onChange={(e) => setBranchFilter(e.target.value)}
             >
-              <option value="all">Bakhaarada</option>
-              {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              <option value="all">DHAMMAAN BAKHAARADA</option>
+              {branches.map(b => <option key={b.id} value={b.id}>{b.name.toUpperCase()}</option>)}
             </select>
           </div>
         </div>
@@ -128,7 +158,7 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
                 <th className="px-8 py-6">Qty</th>
                 <th className="px-8 py-6">Updated</th>
                 <th className="px-8 py-6 text-center">Controls</th>
-                <th className="px-8 py-6 text-right">Label</th>
+                <th className="px-8 py-6 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -159,6 +189,7 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
                           <button onClick={() => onTransaction(item, 'IN')} className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-90" title="Stock In">📥</button>
                           <button onClick={() => onTransaction(item, 'OUT')} className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all shadow-sm active:scale-90" title="Stock Out">📤</button>
                           <button onClick={() => onTransaction(item, 'TRANSFER')} className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center hover:bg-amber-600 hover:text-white transition-all shadow-sm active:scale-90" title="Transfer to Branch">🚛</button>
+                          <button onClick={() => onViewHistory(item)} className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-900 hover:text-white transition-all shadow-sm active:scale-90" title="View Movement History">📊</button>
                           <button onClick={() => onEdit(item)} className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-90" title="Edit Item Info">📝</button>
                         </div>
                       </td>
@@ -171,10 +202,27 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
               ) : (
                 <tr>
                   <td colSpan={6} className="py-24 text-center">
-                    <div className="flex flex-col items-center justify-center opacity-20">
-                      <div className="text-7xl mb-4">📦</div>
+                    <div className="flex flex-col items-center justify-center animate-in zoom-in duration-500">
+                      <div className="text-7xl mb-4 grayscale opacity-20">📦</div>
                       <p className="font-black uppercase tracking-[0.3em] text-xs text-slate-500">Wali wax xog ah lama helin</p>
-                      <p className="font-bold text-[10px] mt-2 uppercase">Hubi filter-ka ama soo gali xog cusub (Import)</p>
+                      
+                      {isFilterActive ? (
+                        <div className="mt-4 space-y-4">
+                          <p className="font-bold text-[10px] uppercase text-indigo-500">Dhibka: Waxaa jira Filter ama Search furan oo xogta qarinaya.</p>
+                          <button 
+                            onClick={clearFilters}
+                            className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 active:scale-95 transition-all"
+                          >
+                            Nadiifi Filter-ka (Clear Filters)
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="mt-6 space-y-2">
+                           <p className="font-bold text-[10px] uppercase text-slate-400">Database-ku wuu furan yahay balse items-ka halkan kuma jiraan.</p>
+                           <p className="text-[10px] text-slate-300 italic">Malaha Xarun kale ayaad u xirtay alaabtan?</p>
+                           <button onClick={() => window.location.href='/#settings'} className="text-[9px] font-black text-indigo-500 underline uppercase mt-2">Tag Settings si aad u aragto wadarta DB-ga</button>
+                        </div>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -182,43 +230,6 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, branches, onAdd, o
             </tbody>
           </table>
         </div>
-      </div>
-
-      <div className="md:hidden grid grid-cols-1 gap-4">
-        {filteredItems.length > 0 ? (
-          filteredItems.map((item) => {
-            const isLow = item.quantity <= item.minThreshold;
-            return (
-              <div key={item.id} className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-200 flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2">
-                 <div className="flex justify-between items-start">
-                    <div>
-                       <h3 className="font-black text-slate-800 text-lg leading-tight uppercase tracking-tighter">{item.name}</h3>
-                       <div className="flex items-center gap-2 mt-1">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.sku}</p>
-                          <span className="w-1 h-1 rounded-full bg-slate-200"></span>
-                          <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-2 rounded uppercase">{formatPlacement(item.shelves, item.sections)}</span>
-                       </div>
-                    </div>
-                    <div className={`px-4 py-3 rounded-2xl text-center border-2 ${isLow ? 'bg-rose-50 border-rose-100 text-rose-600 shadow-rose-100 shadow-xl' : 'bg-slate-50 border-slate-100 text-slate-900'}`}>
-                       <p className="text-2xl font-black leading-none">{item.quantity}</p>
-                       <p className="text-[8px] font-black uppercase mt-1">Units</p>
-                    </div>
-                 </div>
-
-                 <div className="flex gap-2">
-                    <button onClick={() => onTransaction(item, 'IN')} className="flex-1 py-3.5 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100 active:scale-95 transition-all">IN</button>
-                    <button onClick={() => onTransaction(item, 'OUT')} className="flex-1 py-3.5 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-rose-100 active:scale-95 transition-all">OUT</button>
-                    <button onClick={() => onTransaction(item, 'TRANSFER')} className="flex-1 py-3.5 bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-amber-100 active:scale-95 transition-all">MOVE</button>
-                    <button onClick={() => onEdit(item)} className="flex-1 py-3.5 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100 active:scale-95 transition-all">EDIT</button>
-                 </div>
-              </div>
-            );
-          })
-        ) : (
-          <div className="bg-white p-20 rounded-[2rem] border-2 border-dashed border-slate-100 text-center opacity-30">
-            <p className="font-black uppercase tracking-widest text-xs">Ma jiro wax alaab ah</p>
-          </div>
-        )}
       </div>
     </div>
   );
