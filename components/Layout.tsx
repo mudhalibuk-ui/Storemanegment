@@ -27,7 +27,7 @@ const Layout: React.FC<LayoutProps> = ({
       ]
     },
     { 
-      section: 'INVENTORY MANAGEMENT', 
+      section: 'INVENTORY & STORES', 
       items: [
         { id: 'inventory', label: 'Stock Items', icon: '📦', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF] },
         { id: 'transactions', label: 'Dhaqdhaqaaqa', icon: '🔄', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF] },
