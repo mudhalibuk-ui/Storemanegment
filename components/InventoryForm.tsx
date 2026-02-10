@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { InventoryItem, Branch } from '../types';
+import { numberToLetter } from '../services/mappingUtils';
 
 interface InventoryFormProps {
   branches: Branch[];
@@ -25,7 +26,31 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
     if (editingItem) setFormData(editingItem);
   }, [editingItem]);
 
-  // Shaqada abuureysa SKU-ga Automatic-ga ah
+  // Ensure default branch is set if not present
+  useEffect(() => {
+    if (!formData.branchId && branches.length > 0) {
+      setFormData(prev => ({ ...prev, branchId: branches[0].id }));
+    }
+  }, [branches, formData.branchId]);
+
+  // Calculate layout options based on selected branch
+  const selectedBranch = branches.find(b => b.id === formData.branchId);
+  
+  const shelfOptions = selectedBranch 
+    ? Array.from({ length: selectedBranch.totalShelves }, (_, i) => ({
+        value: i + 1,
+        label: numberToLetter(i + 1)
+      }))
+    : [{ value: 1, label: 'A' }];
+
+  const currentShelf = formData.shelves || 1;
+  const maxSections = selectedBranch?.customSections?.[currentShelf] || selectedBranch?.totalSections || 1;
+  
+  const sectionOptions = Array.from({ length: maxSections }, (_, i) => ({
+    value: i + 1,
+    label: (i + 1).toString().padStart(2, '0')
+  }));
+
   const generateAutoSKU = () => {
     const prefix = formData.category 
       ? formData.category.substring(0, 3).toUpperCase() 
@@ -38,7 +63,6 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Haddii SKU-gu uu maran yahay, mid automatic ah sii
     const finalData = { ...formData };
     if (!finalData.sku || finalData.sku.trim() === '') {
       const prefix = finalData.category ? finalData.category.substring(0, 3).toUpperCase() : 'ITM';
@@ -55,7 +79,7 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
             <h2 className="text-2xl font-black text-slate-800 tracking-tight">
               {editingItem ? 'Bedel Alaabta' : 'Ku dar Stock Cusub'}
             </h2>
-            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Product Details</p>
+            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Product Registration</p>
           </div>
           <button onClick={onCancel} className="w-10 h-10 rounded-full hover:bg-white text-slate-400 hover:text-slate-600 transition-all flex items-center justify-center">✕</button>
         </div>
@@ -64,20 +88,25 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
           <div className="space-y-4">
             <div className="space-y-1">
               <label className="text-[10px] font-black text-slate-400 uppercase px-1">Bakhaarka la dhigayo</label>
-              <select required className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold" value={formData.branchId} onChange={e => setFormData({...formData, branchId: e.target.value})}>
+              <select 
+                required 
+                className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-indigo-500 transition-all" 
+                value={formData.branchId} 
+                onChange={e => setFormData({...formData, branchId: e.target.value, shelves: 1, sections: 1})}
+              >
                 {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
             
             <div className="space-y-1">
               <label className="text-[10px] font-black text-slate-400 uppercase px-1">Magaca Alaabta</label>
-              <input required className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+              <input required className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-indigo-500 transition-all" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
                <div className="space-y-1">
                  <label className="text-[10px] font-black text-slate-400 uppercase px-1">Nooca (Category)</label>
-                 <input required className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} />
+                 <input required className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-indigo-500 transition-all" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} />
                </div>
                <div className="space-y-1">
                  <label className="text-[10px] font-black text-slate-400 uppercase px-1">SKU Code</label>
@@ -99,21 +128,56 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
                </div>
             </div>
 
+            {/* Dynamic Layout Selection */}
+            <div className="bg-indigo-50/50 p-6 rounded-[2rem] border border-indigo-100">
+              <h3 className="text-xs font-black text-indigo-800 mb-4 flex items-center gap-2 uppercase tracking-widest">
+                📍 Location Assignment
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                 <div className="space-y-1">
+                   <label className="text-[10px] font-black text-indigo-400 uppercase px-1">Iskafalo (Shelf)</label>
+                   <select 
+                      className="w-full p-4 bg-white border-2 border-indigo-50 rounded-2xl font-black text-indigo-900 outline-none focus:border-indigo-500 transition-all cursor-pointer"
+                      value={formData.shelves}
+                      onChange={e => setFormData({...formData, shelves: parseInt(e.target.value), sections: 1})}
+                   >
+                      {shelfOptions.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                   </select>
+                 </div>
+                 <div className="space-y-1">
+                   <label className="text-[10px] font-black text-indigo-400 uppercase px-1">Godka (Section)</label>
+                   <select 
+                      className="w-full p-4 bg-white border-2 border-indigo-50 rounded-2xl font-black text-indigo-900 outline-none focus:border-indigo-500 transition-all cursor-pointer"
+                      value={formData.sections}
+                      onChange={e => setFormData({...formData, sections: parseInt(e.target.value)})}
+                   >
+                      {sectionOptions.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                   </select>
+                 </div>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
                <div className="space-y-1">
                  <label className="text-[10px] font-black text-slate-400 uppercase px-1">Initial Qty</label>
-                 <input required type="number" className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold" value={formData.quantity} onChange={e => setFormData({...formData, quantity: parseInt(e.target.value) || 0})} />
+                 <input required type="number" className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-indigo-500 transition-all" value={formData.quantity} onChange={e => setFormData({...formData, quantity: parseInt(e.target.value) || 0})} />
                </div>
                <div className="space-y-1">
                  <label className="text-[10px] font-black text-slate-400 uppercase px-1">Low Stock Alert</label>
-                 <input required type="number" className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold" value={formData.minThreshold} onChange={e => setFormData({...formData, minThreshold: parseInt(e.target.value) || 5})} />
+                 <input required type="number" className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-indigo-500 transition-all" value={formData.minThreshold} onChange={e => setFormData({...formData, minThreshold: parseInt(e.target.value) || 5})} />
                </div>
             </div>
           </div>
 
           <div className="pt-6 border-t border-slate-100 flex gap-4">
              <button type="button" onClick={onCancel} className="flex-1 py-4 bg-slate-100 text-slate-500 font-black rounded-2xl uppercase text-[10px] tracking-widest">Jooji</button>
-             <button type="submit" className="flex-[2] py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl uppercase text-[10px] tracking-widest">Hada Keydi</button>
+             <button type="submit" className="flex-[2] py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl uppercase text-[10px] tracking-widest hover:bg-indigo-700 transition-all">
+                {editingItem ? 'Keydi Isbedelka' : 'Abuur Alaabta'}
+             </button>
           </div>
         </form>
       </div>

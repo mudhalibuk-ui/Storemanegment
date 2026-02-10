@@ -14,25 +14,29 @@ interface InventoryListProps {
   onTransaction: (item: InventoryItem, type: 'IN' | 'OUT' | 'TRANSFER') => void;
   onViewHistory: (item: InventoryItem) => void;
   onRefresh?: () => void; 
-  onDeleteAll?: () => void; // Added prop for deleting all items
+  onDeleteAll?: () => void;
+  onDelete?: (id: string) => void;
 }
 
 const InventoryList: React.FC<InventoryListProps> = ({ 
-  items, branches, onAdd, onImport, onBulkAction, onEdit, onTransaction, onViewHistory, onRefresh, onDeleteAll 
+  items, branches, onAdd, onImport, onBulkAction, onEdit, onTransaction, onViewHistory, onRefresh, onDeleteAll, onDelete
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [branchFilter, setBranchFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const categories: string[] = Array.from(new Set(items.map(item => item.category))).filter(Boolean) as string[];
 
-  const filteredItems = items.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         item.sku.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesBranch = branchFilter === 'all' || item.branchId === branchFilter;
-    const matchesCategory = categoryFilter === 'all' || item.category === categoryFilter;
-    return matchesSearch && matchesBranch && matchesCategory;
-  });
+  const filteredItems = items
+    .filter(item => {
+      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                           item.sku.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesBranch = branchFilter === 'all' || item.branchId === branchFilter;
+      const matchesCategory = categoryFilter === 'all' || item.category === categoryFilter;
+      return matchesSearch && matchesBranch && matchesCategory;
+    })
+    .sort((a, b) => a.name.localeCompare(b.name)); // Alphabetical Sort A-Z
 
   const isFilterActive = searchTerm !== '' || branchFilter !== 'all' || categoryFilter !== 'all';
 
@@ -42,12 +46,12 @@ const InventoryList: React.FC<InventoryListProps> = ({
     setCategoryFilter('all');
   };
 
-  const handleDeleteAllWithConfirm = () => {
-    if (!onDeleteAll) return;
-    if (confirm("DIGNIIN HALIS AH: Ma hubtaa inaad tirtirto DHAMMAAN alaabta database-ka ku jirta? Xogtan dib looma soo celin karo!")) {
-      if (confirm("FADLAN XAQUUJI MAR KALE: Ma hubtaa si dhab ah? Tani waxay masaxi doontaa dhammaan SKU-yada iyo tirada stock-ga.")) {
-        onDeleteAll();
-      }
+  const handleDeleteClick = (id: string) => {
+    if (onDelete) {
+      setDeletingId(id);
+      // Timeout fallback just in case onDelete is cancelled or fails silently
+      setTimeout(() => setDeletingId(null), 5000);
+      onDelete(id);
     }
   };
 
@@ -79,6 +83,7 @@ const InventoryList: React.FC<InventoryListProps> = ({
 
   return (
     <div className="space-y-4 md:space-y-6">
+      {/* Controls Card */}
       <div className="bg-white p-4 md:p-6 rounded-[1.5rem] md:rounded-[2rem] shadow-sm border border-slate-200 space-y-4">
         <div className="flex items-center gap-2">
           <div className="flex-1 relative">
@@ -103,9 +108,9 @@ const InventoryList: React.FC<InventoryListProps> = ({
         <div className="grid grid-cols-2 md:flex md:flex-wrap items-center gap-2">
           <button 
             onClick={onBulkAction}
-            className="col-span-2 bg-indigo-600 text-white p-4 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer"
+            className="col-span-2 bg-indigo-600 text-white p-4 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer"
           >
-            🚀 BULK ACTION (GALI XOG BADAN)
+            🚀 BULK ACTION
           </button>
           <button 
             onClick={onAdd}
@@ -119,13 +124,6 @@ const InventoryList: React.FC<InventoryListProps> = ({
           >
             📥 Import
           </button>
-          <button 
-            onClick={handleDeleteAllWithConfirm}
-            className="bg-rose-50 text-rose-600 border border-rose-100 p-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex-1 hover:bg-rose-600 hover:text-white transition-all"
-            title="Masax dhamaan alaabta"
-          >
-            🗑️ Masax Dhamaan
-          </button>
           
           <div className="col-span-2 grid grid-cols-2 gap-2 mt-2 md:mt-0 md:flex md:flex-1">
             <select 
@@ -133,7 +131,7 @@ const InventoryList: React.FC<InventoryListProps> = ({
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
             >
-              <option value="all">DHAMMAAN NOOCYADA</option>
+              <option value="all">NOOCYADA</option>
               {categories.map(cat => <option key={cat} value={cat}>{cat.toUpperCase()}</option>)}
             </select>
             <select 
@@ -141,13 +139,79 @@ const InventoryList: React.FC<InventoryListProps> = ({
               value={branchFilter}
               onChange={(e) => setBranchFilter(e.target.value)}
             >
-              <option value="all">DHAMMAAN BAKHAARADA</option>
+              <option value="all">BAKHAARADA</option>
               {branches.map(b => <option key={b.id} value={b.id}>{b.name.toUpperCase()}</option>)}
             </select>
           </div>
         </div>
       </div>
 
+      {/* Mobile Card List */}
+      <div className="md:hidden space-y-4">
+        {filteredItems.length > 0 ? (
+          filteredItems.map((item) => {
+            const isLow = item.quantity <= item.minThreshold;
+            const branch = branches.find(b => b.id === item.branchId);
+            return (
+              <div key={item.id} className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden flex flex-col p-5">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="font-black text-slate-800 text-lg leading-tight">{item.name}</h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{item.sku} • {branch?.name || 'Central'}</p>
+                  </div>
+                  <div className={`px-4 py-2 rounded-2xl flex flex-col items-center justify-center ${isLow ? 'bg-rose-50 border border-rose-100' : 'bg-slate-50 border border-slate-100'}`}>
+                    <span className={`text-2xl font-black ${isLow ? 'text-rose-600' : 'text-slate-900'}`}>{item.quantity}</span>
+                    <span className="text-[8px] font-black text-slate-400 uppercase">Unit</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg border border-indigo-100 uppercase">
+                    {formatPlacement(item.shelves, item.sections)}
+                  </span>
+                  <span className="text-[9px] font-black text-slate-400 bg-slate-50 px-3 py-1 rounded-lg border border-slate-100 uppercase">
+                    {item.category}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-5 gap-2 pt-4 border-t border-slate-50">
+                   <button onClick={() => onTransaction(item, 'IN')} className="flex flex-col items-center gap-1 p-2 bg-emerald-50 text-emerald-600 rounded-2xl active:scale-95 transition-all">
+                      <span className="text-xl">📥</span>
+                      <span className="text-[8px] font-black uppercase">IN</span>
+                   </button>
+                   <button onClick={() => onTransaction(item, 'OUT')} className="flex flex-col items-center gap-1 p-2 bg-rose-50 text-rose-600 rounded-2xl active:scale-95 transition-all">
+                      <span className="text-xl">📤</span>
+                      <span className="text-[8px] font-black uppercase">OUT</span>
+                   </button>
+                   <button onClick={() => onViewHistory(item)} className="flex flex-col items-center gap-1 p-2 bg-slate-100 text-slate-600 rounded-2xl active:scale-95 transition-all">
+                      <span className="text-xl">📊</span>
+                      <span className="text-[8px] font-black uppercase">Log</span>
+                   </button>
+                   <button onClick={() => onEdit(item)} className="flex flex-col items-center gap-1 p-2 bg-indigo-50 text-indigo-600 rounded-2xl active:scale-95 transition-all">
+                      <span className="text-xl">📝</span>
+                      <span className="text-[8px] font-black uppercase">Edit</span>
+                   </button>
+                   {onDelete && (
+                     <button onClick={(e) => { e.stopPropagation(); handleDeleteClick(item.id); }} className="flex flex-col items-center gap-1 p-2 bg-rose-50 text-rose-600 rounded-2xl active:scale-95 transition-all border border-rose-100">
+                        <span className="text-xl">{deletingId === item.id ? '⌛' : '🗑️'}</span>
+                        <span className="text-[8px] font-black uppercase">Del</span>
+                     </button>
+                   )}
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <div className="bg-white rounded-[2rem] p-12 text-center border-2 border-dashed border-slate-100">
+             <p className="text-slate-400 font-black uppercase tracking-widest text-xs">Wax alaab ah lama helin</p>
+             {isFilterActive && (
+               <button onClick={clearFilters} className="mt-4 text-indigo-600 text-[10px] font-black uppercase underline">Nadiifi Filter-ka</button>
+             )}
+          </div>
+        )}
+      </div>
+
+      {/* Desktop Table View */}
       <div className="hidden md:block bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto no-scrollbar">
           <table className="w-full text-left border-collapse">
@@ -186,15 +250,20 @@ const InventoryList: React.FC<InventoryListProps> = ({
                       </td>
                       <td className="px-8 py-6">
                         <div className="flex items-center justify-center gap-2">
-                          <button onClick={() => onTransaction(item, 'IN')} className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-90" title="Stock In">📥</button>
-                          <button onClick={() => onTransaction(item, 'OUT')} className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all shadow-sm active:scale-90" title="Stock Out">📤</button>
-                          <button onClick={() => onTransaction(item, 'TRANSFER')} className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center hover:bg-amber-600 hover:text-white transition-all shadow-sm active:scale-90" title="Transfer to Branch">🚛</button>
-                          <button onClick={() => onViewHistory(item)} className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-900 hover:text-white transition-all shadow-sm active:scale-90" title="View Movement History">📊</button>
-                          <button onClick={() => onEdit(item)} className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-90" title="Edit Item Info">📝</button>
+                          <button onClick={(e) => { e.stopPropagation(); onTransaction(item, 'IN'); }} className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-90" title="Stock In">📥</button>
+                          <button onClick={(e) => { e.stopPropagation(); onTransaction(item, 'OUT'); }} className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all shadow-sm active:scale-90" title="Stock Out">📤</button>
+                          <button onClick={(e) => { e.stopPropagation(); onTransaction(item, 'TRANSFER'); }} className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center hover:bg-amber-600 hover:text-white transition-all shadow-sm active:scale-90" title="Transfer to Branch">🚛</button>
+                          <button onClick={(e) => { e.stopPropagation(); onViewHistory(item); }} className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-900 hover:text-white transition-all shadow-sm active:scale-90" title="History (Graph)">📊</button>
+                          <button onClick={(e) => { e.stopPropagation(); onEdit(item); }} className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-90" title="Edit">📝</button>
+                          {onDelete && (
+                            <button onClick={(e) => { e.stopPropagation(); handleDeleteClick(item.id); }} className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all shadow-sm active:scale-90 border border-rose-100" title="Delete Item">
+                              {deletingId === item.id ? '⌛' : '🗑️'}
+                            </button>
+                          )}
                         </div>
                       </td>
                       <td className="px-8 py-6 text-right">
-                        <button onClick={() => printQRLabel(item)} className="p-3 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all" title="Print QR Label">🖨️</button>
+                        <button onClick={(e) => { e.stopPropagation(); printQRLabel(item); }} className="p-3 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all" title="Print QR Label">🖨️</button>
                       </td>
                     </tr>
                   );
@@ -204,24 +273,9 @@ const InventoryList: React.FC<InventoryListProps> = ({
                   <td colSpan={6} className="py-24 text-center">
                     <div className="flex flex-col items-center justify-center animate-in zoom-in duration-500">
                       <div className="text-7xl mb-4 grayscale opacity-20">📦</div>
-                      <p className="font-black uppercase tracking-[0.3em] text-xs text-slate-500">Wali wax xog ah lama helin</p>
-                      
-                      {isFilterActive ? (
-                        <div className="mt-4 space-y-4">
-                          <p className="font-bold text-[10px] uppercase text-indigo-500">Dhibka: Waxaa jira Filter ama Search furan oo xogta qarinaya.</p>
-                          <button 
-                            onClick={clearFilters}
-                            className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 active:scale-95 transition-all"
-                          >
-                            Nadiifi Filter-ka (Clear Filters)
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="mt-6 space-y-2">
-                           <p className="font-bold text-[10px] uppercase text-slate-400">Database-ku wuu furan yahay balse items-ka halkan kuma jiraan.</p>
-                           <p className="text-[10px] text-slate-300 italic">Malaha Xarun kale ayaad u xirtay alaabtan?</p>
-                           <button onClick={() => window.location.href='/#settings'} className="text-[9px] font-black text-indigo-500 underline uppercase mt-2">Tag Settings si aad u aragto wadarta DB-ga</button>
-                        </div>
+                      <p className="font-black uppercase tracking-[0.3em] text-xs text-slate-500">Xog lama helin</p>
+                      {isFilterActive && (
+                        <button onClick={clearFilters} className="mt-4 px-8 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl">Nadiifi Filter-ka</button>
                       )}
                     </div>
                   </td>
