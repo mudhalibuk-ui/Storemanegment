@@ -19,7 +19,7 @@ const Layout: React.FC<LayoutProps> = ({
 }) => {
   const isCloud = isDbConnected();
   
-  // Reorganized Sections: Organization items merged into Inventory Management
+  // Reorganized Sections based on user request
   const sections = [
     { 
       section: 'OVERVIEW', 
