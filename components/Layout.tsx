@@ -19,7 +19,7 @@ const Layout: React.FC<LayoutProps> = ({
 }) => {
   const isCloud = isDbConnected();
   
-  // Reorganized Sections based on user request
+  // Reorganized Sections: Organization items merged into Inventory Management
   const sections = [
     { 
       section: 'OVERVIEW', 
@@ -100,7 +100,6 @@ const Layout: React.FC<LayoutProps> = ({
                       <span className="text-lg">{tab.icon}</span>
                       <span className="font-bold text-xs tracking-tight">{tab.label}</span>
                     </div>
-                    {/* Optional: Add badges here if needed */}
                   </button>
                 ))}
               </div>

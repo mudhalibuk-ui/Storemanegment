@@ -294,7 +294,7 @@ const App: React.FC = () => {
               placementInfo: data.placement,
               status: TransactionStatus.APPROVED,
               requestedBy: user.id,
-              xarunId: user.xarunId
+              xarunId: user.xarunId || ''
             });
 
             await API.items.save({ ...item, quantity: newQty, shelves: data.shelf || item.shelves, sections: data.section || item.sections });
@@ -312,8 +312,11 @@ const App: React.FC = () => {
           onCancel={() => setTransferModalItem(null)} 
           onTransfer={async (data) => {
             const item = transferModalItem;
+            // TS Safety check: ensure required data exists
+            if (!item || !user) return;
+
             const targetBranch = branches.find(b => b.id === data.targetBranchId);
-            const targetXarunId = targetBranch?.xarunId || user.xarunId;
+            const targetXarunId = targetBranch?.xarunId || user.xarunId || '';
             
             // 1. Decrease source item
             const newSourceQty = item.quantity - data.qty;
@@ -364,7 +367,7 @@ const App: React.FC = () => {
               notes: data.notes,
               status: TransactionStatus.APPROVED,
               requestedBy: user.id,
-              xarunId: user.xarunId
+              xarunId: user.xarunId || ''
             });
 
             setTransferModalItem(null);

@@ -29,7 +29,7 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
   // Ensure default branch is set if not present
   useEffect(() => {
     if (!formData.branchId && branches.length > 0) {
-      setFormData(prev => ({ ...prev, branchId: branches[0].id }));
+      setFormData(prev => ({ ...prev, branchId: branches[0]?.id || '' }));
     }
   }, [branches, formData.branchId]);
 
