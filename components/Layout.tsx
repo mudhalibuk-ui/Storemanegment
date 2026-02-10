@@ -19,7 +19,6 @@ const Layout: React.FC<LayoutProps> = ({
 }) => {
   const isCloud = isDbConnected();
   
-  // Reorganized Sections based on user request
   const sections = [
     { 
       section: 'OVERVIEW', 
@@ -28,7 +27,7 @@ const Layout: React.FC<LayoutProps> = ({
       ]
     },
     { 
-      section: 'INVENTORY MANAGEMENT', // Stock, Movements, Map, Locations
+      section: 'INVENTORY MANAGEMENT', 
       items: [
         { id: 'inventory', label: 'Stock Items', icon: '📦', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF] },
         { id: 'transactions', label: 'Dhaqdhaqaaqa', icon: '🔄', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF] },
@@ -38,13 +37,13 @@ const Layout: React.FC<LayoutProps> = ({
       ]
     },
     { 
-      section: 'PROCUREMENT', // Procurement Separated
+      section: 'PROCUREMENT', 
       items: [
         { id: 'procurement', label: 'Logistics & Buying', icon: '🛒', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.BUYER] },
       ]
     },
     { 
-      section: 'HUMAN RESOURCES', // HRM Full Suite
+      section: 'HUMAN RESOURCES', 
       items: [
         { id: 'hr-employees', label: 'Shaqaalaha', icon: '👥', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
         { id: 'hr-attendance', label: 'Iimaanshaha', icon: '☝️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
@@ -53,7 +52,7 @@ const Layout: React.FC<LayoutProps> = ({
       ]
     },
     { 
-      section: 'SYSTEM CONTROL', // Admin Tools
+      section: 'SYSTEM CONTROL', 
       items: [
         { id: 'users', label: 'User Control', icon: '🔐', roles: [UserRole.SUPER_ADMIN] },
         { id: 'settings', label: 'Settings', icon: '⚙️', roles: [UserRole.SUPER_ADMIN] },
