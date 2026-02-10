@@ -1,61 +1,389 @@
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SmartStock Pro - Inventory Management</title>
-    <meta name="theme-color" content="#4f46e5">
-    <link rel="manifest" href="manifest.json">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="SmartStock">
+import React, { useState, useEffect, useCallback } from 'react';
+import Layout from './components/Layout';
+import Dashboard from './components/Dashboard';
+import InventoryList from './components/InventoryList';
+import InventoryForm from './components/InventoryForm';
+import WarehouseMap from './components/WarehouseMap';
+import TransactionHistory from './components/TransactionHistory';
+import UserManagement from './components/UserManagement';
+import UserForm from './components/UserForm';
+import Settings from './components/Settings';
+import Login from './components/Login';
+import StockAdjustmentModal from './components/StockAdjustmentModal';
+import LogisticsProcurement from './components/LogisticsProcurement';
+import XarunList from './components/XarunList';
+import XarunForm from './components/XarunForm';
+import BakhaarList from './components/BakhaarList';
+import BranchForm from './components/BranchForm';
+import ItemMovementHistoryModal from './components/ItemMovementHistoryModal';
+import TransferModal from './components/TransferModal';
+
+// HRM Imports
+import HRMEmployeeManagement from './components/HRMEmployeeManagement';
+import HRMAttendanceTracker from './components/HRMAttendanceTracker';
+import HRMPayroll from './components/HRMPayroll';
+import HRMReports from './components/HRMReports';
+
+import { API } from './services/api';
+import { InventoryItem, Branch, Transaction, User, TransactionStatus, TransactionType, SystemSettings, UserRole, Xarun, Employee, Attendance, Payroll } from './types';
+import { getInventoryInsights } from './services/geminiService';
+import { formatPlacement } from './services/mappingUtils';
+
+const App: React.FC = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [xarumo, setXarumo] = useState<Xarun[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [attendance, setAttendance] = useState<Attendance[]>([]);
+  const [payrolls, setPayrolls] = useState<Payroll[]>([]);
+  
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [isLoading, setIsLoading] = useState(false);
+  const [insights, setInsights] = useState<string[]>([]);
+
+  const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
+  const [isItemFormOpen, setIsItemFormOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [isUserFormOpen, setIsUserFormOpen] = useState(false);
+  const [editingXarun, setEditingXarun] = useState<Xarun | null>(null);
+  const [isXarunFormOpen, setIsXarunFormOpen] = useState(false);
+  const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
+  const [isBranchFormOpen, setIsBranchFormOpen] = useState(false);
+  const [filterXarunId, setFilterXarunId] = useState<string | null>(null);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [isEmployeeFormOpen, setIsEmployeeFormOpen] = useState(false);
+  
+  // Modals
+  const [adjustmentModal, setAdjustmentModal] = useState<{ item: InventoryItem; type: TransactionType.IN | TransactionType.OUT } | null>(null);
+  const [transferModalItem, setTransferModalItem] = useState<InventoryItem | null>(null);
+  const [historyModalItem, setHistoryModalItem] = useState<InventoryItem | null>(null);
+
+  const [settings, setSettings] = useState<SystemSettings>(() => {
+    const saved = localStorage.getItem('smartstock_settings');
+    return saved ? JSON.parse(saved) : {
+      systemName: 'SmartStock Pro',
+      currency: 'USD',
+      language: 'SO',
+      primaryColor: '#4f46e5',
+      lowStockGlobalThreshold: 5,
+      taxPerBox: 2,
+      taxPerKiish: 1,
+      taxPerDram: 5,
+      taxPerFalag: 10,
+      mainStoreId: ''
+    };
+  });
+
+  const refreshAllData = useCallback(async (isBackground = false) => {
+    if (!user) return;
+    if (!isBackground) setIsLoading(true);
     
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --primary-color: #4f46e5;
-        }
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f8fafc;
-            -webkit-tap-highlight-color: transparent;
-        }
-        .bg-indigo-600 { background-color: var(--primary-color) !important; }
-        .text-indigo-600 { color: var(--primary-color) !important; }
-        .border-indigo-600 { border-color: var(--primary-color) !important; }
-        .focus-within\:border-indigo-500:focus-within { border-color: var(--primary-color) !important; }
-        
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-        @media print {
-            .no-print { display: none !important; }
-        }
-    </style>
-<script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@^19.2.4",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.38.0",
-    "recharts": "https://esm.sh/recharts@^3.7.0",
-    "qrcode": "https://esm.sh/qrcode@^1.5.4",
-    "xlsx": "https://esm.sh/xlsx@^0.18.5",
-    "vite": "https://esm.sh/vite@^7.3.1",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
-  }
-}
-</script>
-</head>
-<body>
-    <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
-</body>
-</html>
+    const xarunIdFilter = user.role === UserRole.SUPER_ADMIN ? undefined : user.xarunId;
+    
+    try {
+      const [fXarumo, fItems, fBranches, fTransactions, fUsers, fEmployees, fPayrolls] = await Promise.all([
+        API.xarumo.getAll(),
+        API.items.getAll(xarunIdFilter),
+        API.branches.getAll(xarunIdFilter),
+        API.transactions.getAll(xarunIdFilter),
+        API.users.getAll(),
+        API.employees.getAll(xarunIdFilter),
+        API.payroll.getAll()
+      ]);
+
+      setXarumo(fXarumo || []);
+      setItems(fItems || []);
+      setBranches(fBranches || []);
+      setTransactions(fTransactions || []);
+      setUsers(fUsers || []);
+      setEmployees(fEmployees || []);
+      setPayrolls(fPayrolls || []);
+
+      if (fItems && fItems.length > 0 && !isBackground && activeTab === 'dashboard') {
+        getInventoryInsights(fItems, fTransactions || [])
+          .then(setInsights)
+          .catch(() => setInsights(["Falanqaynta AI-ga hadda lama heli karo."]));
+      }
+    } catch (error) {
+      console.error("Fetch Error:", error);
+    } finally {
+      if (!isBackground) setIsLoading(false);
+    }
+  }, [user, activeTab]);
+
+  useEffect(() => {
+    if (user) {
+      refreshAllData();
+      const syncInterval = setInterval(() => {
+        if (!document.hidden) refreshAllData(true);
+      }, 30000); 
+      return () => clearInterval(syncInterval);
+    }
+  }, [user, refreshAllData]);
+
+  if (!user) return <Login onLogin={setUser} />;
+
+  return (
+    <Layout 
+      activeTab={activeTab} setActiveTab={setActiveTab} user={user} onLogout={() => setUser(null)} 
+      systemName={settings.systemName} lowStockCount={items.filter(i => i.quantity <= i.minThreshold).length} 
+      pendingApprovalsCount={transactions.filter(t => t.status === TransactionStatus.PENDING).length}
+    >
+      {activeTab === 'dashboard' && <Dashboard items={items} transactions={transactions} insights={insights} branches={branches} settings={settings} />}
+      {activeTab === 'inventory' && (
+        <InventoryList 
+          items={items} branches={branches} 
+          onAdd={() => { setEditingItem(null); setIsItemFormOpen(true); }} 
+          onImport={() => {}} 
+          onBulkAction={() => {}} 
+          onEdit={(item) => { setEditingItem(item); setIsItemFormOpen(true); }} 
+          onDelete={async (id) => { 
+            const itemToDelete = items.find(i => i.id === id);
+            if(window.confirm(`Ma hubtaa inaad tirtirto alaabtan: "${itemToDelete?.name}"?`)) { 
+              const previousItems = [...items];
+              setItems(prev => prev.filter(i => i.id !== id));
+              try {
+                const result = await API.items.delete(id); 
+                if (result.success) {
+                  refreshAllData(true);
+                } else {
+                  throw new Error(result.error || "Unknown error");
+                }
+              } catch (err: any) {
+                alert(`CILAD DATABASE: ${err.message || 'Error'}`);
+                setItems(previousItems); 
+              }
+            } 
+          }}
+          onTransaction={(item, type) => {
+            if (type === 'TRANSFER') {
+              setTransferModalItem(item);
+            } else {
+              setAdjustmentModal({ item, type: type as any });
+            }
+          }} 
+          onViewHistory={(item) => setHistoryModalItem(item)}
+          onRefresh={() => refreshAllData()}
+        />
+      )}
+      {activeTab === 'transactions' && <TransactionHistory transactions={transactions} branches={branches} items={items} onRefresh={refreshAllData} />}
+      {activeTab === 'map' && <WarehouseMap items={items} branches={branches} />}
+
+      {activeTab === 'procurement' && (
+        <LogisticsProcurement 
+          user={user} 
+          masterItems={items} 
+          buyers={users.filter(u => u.role === UserRole.BUYER)} 
+          settings={settings}
+          branches={branches}
+          onRefresh={refreshAllData}
+        />
+      )}
+
+      {activeTab === 'xarumo' && (
+        <XarunList 
+          xarumo={xarumo} 
+          onAdd={() => { setEditingXarun(null); setIsXarunFormOpen(true); }} 
+          onEdit={(x) => { setEditingXarun(x); setIsXarunFormOpen(true); }} 
+          onDelete={async (id) => { await API.xarumo.delete(id); refreshAllData(); }} 
+          onSelectXarun={(id) => { setFilterXarunId(id); setActiveTab('bakhaarada'); }} 
+        />
+      )}
+      {activeTab === 'bakhaarada' && (
+        <BakhaarList 
+          branches={branches} 
+          xarumo={xarumo} 
+          filterXarunId={filterXarunId} 
+          onClearFilter={() => setFilterXarunId(null)} 
+          onAdd={() => { setEditingBranch(null); setIsBranchFormOpen(true); }} 
+          onEdit={(b) => { setEditingBranch(b); setIsBranchFormOpen(true); }} 
+          onDelete={async (id) => { await API.branches.delete(id); refreshAllData(); }} 
+        />
+      )}
+
+      {activeTab === 'hr-employees' && (
+        <HRMEmployeeManagement 
+          employees={employees} 
+          branches={branches} 
+          xarumo={xarumo} 
+          attendance={attendance} 
+          payrolls={payrolls} 
+          onAdd={() => { setEditingEmployee(null); setIsEmployeeFormOpen(true); }} 
+          onEdit={(e) => { setEditingEmployee(e); setIsEmployeeFormOpen(true); }} 
+          onDelete={async (id) => { if(confirm('Tir-tir shaqaalahan?')) { await API.employees.delete(id); refreshAllData(); } }} 
+        />
+      )}
+      {activeTab === 'hr-attendance' && (
+        <HRMAttendanceTracker 
+          employees={employees} 
+          xarumo={xarumo} 
+        />
+      )}
+      {activeTab === 'hr-payroll' && <HRMPayroll employees={employees} xarumo={xarumo} />}
+      {activeTab === 'hr-reports' && <HRMReports employees={employees} attendance={attendance} payrolls={payrolls} xarumo={xarumo} />}
+
+      {activeTab === 'users' && (
+        <UserManagement 
+          users={users} 
+          xarumo={xarumo} 
+          onAdd={() => { setEditingUser(null); setIsUserFormOpen(true); }} 
+          onEdit={(u) => { setEditingUser(u); setIsUserFormOpen(true); }} 
+          onSwitchUser={() => {}} 
+        />
+      )}
+      {activeTab === 'settings' && <Settings settings={settings} onSave={(s) => { setSettings(s); localStorage.setItem('smartstock_settings', JSON.stringify(s)); }} items={items} branches={branches} onResetData={() => {}} />}
+
+      {isUserFormOpen && (
+        <UserForm 
+          xarumo={xarumo} 
+          editingUser={editingUser} 
+          onSave={async (u) => { await API.users.save(u); setIsUserFormOpen(false); refreshAllData(); }} 
+          onCancel={() => setIsUserFormOpen(false)} 
+        />
+      )}
+
+      {isXarunFormOpen && (
+        <XarunForm 
+          editingXarun={editingXarun} 
+          onSave={async (x) => { await API.xarumo.save(x); setIsXarunFormOpen(false); refreshAllData(); }} 
+          onCancel={() => setIsXarunFormOpen(false)} 
+        />
+      )}
+
+      {isBranchFormOpen && (
+        <BranchForm 
+          xarumo={xarumo} 
+          editingBranch={editingBranch} 
+          onSave={async (b) => { await API.branches.save(b); setIsBranchFormOpen(false); refreshAllData(); }} 
+          onCancel={() => setIsBranchFormOpen(false)} 
+        />
+      )}
+
+      {isItemFormOpen && (
+        <InventoryForm 
+          branches={branches} 
+          editingItem={editingItem} 
+          onSave={async (item) => { await API.items.save(item); setIsItemFormOpen(false); refreshAllData(); }} 
+          onCancel={() => setIsItemFormOpen(false)} 
+        />
+      )}
+
+      {adjustmentModal && (
+        <StockAdjustmentModal 
+          item={adjustmentModal.item} 
+          branches={branches} 
+          type={adjustmentModal.type} 
+          onSave={async (data) => { 
+            const type = adjustmentModal.type;
+            const item = adjustmentModal.item;
+            const newQty = type === TransactionType.IN ? item.quantity + data.qty : item.quantity - data.qty;
+            
+            await API.transactions.create({
+              itemId: item.id,
+              itemName: item.name,
+              type: type,
+              quantity: data.qty,
+              branchId: data.branchId,
+              personnel: data.personnel,
+              originOrSource: data.source,
+              placementInfo: data.placement,
+              status: TransactionStatus.APPROVED,
+              requestedBy: user.id,
+              xarunId: user.xarunId
+            });
+
+            await API.items.save({ ...item, quantity: newQty, shelves: data.shelf || item.shelves, sections: data.section || item.sections });
+            setAdjustmentModal(null); 
+            refreshAllData(); 
+          }} 
+          onCancel={() => setAdjustmentModal(null)} 
+        />
+      )}
+
+      {transferModalItem && (
+        <TransferModal 
+          item={transferModalItem} 
+          branches={branches} 
+          onCancel={() => setTransferModalItem(null)} 
+          onTransfer={async (data) => {
+            const item = transferModalItem;
+            const targetBranch = branches.find(b => b.id === data.targetBranchId);
+            const targetXarunId = targetBranch?.xarunId || user.xarunId;
+            
+            // 1. Decrease source item
+            const newSourceQty = item.quantity - data.qty;
+            await API.items.save({ ...item, quantity: newSourceQty });
+
+            // 2. Find or Create target item
+            // Check if item exists in target branch with same SKU
+            const existingTargetItem = items.find(i => 
+              i.sku === item.sku && i.branchId === data.targetBranchId
+            );
+
+            if (existingTargetItem) {
+              await API.items.save({
+                ...existingTargetItem,
+                quantity: existingTargetItem.quantity + data.qty,
+                shelves: data.targetShelf, // Update location to where it was just placed
+                sections: data.targetSection
+              });
+            } else {
+              // Create new item in target branch
+              await API.items.save({
+                name: item.name,
+                category: item.category,
+                sku: item.sku, // Same SKU
+                shelves: data.targetShelf,
+                sections: data.targetSection,
+                quantity: data.qty,
+                minThreshold: item.minThreshold,
+                branchId: data.targetBranchId,
+                xarunId: targetXarunId,
+                packType: item.packType,
+                lastKnownPrice: item.lastKnownPrice
+              });
+            }
+
+            // 3. Log Transfer
+            const placementLabel = formatPlacement(data.targetShelf, data.targetSection);
+            await API.transactions.create({
+              itemId: item.id,
+              itemName: item.name,
+              type: TransactionType.TRANSFER,
+              quantity: data.qty,
+              branchId: item.branchId, // From Branch
+              targetBranchId: data.targetBranchId, // To Branch
+              personnel: data.personnel,
+              originOrSource: `To: ${targetBranch?.name}`,
+              placementInfo: `Target: ${placementLabel}`,
+              notes: data.notes,
+              status: TransactionStatus.APPROVED,
+              requestedBy: user.id,
+              xarunId: user.xarunId
+            });
+
+            setTransferModalItem(null);
+            refreshAllData();
+            alert("Transfer Completed Successfully!");
+          }}
+        />
+      )}
+
+      {historyModalItem && (
+        <ItemMovementHistoryModal 
+          item={historyModalItem} 
+          transactions={transactions} 
+          branches={branches} 
+          onClose={() => setHistoryModalItem(null)} 
+        />
+      )}
+    </Layout>
+  );
+};
+
+export default App;
