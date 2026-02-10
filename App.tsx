@@ -18,6 +18,8 @@ import BakhaarList from './components/BakhaarList';
 import BranchForm from './components/BranchForm';
 import ItemMovementHistoryModal from './components/ItemMovementHistoryModal';
 import TransferModal from './components/TransferModal';
+import ImportModal from './components/ImportModal';
+import BulkTransactionModal from './components/BulkTransactionModal';
 
 // HRM Imports
 import HRMEmployeeManagement from './components/HRMEmployeeManagement';
@@ -64,6 +66,8 @@ const App: React.FC = () => {
   const [adjustmentModal, setAdjustmentModal] = useState<AdjustmentModalState>(null);
   const [transferModalItem, setTransferModalItem] = useState<InventoryItem | null>(null);
   const [historyModalItem, setHistoryModalItem] = useState<InventoryItem | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
 
   const [settings, setSettings] = useState<SystemSettings>(() => {
     const saved = localStorage.getItem('smartstock_settings');
@@ -141,24 +145,22 @@ const App: React.FC = () => {
         <InventoryList 
           items={items} branches={branches} 
           onAdd={() => { setEditingItem(null); setIsItemFormOpen(true); }} 
-          onImport={() => {}} 
-          onBulkAction={() => {}} 
+          onImport={() => setIsImportModalOpen(true)} 
+          onBulkAction={() => setIsBulkModalOpen(true)} 
           onEdit={(item) => { setEditingItem(item); setIsItemFormOpen(true); }} 
           onDelete={async (id) => { 
             const itemToDelete = items.find(i => i.id === id);
             if(window.confirm(`Ma hubtaa inaad tirtirto alaabtan: "${itemToDelete?.name}"?`)) { 
-              const previousItems = [...items];
-              setItems(prev => prev.filter(i => i.id !== id));
               try {
                 const result = await API.items.delete(id); 
                 if (result.success) {
+                  setItems(prev => prev.filter(i => i.id !== id));
                   refreshAllData(true);
                 } else {
                   throw new Error(result.error || "Unknown error");
                 }
               } catch (err: any) {
                 alert(`CILAD DATABASE: ${err.message || 'Error'}`);
-                setItems(previousItems); 
               }
             } 
           }}
@@ -314,18 +316,14 @@ const App: React.FC = () => {
           onCancel={() => setTransferModalItem(null)} 
           onTransfer={async (data) => {
             const item = transferModalItem;
-            // TS Safety check: ensure required data exists
             if (!item || !user) return;
 
             const targetBranch = branches.find(b => b.id === data.targetBranchId);
             const targetXarunId = targetBranch?.xarunId || user.xarunId || '';
             
-            // 1. Decrease source item
             const newSourceQty = item.quantity - data.qty;
             await API.items.save({ ...item, quantity: newSourceQty });
 
-            // 2. Find or Create target item
-            // Check if item exists in target branch with same SKU
             const existingTargetItem = items.find(i => 
               i.sku === item.sku && i.branchId === data.targetBranchId
             );
@@ -334,15 +332,14 @@ const App: React.FC = () => {
               await API.items.save({
                 ...existingTargetItem,
                 quantity: existingTargetItem.quantity + data.qty,
-                shelves: data.targetShelf, // Update location to where it was just placed
+                shelves: data.targetShelf,
                 sections: data.targetSection
               });
             } else {
-              // Create new item in target branch
               await API.items.save({
                 name: item.name,
                 category: item.category,
-                sku: item.sku, // Same SKU
+                sku: item.sku,
                 shelves: data.targetShelf,
                 sections: data.targetSection,
                 quantity: data.qty,
@@ -354,15 +351,14 @@ const App: React.FC = () => {
               });
             }
 
-            // 3. Log Transfer
             const placementLabel = formatPlacement(data.targetShelf, data.targetSection);
             await API.transactions.create({
               itemId: item.id,
               itemName: item.name,
               type: TransactionType.TRANSFER,
               quantity: data.qty,
-              branchId: item.branchId, // From Branch
-              targetBranchId: data.targetBranchId, // To Branch
+              branchId: item.branchId,
+              targetBranchId: data.targetBranchId,
               personnel: data.personnel,
               originOrSource: `To: ${targetBranch?.name}`,
               placementInfo: `Target: ${placementLabel}`,
@@ -385,6 +381,57 @@ const App: React.FC = () => {
           transactions={transactions} 
           branches={branches} 
           onClose={() => setHistoryModalItem(null)} 
+        />
+      )}
+
+      {isImportModalOpen && (
+        <ImportModal 
+          branches={branches} 
+          userXarunId={user.xarunId}
+          onImport={async (newItems) => {
+            const success = await API.items.bulkSave(newItems);
+            if (success) {
+              setIsImportModalOpen(false);
+              refreshAllData();
+            }
+            return success;
+          }}
+          onCancel={() => setIsImportModalOpen(false)}
+        />
+      )}
+
+      {isBulkModalOpen && (
+        <BulkTransactionModal 
+          items={items} 
+          branches={branches}
+          onSave={async (type, data) => {
+            for (const row of data.items) {
+              const item = items.find(i => i.id === row.itemId);
+              if (item) {
+                const newQty = type === TransactionType.IN ? item.quantity + row.qty : item.quantity - row.qty;
+                
+                await API.transactions.create({
+                  itemId: item.id,
+                  itemName: item.name,
+                  type: type,
+                  quantity: row.qty,
+                  branchId: data.branchId,
+                  personnel: data.personnel,
+                  originOrSource: data.source,
+                  notes: data.notes,
+                  status: TransactionStatus.APPROVED,
+                  requestedBy: user.id,
+                  xarunId: user.xarunId || ''
+                });
+
+                await API.items.save({ ...item, quantity: newQty });
+              }
+            }
+            setIsBulkModalOpen(false);
+            refreshAllData();
+            alert("Bulk Transactions Processed Successfully!");
+          }}
+          onCancel={() => setIsBulkModalOpen(false)}
         />
       )}
     </Layout>
