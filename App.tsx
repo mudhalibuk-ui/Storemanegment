@@ -30,6 +30,8 @@ import { InventoryItem, Branch, Transaction, User, TransactionStatus, Transactio
 import { getInventoryInsights } from './services/geminiService';
 import { formatPlacement } from './services/mappingUtils';
 
+type AdjustmentModalState = { item: InventoryItem; type: TransactionType.IN | TransactionType.OUT } | null;
+
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -59,7 +61,7 @@ const App: React.FC = () => {
   const [isEmployeeFormOpen, setIsEmployeeFormOpen] = useState(false);
   
   // Modals
-  const [adjustmentModal, setAdjustmentModal] = useState<{ item: InventoryItem; type: TransactionType.IN | TransactionType.OUT } | null>(null);
+  const [adjustmentModal, setAdjustmentModal] = useState<AdjustmentModalState>(null);
   const [transferModalItem, setTransferModalItem] = useState<InventoryItem | null>(null);
   const [historyModalItem, setHistoryModalItem] = useState<InventoryItem | null>(null);
 
