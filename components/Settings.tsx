@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { SystemSettings, InventoryItem, Branch } from '../types';
+import { SystemSettings, InventoryItem, Branch, Xarun, Transaction, User, Employee, Attendance, Payroll } from '../types';
 import { isDbConnected } from '../services/supabaseClient';
 import * as XLSX from 'xlsx';
 
@@ -10,9 +10,17 @@ interface SettingsProps {
   onResetData: () => void;
   items: InventoryItem[];
   branches: Branch[];
+  xarumo: Xarun[];
+  transactions: Transaction[];
+  users: User[];
+  employees: Employee[];
+  attendance: Attendance[];
+  payrolls: Payroll[];
 }
 
-const Settings: React.FC<SettingsProps> = ({ settings, onSave, items, branches }) => {
+const Settings: React.FC<SettingsProps> = ({ 
+  settings, onSave, items, branches, xarumo, transactions, users, employees, attendance, payrolls 
+}) => {
   const [localSettings, setLocalSettings] = useState<SystemSettings>(settings);
   const dbStatus = isDbConnected();
 
@@ -22,16 +30,29 @@ const Settings: React.FC<SettingsProps> = ({ settings, onSave, items, branches }
   };
 
   const handleBackup = () => {
-    const backup = {
-      items,
-      branches,
+    const fullBackup = {
+      meta: {
+        date: new Date().toISOString(),
+        version: "1.5.0",
+        system: localSettings.systemName
+      },
       settings: localSettings,
-      date: new Date().toISOString()
+      data: {
+        xarumo,
+        branches,
+        items,
+        transactions,
+        users,
+        employees,
+        attendance,
+        payrolls
+      }
     };
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backup));
+
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(fullBackup, null, 2));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", `smartstock_backup_${new Date().toISOString().split('T')[0]}.json`);
+    downloadAnchorNode.setAttribute("download", `smartstock_full_backup_${new Date().toISOString().split('T')[0]}.json`);
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
@@ -90,13 +111,13 @@ const Settings: React.FC<SettingsProps> = ({ settings, onSave, items, branches }
            <div className="flex flex-wrap gap-4">
               <button 
                 onClick={handleBackup}
-                className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all flex items-center gap-2"
+                className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2"
               >
-                <span>💾</span> Backup Data (JSON)
+                <span>💾</span> FULL BACKUP (ALL DATA)
               </button>
               <button 
                 onClick={() => {
-                  if(confirm("Tani waxay tirtiraysaa keydka maxalliga ah (Local Cache). Ma hubtaa?")) {
+                  if(confirm("DIGNIIN: Tani waxay tirtiraysaa keydka maxalliga ah (Local Cache) kaliya. Xogta Cloud-ka lama taabanayo. Ma hubtaa?")) {
                     localStorage.clear();
                     window.location.reload();
                   }

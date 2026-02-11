@@ -143,6 +143,7 @@ const App: React.FC = () => {
       {activeTab === 'dashboard' && <Dashboard items={items} transactions={transactions} insights={insights} branches={branches} settings={settings} />}
       {activeTab === 'inventory' && (
         <InventoryList 
+          user={user}
           items={items} branches={branches} 
           onAdd={() => { setEditingItem(null); setIsItemFormOpen(true); }} 
           onImport={() => setIsImportModalOpen(true)} 
@@ -240,7 +241,22 @@ const App: React.FC = () => {
           onSwitchUser={() => {}} 
         />
       )}
-      {activeTab === 'settings' && <Settings settings={settings} onSave={(s) => { setSettings(s); localStorage.setItem('smartstock_settings', JSON.stringify(s)); }} items={items} branches={branches} onResetData={() => {}} />}
+      {/* Updated Settings with full data payload for backup */}
+      {activeTab === 'settings' && (
+        <Settings 
+          settings={settings} 
+          onSave={(s) => { setSettings(s); localStorage.setItem('smartstock_settings', JSON.stringify(s)); }} 
+          onResetData={() => {}} 
+          items={items} 
+          branches={branches}
+          xarumo={xarumo}
+          transactions={transactions}
+          users={users}
+          employees={employees}
+          attendance={attendance}
+          payrolls={payrolls}
+        />
+      )}
 
       {isUserFormOpen && (
         <UserForm 

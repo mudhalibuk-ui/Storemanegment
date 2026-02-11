@@ -1,10 +1,11 @@
 
 import React, { useState } from 'react';
-import { InventoryItem, Branch } from '../types';
+import { InventoryItem, Branch, User, UserRole } from '../types';
 import { formatPlacement } from '../services/mappingUtils';
 import QRCode from 'qrcode';
 
 interface InventoryListProps {
+  user: User;
   items: InventoryItem[];
   branches: Branch[];
   onAdd: () => void;
@@ -19,7 +20,7 @@ interface InventoryListProps {
 }
 
 const InventoryList: React.FC<InventoryListProps> = ({ 
-  items, branches, onAdd, onImport, onBulkAction, onEdit, onTransaction, onViewHistory, onRefresh, onDeleteAll, onDelete
+  user, items, branches, onAdd, onImport, onBulkAction, onEdit, onTransaction, onViewHistory, onRefresh, onDeleteAll, onDelete
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [branchFilter, setBranchFilter] = useState('all');
@@ -80,6 +81,9 @@ const InventoryList: React.FC<InventoryListProps> = ({
       console.error(err);
     }
   };
+
+  // Permission Logic
+  const canDelete = user.role === UserRole.SUPER_ADMIN || user.role === UserRole.MANAGER;
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -174,7 +178,7 @@ const InventoryList: React.FC<InventoryListProps> = ({
                   </span>
                 </div>
 
-                <div className="grid grid-cols-5 gap-2 pt-4 border-t border-slate-50">
+                <div className={`grid ${canDelete ? 'grid-cols-5' : 'grid-cols-4'} gap-2 pt-4 border-t border-slate-50`}>
                    <button onClick={() => onTransaction(item, 'IN')} className="flex flex-col items-center gap-1 p-2 bg-emerald-50 text-emerald-600 rounded-2xl active:scale-95 transition-all">
                       <span className="text-xl">📥</span>
                       <span className="text-[8px] font-black uppercase">IN</span>
@@ -191,7 +195,7 @@ const InventoryList: React.FC<InventoryListProps> = ({
                       <span className="text-xl">📝</span>
                       <span className="text-[8px] font-black uppercase">Edit</span>
                    </button>
-                   {onDelete && (
+                   {canDelete && onDelete && (
                      <button onClick={(e) => { e.stopPropagation(); handleDeleteClick(item.id); }} className="flex flex-col items-center gap-1 p-2 bg-rose-50 text-rose-600 rounded-2xl active:scale-95 transition-all border border-rose-100">
                         <span className="text-xl">{deletingId === item.id ? '⌛' : '🗑️'}</span>
                         <span className="text-[8px] font-black uppercase">Del</span>
@@ -255,7 +259,7 @@ const InventoryList: React.FC<InventoryListProps> = ({
                           <button onClick={(e) => { e.stopPropagation(); onTransaction(item, 'TRANSFER'); }} className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center hover:bg-amber-600 hover:text-white transition-all shadow-sm active:scale-90" title="Transfer to Branch">🚛</button>
                           <button onClick={(e) => { e.stopPropagation(); onViewHistory(item); }} className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-900 hover:text-white transition-all shadow-sm active:scale-90" title="History (Graph)">📊</button>
                           <button onClick={(e) => { e.stopPropagation(); onEdit(item); }} className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-90" title="Edit">📝</button>
-                          {onDelete && (
+                          {canDelete && onDelete && (
                             <button onClick={(e) => { e.stopPropagation(); handleDeleteClick(item.id); }} className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all shadow-sm active:scale-90 border border-rose-100" title="Delete Item">
                               {deletingId === item.id ? '⌛' : '🗑️'}
                             </button>
