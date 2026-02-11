@@ -22,8 +22,8 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
   const [selectedBuyerId, setSelectedBuyerId] = useState('');
   const [poItems, setPoItems] = useState<Partial<POItem>[]>([{ id: '1', name: '', requestedQty: 1, lastPurchasePrice: 0, packType: PackType.BOX }]);
   
-  const [isTransferModalOpen, setIsTransferModalOpen] = useState<{poId: string} | null>(null);
-  const [transferForm, setTransferForm] = useState({ amount: 0, ref: '', method: 'Hawala' });
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [transferForm, setTransferForm] = useState({ amount: 0, ref: '', method: 'Hawala', poId: '' });
 
   // Pricing Modal State
   const [pricingPO, setPricingPO] = useState<PurchaseOrder | null>(null);
@@ -52,7 +52,6 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
       
       if (savedPO) {
         const parsedPOs = JSON.parse(savedPO);
-        // Ensure transfers and items arrays exist to prevent crashes on old data
         const safePOs = Array.isArray(parsedPOs) ? parsedPOs.map((p: any) => ({
           ...p,
           items: Array.isArray(p.items) ? p.items : [],
@@ -67,7 +66,6 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
       }
     } catch (error) {
       console.error("Failed to load procurement data:", error);
-      // Fallback to empty state if local storage is corrupted
       setPos([]);
       setContainers([]);
     }
@@ -82,23 +80,37 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
 
   const isBuyer = user.role === UserRole.BUYER;
   
-  // Notifications (Safety Checked)
+  // Dynamic Notifications
   const unreadOrders = pos.filter(p => p.buyerId === user.id && !p.isReadByBuyer).length;
   const pendingReceivedMoney = pos.filter(p => p.buyerId === user.id && (p.transfers || []).some(t => t.status === 'SENT')).length;
-  const pricedOrdersToFund = pos.filter(p => !isBuyer && p.status === POStatus.PRICED && !p.isReadByManager).length;
+  const pricedOrdersToConfirm = pos.filter(p => !isBuyer && p.status === POStatus.PRICED && !p.isReadByManager).length;
   const containersAtPort = containers.filter(c => c.status === 'ARRIVED').length;
 
   const calculateFinance = (po: PurchaseOrder) => {
-    // Robust checks for missing arrays
     const transfers = Array.isArray(po.transfers) ? po.transfers : [];
     const items = Array.isArray(po.items) ? po.items : [];
 
-    const sent = transfers.filter(t => t.status === 'SENT').reduce((acc, t) => acc + (t.amount || 0), 0);
+    const sent = transfers.filter(t => t.status === 'SENT' || t.status === 'RECEIVED').reduce((acc, t) => acc + (t.amount || 0), 0);
     const received = transfers.filter(t => t.status === 'RECEIVED').reduce((acc, t) => acc + (t.amount || 0), 0);
     const spent = items.filter(i => i.isPurchased).reduce((acc, i) => acc + ((i.actualPrice || 0) * (i.requestedQty || 0)), 0);
     const estimatedTotal = items.reduce((acc, i) => acc + ((i.actualPrice || i.lastPurchasePrice || 0) * (i.requestedQty || 0)), 0);
     
     return { sent, received, spent, balance: received - spent, estimatedTotal };
+  };
+
+  // Aggregated Finance for Wallet View
+  const getGlobalWallet = (buyerId: string) => {
+    const buyerPOs = pos.filter(p => p.buyerId === buyerId);
+    let totalReceived = 0;
+    let totalSpent = 0;
+    
+    buyerPOs.forEach(po => {
+       const stats = calculateFinance(po);
+       totalReceived += stats.received;
+       totalSpent += stats.spent;
+    });
+
+    return { totalReceived, totalSpent, balance: totalReceived - totalSpent };
   };
 
   const handleSendOrder = () => {
@@ -151,20 +163,30 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
     const updatedPOs = pos.map(p => p.id === pricingPO.id ? { ...p, items: updatedItems, status: POStatus.PRICED, isReadByManager: false, isReadByBuyer: true } : p);
     saveAll(updatedPOs, containers);
     setPricingPO(null);
-    alert("Qiimaha waa la xaqiijiyey! Manager-ka waa la ogeysiiyey.");
+    alert("Qiimaha waa la xaqiijiyey! Manager-ka ayaa hadda looga fadhiyaa inuu ogolaado (Confirm).");
+  };
+
+  const handleApproveOrder = (poId: string) => {
+    const updatedPOs = pos.map(p => p.id === poId ? { ...p, status: POStatus.PURCHASING, isReadByBuyer: false } : p);
+    saveAll(updatedPOs, containers);
+    alert("Order-ka waa la ogolaaday! Buyer-ku hadda wuu soo adeegi karaa (Purchasing Mode Active).");
   };
 
   const handleSendMoney = () => {
-    if (!isTransferModalOpen || transferForm.amount <= 0) return;
+    if (transferForm.amount <= 0 || !transferForm.poId) {
+      alert("Fadlan dooro Order-ka iyo lacagta.");
+      return;
+    }
     const updatedPOs = pos.map(p => {
-      if (p.id !== isTransferModalOpen.poId) return p;
+      if (p.id !== transferForm.poId) return p;
       const newT: POTransfer = { id: `TR-${Date.now()}`, amount: transferForm.amount, date: new Date().toISOString(), reference: transferForm.ref, method: transferForm.method, status: 'SENT' };
       const currentTransfers = Array.isArray(p.transfers) ? p.transfers : [];
-      return { ...p, transfers: [...currentTransfers, newT], status: POStatus.AWAITING_FUNDS, isReadByManager: true };
+      // Status doesn't change to AWAITING_FUNDS because buying is decoupled
+      return { ...p, transfers: [...currentTransfers, newT], isReadByBuyer: false }; 
     });
     saveAll(updatedPOs, containers);
-    setIsTransferModalOpen(null);
-    setTransferForm({ amount: 0, ref: '', method: 'Hawala' });
+    setIsTransferModalOpen(false);
+    setTransferForm({ amount: 0, ref: '', method: 'Hawala', poId: '' });
     alert("Lacagta waa la diray!");
   };
 
@@ -172,7 +194,7 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
     const updatedPOs = pos.map(p => {
       if (p.id !== poId) return p;
       const currentTransfers = Array.isArray(p.transfers) ? p.transfers : [];
-      return { ...p, transfers: currentTransfers.map(t => t.id === transferId ? { ...t, status: 'RECEIVED' as any } : t), status: POStatus.PURCHASING };
+      return { ...p, transfers: currentTransfers.map(t => t.id === transferId ? { ...t, status: 'RECEIVED' as any } : t) };
     });
     saveAll(updatedPOs, containers);
     alert("Lacagta waa la xaqiijiyey!");
@@ -192,19 +214,17 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
   const handleMarkPurchased = (poId: string, itemId: string) => {
     const po = pos.find(p => p.id === poId);
     if (!po) return;
-    const item = (po.items || []).find(i => i.id === itemId);
-    if (!item) return;
     
-    // UPDATED LOGIC: Allow negative balance (Credit System)
-    // We removed the `if (itemCost > balance) return alert(...)` check.
+    // ALLOW NEGATIVE BALANCE (Credit System) - No balance check here
     
-    if (!item.isPurchased) {
-      const updatedPOs = pos.map(p => p.id === poId ? { ...p, items: p.items.map(i => i.id === itemId ? { ...i, isPurchased: true } : i) } : p);
-      saveAll(updatedPOs, containers);
-    } else {
-      const updatedPOs = pos.map(p => p.id === poId ? { ...p, items: p.items.map(i => i.id === itemId ? { ...i, isPurchased: false } : i) } : p);
-      saveAll(updatedPOs, containers);
-    }
+    const updatedPOs = pos.map(p => {
+      if (p.id !== poId) return p;
+      return {
+        ...p,
+        items: p.items.map(i => i.id === itemId ? { ...i, isPurchased: !i.isPurchased } : i)
+      };
+    });
+    saveAll(updatedPOs, containers);
   };
 
   const printPurchaseOrder = (po: PurchaseOrder) => {
@@ -339,7 +359,7 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
       {/* Tab Navigation with Refresh */}
       <div className="flex bg-white p-2 rounded-[2rem] shadow-sm border border-slate-100 gap-2 overflow-x-auto no-scrollbar relative items-center">
         {[
-          {id: 'orders', label: 'Order Hub', icon: '📝', notify: isBuyer ? unreadOrders : pricedOrdersToFund},
+          {id: 'orders', label: 'Order Hub', icon: '📝', notify: isBuyer ? unreadOrders : pricedOrdersToConfirm},
           {id: 'finance', label: 'Financial Hub', icon: '💰', notify: isBuyer ? pendingReceivedMoney : 0},
           {id: 'container', label: 'Logistics & Track', icon: '🚢', notify: 0},
           {id: 'customs', label: 'Canshuuraha (Customs)', icon: '🛃', notify: containersAtPort},
@@ -375,7 +395,7 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
               <div>
                 <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">Order Hub</h2>
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                   {isBuyer ? 'U sameey qiimayn (Pricing) alaabta Manager-ku dalbaday.' : 'Diri dalab cusub oo alaab ah si loo soo qiimeeyo.'}
+                   {isBuyer ? 'U sameey qiimayn (Pricing) alaabta Manager-ku dalbaday.' : 'Diri dalab cusub, kadibna Ogolow (Confirm) markii lasoo qiimeeyo.'}
                 </p>
               </div>
               {!isBuyer && (
@@ -417,8 +437,19 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                               <span>💰</span> SII QIIMAHA ➔
                             </button>
                           )}
+                          
+                          {/* MANAGER APPROVE BUTTON (Replaces "Send Money" forcing) */}
                           {!isBuyer && po.status === POStatus.PRICED && (
-                            <button onClick={() => { setActiveTab('finance'); setIsTransferModalOpen({poId: po.id}); }} className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase shadow-xl hover:bg-indigo-700 transition-all">DIR LACAGTA 💵</button>
+                            <button onClick={() => handleApproveOrder(po.id)} className="bg-emerald-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase shadow-xl hover:bg-emerald-700 transition-all animate-pulse">
+                               ✅ OGOLOW (CONFIRM)
+                            </button>
+                          )}
+                          
+                          {/* Indicator if Purchasing Active */}
+                          {(po.status === POStatus.PURCHASING || po.status === POStatus.SHIPPED) && (
+                             <div className="bg-emerald-50 text-emerald-600 px-6 py-4 rounded-2xl font-black text-[10px] uppercase">
+                                Active Purchasing
+                             </div>
                           )}
                        </div>
                     </div>
@@ -443,112 +474,123 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
         </div>
       )}
 
-      {/* 2. Financial Hub Tab */}
+      {/* 2. Financial Hub Tab (Separate Global Wallet) */}
       {activeTab === 'finance' && (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-           <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex justify-between items-center">
-              <div>
-                <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">Financial Hub</h2>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                   {isBuyer ? 'Xaqiiji lacagaha Manager-ku kuu soo diray.' : 'Maamul Tranches-ka lacagta iyo Wallets-ka.'}
-                </p>
+           {/* Global Wallet Summary */}
+           <div className="bg-slate-900 p-8 rounded-[3rem] shadow-xl border border-slate-800 text-white relative overflow-hidden">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative z-10">
+                 <div>
+                    <h2 className="text-3xl font-black tracking-tighter uppercase">Global Wallet & Funds</h2>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Lacagaha guud ee la diray iyo haraaga.</p>
+                 </div>
+                 {!isBuyer && (
+                   <button 
+                     onClick={() => setIsTransferModalOpen(true)} 
+                     className="bg-white text-indigo-600 px-8 py-4 rounded-2xl font-black shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-3 text-xs uppercase tracking-widest"
+                   >
+                     <span>💳</span> DIR LACAG (SEND FUNDS)
+                   </button>
+                 )}
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-8">
+                 {/* Calculate total aggregated wallet for the view context */}
+                 {(() => {
+                    // If Manager, show Total of all Buyers or specific if filtered? Let's show All for now or User context
+                    const targetStats = isBuyer ? getGlobalWallet(user.id) : getGlobalWallet(selectedBuyerId || (pos[0]?.buyerId || ''));
+                    const isNegative = targetStats.balance < 0;
+                    
+                    return (
+                      <>
+                        <div className="bg-white/10 p-5 rounded-2xl border border-white/10">
+                           <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Total Received</p>
+                           <p className="text-2xl font-black">${targetStats.totalReceived.toLocaleString()}</p>
+                        </div>
+                        <div className="bg-white/10 p-5 rounded-2xl border border-white/10">
+                           <p className="text-[9px] font-black text-rose-400 uppercase tracking-widest">Total Spent (Purchases)</p>
+                           <p className="text-2xl font-black">${targetStats.totalSpent.toLocaleString()}</p>
+                        </div>
+                        <div className={`p-5 rounded-2xl border ${isNegative ? 'bg-rose-600 border-rose-500' : 'bg-emerald-600 border-emerald-500'}`}>
+                           <p className="text-[9px] font-black text-white/80 uppercase tracking-widest">Current Balance</p>
+                           <p className="text-3xl font-black">${targetStats.balance.toLocaleString()}</p>
+                           {isNegative && <span className="text-[8px] font-bold bg-white/20 px-2 py-1 rounded uppercase">Credit / Deyn</span>}
+                        </div>
+                      </>
+                    );
+                 })()}
               </div>
            </div>
+
            <div className="grid grid-cols-1 gap-6">
               {pos.filter(p => (!isBuyer || p.buyerId === user.id) && p.status !== POStatus.NEW).map(po => {
-                const { sent, received, spent, balance } = calculateFinance(po);
+                const { sent, spent, balance } = calculateFinance(po);
                 const isNegativeBalance = balance < 0;
                 
                 return (
-                  <div key={po.id} className="bg-white p-8 rounded-[3.5rem] border border-slate-100 shadow-sm">
-                    <div className="flex flex-col xl:flex-row justify-between gap-10 mb-10">
+                  <div key={po.id} className="bg-white p-8 rounded-[3.5rem] border border-slate-100 shadow-sm relative overflow-hidden">
+                    <div className="flex flex-col xl:flex-row justify-between gap-10 mb-6">
                        <div className="flex-1">
-                          <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">{po.title}</h3>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                             <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
-                                <p className="text-[8px] font-black text-indigo-400 uppercase">Total Sent</p>
-                                <p className="text-lg font-black text-indigo-700">${sent.toLocaleString()}</p>
-                             </div>
-                             <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
-                                <p className="text-[8px] font-black text-emerald-400 uppercase">Total Received</p>
-                                <p className="text-lg font-black text-emerald-700">${received.toLocaleString()}</p>
-                             </div>
-                             <div className="bg-rose-50 p-4 rounded-2xl border border-rose-100">
-                                <p className="text-[8px] font-black text-rose-400 uppercase">Total Spent</p>
-                                <p className="text-lg font-black text-rose-700">${spent.toLocaleString()}</p>
-                             </div>
-                             {/* UPDATED: Balance Display handles Negative values visually */}
-                             <div className={`${isNegativeBalance ? 'bg-rose-600' : 'bg-slate-900'} p-4 rounded-2xl border border-slate-800 transition-colors duration-300`}>
-                                <p className={`text-[8px] font-black uppercase ${isNegativeBalance ? 'text-white' : 'text-slate-400'}`}>Wallet Balance</p>
-                                <p className="text-lg font-black text-white">{isNegativeBalance ? '' : ''}${balance.toLocaleString()}</p>
-                             </div>
+                          <div className="flex items-center gap-3 mb-2">
+                             <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">{po.title}</h3>
+                             <span className="text-[9px] bg-slate-100 text-slate-500 px-2 py-1 rounded font-bold">{po.id}</span>
+                          </div>
+                          
+                          {/* Mini Stats for specific PO context */}
+                          <div className="flex gap-4 text-[10px] font-black text-slate-400 uppercase">
+                             <span>Sent: <span className="text-indigo-600">${sent.toLocaleString()}</span></span>
+                             <span>Spent: <span className="text-rose-600">${spent.toLocaleString()}</span></span>
+                             <span>Bal: <span className={`${isNegativeBalance ? 'text-rose-600' : 'text-emerald-600'}`}>${balance.toLocaleString()}</span></span>
                           </div>
 
-                          {/* Transaction History & Management */}
+                          {/* Transaction History & Management - Simplified */}
                           {(po.transfers || []).length > 0 && (
-                            <div className="mt-8 bg-slate-50 p-5 rounded-[2rem] border border-slate-100">
-                               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-2">Transaction History</p>
-                               <div className="space-y-2">
-                                  {(po.transfers || []).map(t => (
-                                    <div key={t.id} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-100">
-                                       <div className="flex items-center gap-3">
-                                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs ${t.status === 'RECEIVED' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                                            {t.status === 'RECEIVED' ? '✓' : '⏳'}
-                                          </div>
-                                          <div>
-                                             <p className="text-xs font-black text-slate-700">${t.amount.toLocaleString()}</p>
-                                             <p className="text-[9px] font-bold text-slate-400 uppercase">{t.method} • {new Date(t.date).toLocaleDateString()}</p>
-                                          </div>
+                            <div className="mt-6 space-y-2">
+                               <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest px-1">Transactions Linked</p>
+                               {(po.transfers || []).map(t => (
+                                 <div key={t.id} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                    <div className="flex items-center gap-3">
+                                       <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] ${t.status === 'RECEIVED' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                                         {t.status === 'RECEIVED' ? '✓' : '⏳'}
                                        </div>
-                                       {!isBuyer && (
-                                         <button 
-                                           onClick={() => handleDeleteTransfer(po.id, t.id)} 
-                                           className="text-rose-400 hover:text-rose-600 p-2 hover:bg-rose-50 rounded-lg transition-all"
-                                           title="Delete Transaction"
-                                         >
-                                           🗑️
-                                         </button>
-                                       )}
+                                       <div>
+                                          <p className="text-xs font-black text-slate-700">${t.amount.toLocaleString()}</p>
+                                          <p className="text-[8px] font-bold text-slate-400 uppercase">{t.method} • {new Date(t.date).toLocaleDateString()}</p>
+                                       </div>
                                     </div>
-                                  ))}
-                               </div>
-                            </div>
-                          )}
-                       </div>
-                       
-                       {isBuyer && (
-                         <div className="w-full xl:w-80 space-y-4">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Confirm Incoming Funds</p>
-                            <div className="space-y-2">
-                               {(po.transfers || []).filter(t => t.status === 'SENT').map(t => (
-                                 <div key={t.id} className="bg-emerald-50 p-4 rounded-2xl border-2 border-emerald-200 flex justify-between items-center animate-pulse">
-                                    <div>
-                                       <p className="font-black text-emerald-800 text-sm">${t.amount.toLocaleString()}</p>
-                                       <p className="text-[8px] font-bold text-emerald-600 uppercase">{t.method} - {t.reference}</p>
-                                    </div>
-                                    <button onClick={() => handleReceiveMoney(po.id, t.id)} className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-black text-[9px] uppercase shadow-lg active:scale-95">Confirm ✅</button>
+                                    {!isBuyer && (
+                                      <button 
+                                        onClick={() => handleDeleteTransfer(po.id, t.id)} 
+                                        className="text-rose-400 hover:text-rose-600 p-2 hover:bg-rose-50 rounded-lg transition-all"
+                                        title="Delete Transaction"
+                                      >
+                                        🗑️
+                                      </button>
+                                    )}
+                                    {isBuyer && t.status === 'SENT' && (
+                                       <button onClick={() => handleReceiveMoney(po.id, t.id)} className="bg-emerald-600 text-white px-3 py-1 rounded-lg font-black text-[8px] uppercase">Confirm</button>
+                                    )}
                                  </div>
                                ))}
                             </div>
-                         </div>
-                       )}
-                       {!isBuyer && (
-                         <button onClick={() => setIsTransferModalOpen({poId: po.id})} className="bg-indigo-600 text-white px-8 py-5 rounded-3xl font-black uppercase text-[11px] shadow-2xl hover:scale-105 active:scale-95 transition-all self-center">SEND MORE MONEY 💳</button>
-                       )}
+                          )}
+                       </div>
                     </div>
+                    
+                    {/* Buyer Purchasing List */}
                     {isBuyer && (
-                       <div className="bg-slate-50 p-8 rounded-[3rem] border border-slate-100">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Purchasing Checklist (Wallet Mode)</p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                       <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 mt-4">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Purchasing (Checklist)</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                              {(po.items || []).map(item => (
-                               <div key={item.id} className={`flex items-center justify-between p-6 rounded-[2.5rem] border-2 transition-all ${item.isPurchased ? 'bg-emerald-100/50 border-emerald-200 opacity-60' : 'bg-white border-slate-100 shadow-sm'}`}>
-                                  <div className="flex items-center gap-5">
-                                     <button onClick={() => handleMarkPurchased(po.id, item.id)} className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl shadow-md ${item.isPurchased ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400 hover:bg-indigo-50'}`}>
+                               <div key={item.id} className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${item.isPurchased ? 'bg-emerald-50 border-emerald-200 opacity-70' : 'bg-white border-slate-100 shadow-sm'}`}>
+                                  <div className="flex items-center gap-3">
+                                     <button onClick={() => handleMarkPurchased(po.id, item.id)} className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg shadow-sm ${item.isPurchased ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400 hover:bg-indigo-50'}`}>
                                        {item.isPurchased ? '✓' : '🛒'}
                                      </button>
                                      <div>
-                                        <p className={`font-black uppercase text-sm ${item.isPurchased ? 'text-emerald-900 line-through' : 'text-slate-800'}`}>{item.name}</p>
-                                        <p className="text-[9px] font-bold text-slate-400 uppercase">Cost: ${item.actualPrice * item.requestedQty}</p>
+                                        <p className={`font-black uppercase text-xs ${item.isPurchased ? 'text-emerald-900 line-through' : 'text-slate-800'}`}>{item.name}</p>
+                                        <p className="text-[8px] font-bold text-slate-400 uppercase">Price: ${item.actualPrice}</p>
                                      </div>
                                   </div>
                                </div>
@@ -722,7 +764,7 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                           <div className="text-right">
                               <p className="text-[9px] font-black text-slate-400 uppercase">Total Landed Cost</p>
                               <p className="text-lg font-black text-emerald-600">${totalLandedCost.toLocaleString()}</p>
-                              <p className="text-[8px] font-bold text-slate-300">(Goods: ${itemsCost.toLocaleString()} + Freight + Tax)</p>
+                              <p className="text-[8px] font-bold text-slate-300">(Goods: ${itemsCost.toLocaleString()} + Freight: ${c.freightCost} + Tax: ${c.taxPaid})</p>
                           </div>
                       </div>
                       <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 text-center">
@@ -908,18 +950,31 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
         </div>
       )}
 
-      {/* Send Money Modal */}
+      {/* Send Money Modal (Global) */}
       {isTransferModalOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[70000] flex items-center justify-center p-4">
            <div className="bg-white w-full max-w-md rounded-[3.5rem] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
               <div className="p-8 bg-emerald-600 text-white text-center">
                  <h2 className="text-xl font-black uppercase">Dir Lacag Cusub</h2>
+                 <p className="text-[9px] font-bold uppercase opacity-80 mt-1">Fund Transfer (Global Wallet)</p>
               </div>
-              <div className="p-10 space-y-8 bg-slate-50/50">
+              <div className="p-10 space-y-6 bg-slate-50/50">
+                 <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase px-2 text-slate-400">Dooro Order-ka (Reference)</label>
+                    <select className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-bold outline-none" value={transferForm.poId} onChange={e => setTransferForm({...transferForm, poId: e.target.value})}>
+                        <option value="">-- Select Order --</option>
+                        {pos.filter(p => !isBuyer || p.buyerId === user.id).map(p => (
+                            <option key={p.id} value={p.id}>{p.title} ({p.status})</option>
+                        ))}
+                    </select>
+                 </div>
                  <div className="space-y-1"><label className="text-[10px] font-black uppercase px-2 text-slate-400">Amount ($)</label><input type="number" className="w-full p-6 bg-white border-2 border-slate-100 rounded-3xl font-black text-3xl text-emerald-600 outline-none text-center" value={transferForm.amount} onChange={e => setTransferForm({...transferForm, amount: Number(e.target.value)})} /></div>
                  <div className="space-y-1"><label className="text-[10px] font-black uppercase px-2 text-slate-400">Method</label><input className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-bold" value={transferForm.method} onChange={e => setTransferForm({...transferForm, method: e.target.value})} /></div>
-                 <button onClick={handleSendMoney} className="w-full py-5 bg-emerald-600 text-white font-black rounded-3xl shadow-xl uppercase text-[11px]">SEND MONEY ➔</button>
-                 <button onClick={() => setIsTransferModalOpen(null)} className="w-full text-[10px] font-black text-slate-300 uppercase text-center">Jooji</button>
+                 
+                 <div className="pt-4 flex flex-col gap-3">
+                    <button onClick={handleSendMoney} className="w-full py-5 bg-emerald-600 text-white font-black rounded-3xl shadow-xl uppercase text-[11px]">SEND FUNDS ➔</button>
+                    <button onClick={() => setIsTransferModalOpen(false)} className="w-full text-[10px] font-black text-slate-300 uppercase text-center">Jooji</button>
+                 </div>
               </div>
            </div>
         </div>
