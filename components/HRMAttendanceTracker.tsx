@@ -2,25 +2,19 @@
 import React, { useState, useEffect } from 'react';
 import { Employee, Attendance, Xarun } from '../types';
 import { API } from '../services/api';
-import BiometricScanModal from './BiometricScanModal';
 
 interface HRMAttendanceTrackerProps {
   employees: Employee[];
   xarumo: Xarun[];
-  hardwareUrl?: string;
-  zkIp?: string;
-  zkPort?: number;
 }
 
 const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({ 
-  employees, xarumo, hardwareUrl, zkIp, zkPort 
+  employees, xarumo 
 }) => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedXarunId, setSelectedXarunId] = useState<string>('all');
   const [attendanceData, setAttendanceData] = useState<Attendance[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showBiometric, setShowBiometric] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     loadAttendance();
@@ -33,56 +27,6 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
     setLoading(false);
   };
 
-  const syncLogsFromDevice = async () => {
-    if (!hardwareUrl || !zkIp) {
-      alert("Cilad: Hardware connection-ka ma fadhido. Hubi Settings.");
-      return;
-    }
-
-    setIsSyncing(true);
-    try {
-      const response = await fetch(`${hardwareUrl}/zk/logs?ip=${zkIp}&port=${zkPort || 4370}`);
-      if (!response.ok) throw new Error(`Fetch status: ${response.status}`);
-      
-      const deviceLogs = await response.json();
-      if (!Array.isArray(deviceLogs)) throw new Error("Format-ka logs-ka waa qaldan yahay.");
-
-      if (deviceLogs.length === 0) {
-        alert("Ma jiraan wax faro-faraysi ah (Logs) oo hadda qalabka ku jira.");
-        return;
-      }
-
-      let importedLogs = 0;
-      for (const log of deviceLogs) {
-        const emp = employees.find(e => e.employeeIdCode === log.userId.toString());
-        if (emp) {
-          const logDate = new Date(log.timestamp).toISOString().split('T')[0];
-          const existingForDay = await API.attendance.getByDate(logDate);
-          const alreadyMarked = existingForDay.some(a => a.employeeId === emp.id);
-
-          if (!alreadyMarked) {
-            await API.attendance.save({
-              employeeId: emp.id,
-              date: logDate,
-              status: 'PRESENT',
-              clockIn: log.timestamp,
-              notes: 'ZK Auto-Sync'
-            });
-            importedLogs++;
-          }
-        }
-      }
-      
-      alert(`Sync Complete! Waxaan helnay ${deviceLogs.length} logs. ${importedLogs} check-ins cusub ayaa la galiyay database-ka.`);
-      loadAttendance();
-    } catch (err) {
-      console.error("Attendance Sync Error:", err);
-      alert(`CILAD SYNC LOGS: ${err instanceof Error ? err.message : 'Unknown'}\n\nHaddii ay tiraahdo "Failed to fetch", fadlan guji badanka "Open Bridge Status" ee Settings si aad u fasaxdo xiriirka Browser-ka.`);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
   const markAttendance = async (empId: string, status: 'PRESENT' | 'ABSENT' | 'LATE' | 'LEAVE') => {
     const existing = attendanceData.find(a => a.employeeId === empId);
     const newRecord: Partial<Attendance> = {
@@ -90,43 +34,30 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
       employeeId: empId,
       date: selectedDate,
       status: status,
-      clockIn: status === 'PRESENT' ? new Date().toISOString() : undefined
+      clockIn: status === 'PRESENT' ? new Date().toISOString() : undefined,
+      notes: 'Manual Entry'
     };
     await API.attendance.save(newRecord);
     loadAttendance();
-  };
-
-  const handleBiometricMatch = (emp: Employee) => {
-    markAttendance(emp.id, 'PRESENT');
-    setShowBiometric(false);
   };
 
   const filteredEmployees = employees.filter(emp => 
     selectedXarunId === 'all' || emp.xarunId === selectedXarunId
   );
 
+  const presentCount = attendanceData.filter(a => filteredEmployees.some(e => e.id === a.employeeId) && a.status === 'PRESENT').length;
+  const absentCount = attendanceData.filter(a => filteredEmployees.some(e => e.id === a.employeeId) && a.status === 'ABSENT').length;
+  const lateCount = attendanceData.filter(a => filteredEmployees.some(e => e.id === a.employeeId) && a.status === 'LATE').length;
+  const pendingCount = filteredEmployees.length - (presentCount + absentCount + lateCount);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-500">
       <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col xl:flex-row justify-between items-center gap-6">
         <div className="flex items-center gap-6">
+          <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center text-2xl">📝</div>
           <div>
-            <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Iimaanshaha Shaqaalaha</h2>
-            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Calaamadi iimaanshaha xarun kasta.</p>
-          </div>
-          <div className="flex gap-2">
-            <button 
-              onClick={syncLogsFromDevice}
-              disabled={isSyncing}
-              className="px-6 py-4 bg-slate-900 text-white rounded-2xl font-black shadow-lg hover:bg-indigo-600 transition-all items-center gap-3 uppercase text-[10px] tracking-widest disabled:opacity-50"
-            >
-              {isSyncing ? '🔄 Syncing...' : '📥 Sync Logs from ZK'}
-            </button>
-            <button 
-              onClick={() => setShowBiometric(true)}
-              className={`hidden md:flex px-6 py-4 rounded-2xl font-black shadow-lg transition-all items-center gap-3 uppercase text-[10px] tracking-widest ${zkIp ? 'bg-emerald-600 text-white shadow-emerald-100' : 'bg-slate-100 text-slate-600 hover:bg-emerald-600 hover:text-white'}`}
-            >
-              <span>☝️</span> {zkIp ? `Fingerprint Scan` : 'Clock-in'}
-            </button>
+            <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Manual Attendance</h2>
+            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Calaamadi Iimaanshaha (Gacanta)</p>
           </div>
         </div>
         
@@ -157,18 +88,29 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Wadarta Shaqaalaha', value: filteredEmployees.length, color: 'text-slate-600' },
-          { label: 'Jooga (Present)', value: attendanceData.filter(a => filteredEmployees.some(e => e.id === a.employeeId) && a.status === 'PRESENT').length, color: 'text-emerald-600' },
-          { label: 'Maqan (Absent)', value: attendanceData.filter(a => filteredEmployees.some(e => e.id === a.employeeId) && a.status === 'ABSENT').length, color: 'text-rose-600' },
-          { label: 'Dahahay (Late)', value: attendanceData.filter(a => filteredEmployees.some(e => e.id === a.employeeId) && a.status === 'LATE').length, color: 'text-amber-600' },
-        ].map((stat, i) => (
-          <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm text-center">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{stat.label}</p>
-            <p className={`text-2xl font-black ${stat.color}`}>{stat.value}</p>
-          </div>
-        ))}
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-center">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Shaqaalaha</p>
+            <p className="text-2xl font-black text-slate-600">{filteredEmployees.length}</p>
+        </div>
+        <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-center">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Jooga (Present)</p>
+            <p className="text-2xl font-black text-emerald-600">{presentCount}</p>
+        </div>
+        <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-center">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Maqan (Absent)</p>
+            <p className="text-2xl font-black text-rose-600">{absentCount}</p>
+        </div>
+        <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-center">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Dahahay (Late)</p>
+            <p className="text-2xl font-black text-amber-600">{lateCount}</p>
+        </div>
+        <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-center relative overflow-hidden">
+            {pendingCount > 0 && <div className="absolute top-0 right-0 w-3 h-3 bg-indigo-500 rounded-full animate-ping"></div>}
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Lama Calaamadin</p>
+            <p className="text-2xl font-black text-slate-300">{pendingCount}</p>
+        </div>
       </div>
 
       <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
@@ -178,8 +120,8 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
               <tr className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
                 <th className="px-10 py-6">Shaqaalaha</th>
                 <th className="px-10 py-6">Xarunta</th>
-                <th className="px-10 py-6 text-center">Xaaladda (Status)</th>
-                <th className="px-10 py-6 text-right">Actions</th>
+                <th className="px-10 py-6 text-center">Xaaladda</th>
+                <th className="px-10 py-6 text-right">Calaamadi (Action)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -211,29 +153,29 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
                           {record.status}
                         </span>
                       ) : (
-                        <span className="text-[10px] font-black text-slate-300 uppercase italic">Sugaya...</span>
+                        <span className="text-[10px] font-black text-slate-300 uppercase italic">-- Pending --</span>
                       )}
                     </td>
                     <td className="px-10 py-4 text-right">
                       <div className="flex justify-end gap-2">
                         <button 
                           onClick={() => markAttendance(emp.id, 'PRESENT')} 
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all ${record?.status === 'PRESENT' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white'}`}
-                          title="Present"
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all active:scale-95 ${record?.status === 'PRESENT' ? 'bg-emerald-600 text-white ring-4 ring-emerald-100' : 'bg-white border border-slate-100 text-emerald-600 hover:bg-emerald-50'}`}
+                          title="Present (Yimid)"
                         >
                           ✅
                         </button>
                         <button 
                           onClick={() => markAttendance(emp.id, 'ABSENT')} 
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all ${record?.status === 'ABSENT' ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white'}`}
-                          title="Absent"
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all active:scale-95 ${record?.status === 'ABSENT' ? 'bg-rose-600 text-white ring-4 ring-rose-100' : 'bg-white border border-slate-100 text-rose-600 hover:bg-rose-50'}`}
+                          title="Absent (Maqan)"
                         >
                           ❌
                         </button>
                         <button 
                           onClick={() => markAttendance(emp.id, 'LATE')} 
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all ${record?.status === 'LATE' ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white'}`}
-                          title="Late"
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all active:scale-95 ${record?.status === 'LATE' ? 'bg-amber-600 text-white ring-4 ring-amber-100' : 'bg-white border border-slate-100 text-amber-600 hover:bg-amber-50'}`}
+                          title="Late (Dahahay)"
                         >
                           ⏰
                         </button>
@@ -246,17 +188,6 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
           </table>
         </div>
       </div>
-
-      {showBiometric && (
-        <BiometricScanModal 
-          employees={employees} 
-          hardwareUrl={hardwareUrl}
-          zkConfig={{ ip: zkIp, port: zkPort }}
-          onMatch={handleBiometricMatch} 
-          onCancel={() => setShowBiometric(false)}
-          title="Attendance Clock-In"
-        />
-      )}
     </div>
   );
 };

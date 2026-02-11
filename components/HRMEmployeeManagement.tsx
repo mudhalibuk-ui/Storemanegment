@@ -1,7 +1,6 @@
 
 import React, { useState } from 'react';
 import { Employee, Branch, Xarun, Attendance, Payroll } from '../types';
-import { API } from '../services/api';
 import QRCode from 'qrcode';
 import EmployeeProfileModal from './EmployeeProfileModal';
 import BiometricScanModal from './BiometricScanModal';
@@ -48,39 +47,25 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
 
     setIsSyncing(true);
     try {
-      const response = await fetch(`${hardwareUrl}/zk/users?ip=${ip}&port=${port}`);
-      if (!response.ok) throw new Error(`Server Response: ${response.status}`);
+      const response = await fetch(`${hardwareUrl}/sync-users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            ip: ip, 
+            port: port,
+            default_xarun_id: xarumo[0]?.id || 'x1'
+        })
+      });
       
-      const deviceUsers = await response.json();
-      if (!Array.isArray(deviceUsers)) throw new Error("Format qaldan ayaa ka yimid qalabka.");
-
-      if (deviceUsers.length === 0) {
-        alert("Qalabka dhexdiisa (ZKTeco) laguma hayo wax shaqaale ah.");
-        return;
-      }
-
-      let importedCount = 0;
-      for (const dUser of deviceUsers) {
-        const exists = employees.some(e => e.employeeIdCode === dUser.userId.toString());
-        if (!exists) {
-          await API.employees.save({
-            name: dUser.name || `User ${dUser.userId}`,
-            employeeIdCode: dUser.userId.toString(),
-            position: 'STAFF (IMPORTED)',
-            status: 'ACTIVE',
-            joinedDate: new Date().toISOString().split('T')[0],
-            xarunId: xarumo[0]?.id || 'x1',
-            salary: 0
-          });
-          importedCount++;
-        }
-      }
+      const result = await response.json();
       
-      alert(`Sync-gu waa guuleystay! Waxaan helnay ${deviceUsers.length} qof. ${importedCount} shaqaale cusub ayaa la galiyay database-ka.`);
+      if (!response.ok) throw new Error(result.error || "Unknown Error");
+
+      alert(`✅ GUUL: ${result.message}`);
       window.location.reload(); 
     } catch (err) {
       console.error("Sync Error:", err);
-      alert(`CILAD SYNC: ${err instanceof Error ? err.message : 'Unknown error'}\n\nFadlan hubi:\n1. Bridge Software-ka inuu PC-ga ka furan yahay.\n2. Inaad hal mar "Open Bridge Status" ku gujisay Settings-ka.`);
+      alert(`CILAD SYNC: ${err instanceof Error ? err.message : 'Unknown error'}\n\nFadlan hubi in 'python_bridge/app.py' uu ka shaqaynayo kombiyuutarka.`);
     } finally {
       setIsSyncing(false);
     }
@@ -145,29 +130,11 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
       <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
         <div>
           <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">Maamulka Shaqaalaha (HRM)</h2>
-          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Diiwaangali, Bedel, ama Daabac Kaararka Shaqaalaha.</p>
+          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Diiwaangali, Bedel, ama Tirtir Shaqaalaha.</p>
         </div>
         <div className="flex gap-4">
-           <div className="flex flex-col gap-1 items-center">
-             <button 
-               onClick={syncUsersFromDevice}
-               disabled={isSyncing}
-               className="px-6 py-3.5 bg-slate-900 text-white rounded-2xl font-black shadow-lg hover:bg-indigo-600 transition-all items-center gap-3 uppercase text-[10px] tracking-widest hidden lg:flex disabled:opacity-50"
-             >
-               {isSyncing ? '🔄 Syncing...' : '📥 Sync Device Users'}
-             </button>
-             {hardwareUrl && (
-               <a href={hardwareUrl} target="_blank" rel="noreferrer" className="text-[8px] font-black text-slate-300 hover:text-indigo-500 uppercase tracking-widest transition-colors">Test Bridge Link</a>
-             )}
-           </div>
+           {/* Hardware Sync Button Removed to keep UI clean for Manual Mode, can be re-enabled if needed */}
            
-           <button 
-             onClick={() => setShowBiometricSearch(true)}
-             className={`px-6 py-3.5 rounded-2xl font-black transition-all items-center gap-3 uppercase text-[10px] tracking-widest hidden lg:flex ${hardwareUrl ? 'bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-600 hover:text-white' : 'bg-slate-100 text-slate-600 hover:bg-indigo-600 hover:text-white'}`}
-           >
-             <span>☝️</span> {hardwareUrl ? 'Hardware Scan' : 'Biometric Search'}
-           </button>
-
            <div className="relative w-64">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300">🔍</span>
               <input 
@@ -187,10 +154,23 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filtered.map(emp => (
           <div key={emp.id} className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 hover:shadow-xl hover:border-indigo-100 transition-all group relative">
-            <div className="absolute top-6 right-6 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            
+            {/* ACTION BUTTONS (Edit / Delete / Print / View) */}
+            <div className="absolute top-6 right-6 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                <button onClick={() => setSelectedProfile(emp)} className="p-3 bg-white text-emerald-600 rounded-xl shadow-sm border border-slate-100 hover:bg-emerald-600 hover:text-white transition-all" title="View Profile">👁️</button>
                <button onClick={() => printIDBadge(emp)} className="p-3 bg-white text-indigo-600 rounded-xl shadow-sm border border-slate-100 hover:bg-indigo-600 hover:text-white transition-all" title="Print ID Card">🖨️</button>
-               <button onClick={() => onEdit(emp)} className="p-3 bg-white text-slate-400 rounded-xl shadow-sm border border-slate-100 hover:bg-slate-100 transition-all">⚙️</button>
+               <button onClick={() => onEdit(emp)} className="p-3 bg-white text-amber-500 rounded-xl shadow-sm border border-slate-100 hover:bg-amber-500 hover:text-white transition-all" title="Edit Employee">⚙️</button>
+               <button 
+                 onClick={() => {
+                   if(confirm(`Ma hubtaa inaad tirtirto shaqaalaha: ${emp.name}?`)) {
+                     onDelete(emp.id);
+                   }
+                 }} 
+                 className="p-3 bg-white text-rose-500 rounded-xl shadow-sm border border-slate-100 hover:bg-rose-600 hover:text-white transition-all" 
+                 title="Delete Employee"
+               >
+                 🗑️
+               </button>
             </div>
 
             <div className="flex flex-col items-center text-center">

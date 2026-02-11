@@ -26,6 +26,7 @@ import HRMEmployeeManagement from './components/HRMEmployeeManagement';
 import HRMAttendanceTracker from './components/HRMAttendanceTracker';
 import HRMPayroll from './components/HRMPayroll';
 import HRMReports from './components/HRMReports';
+import EmployeeForm from './components/EmployeeForm';
 
 import { API } from './services/api';
 import { InventoryItem, Branch, Transaction, User, TransactionStatus, TransactionType, SystemSettings, UserRole, Xarun, Employee, Attendance, Payroll } from './types';
@@ -218,6 +219,7 @@ const App: React.FC = () => {
           xarumo={xarumo} 
           attendance={attendance} 
           payrolls={payrolls} 
+          hardwareUrl="http://localhost:5000"
           onAdd={() => { setEditingEmployee(null); setIsEmployeeFormOpen(true); }} 
           onEdit={(e) => { setEditingEmployee(e); setIsEmployeeFormOpen(true); }} 
           onDelete={async (id) => { if(confirm('Tir-tir shaqaalahan?')) { await API.employees.delete(id); refreshAllData(); } }} 
@@ -290,6 +292,20 @@ const App: React.FC = () => {
           editingItem={editingItem} 
           onSave={async (item) => { await API.items.save(item); setIsItemFormOpen(false); refreshAllData(); }} 
           onCancel={() => setIsItemFormOpen(false)} 
+        />
+      )}
+
+      {isEmployeeFormOpen && (
+        <EmployeeForm 
+          branches={branches} 
+          xarumo={xarumo} 
+          editingEmployee={editingEmployee} 
+          onSave={async (emp) => { 
+            await API.employees.save(emp); 
+            setIsEmployeeFormOpen(false); 
+            refreshAllData(); 
+          }} 
+          onCancel={() => setIsEmployeeFormOpen(false)} 
         />
       )}
 

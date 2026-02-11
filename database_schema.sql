@@ -5,18 +5,24 @@
 
 SET search_path TO public;
 
--- Clean up existing tables
-DROP TABLE IF EXISTS public.attendance CASCADE;
-DROP TABLE IF EXISTS public.payroll CASCADE;
-DROP TABLE IF EXISTS public.transactions CASCADE;
-DROP TABLE IF EXISTS public.inventory_items CASCADE;
-DROP TABLE IF EXISTS public.employees CASCADE;
-DROP TABLE IF EXISTS public.branches CASCADE;
-DROP TABLE IF EXISTS public.xarumo CASCADE;
-DROP TABLE IF EXISTS public.users_registry CASCADE;
+-- Enable UUID extension if not enabled (useful for other UUID functions if needed)
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- Enable pgcrypto for gen_random_uuid in older postgres versions (though built-in on PG13+)
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- Clean up existing tables (Optional: Comment out if you want to keep data)
+-- DROP TABLE IF EXISTS public.attendance CASCADE;
+-- DROP TABLE IF EXISTS public.payroll CASCADE;
+-- DROP TABLE IF EXISTS public.transactions CASCADE;
+-- DROP TABLE IF EXISTS public.inventory_items CASCADE;
+-- DROP TABLE IF EXISTS public.employees CASCADE;
+-- DROP TABLE IF EXISTS public.branches CASCADE;
+-- DROP TABLE IF EXISTS public.xarumo CASCADE;
+-- DROP TABLE IF EXISTS public.users_registry CASCADE;
+-- DROP TABLE IF EXISTS public.departments CASCADE;
 
 -- 1. Xarumo (Headquarters/Centers)
-CREATE TABLE public.xarumo (
+CREATE TABLE IF NOT EXISTS public.xarumo (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     location TEXT NOT NULL,
@@ -24,7 +30,7 @@ CREATE TABLE public.xarumo (
 );
 
 -- 2. Branches (Warehouses)
-CREATE TABLE public.branches (
+CREATE TABLE IF NOT EXISTS public.branches (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     location TEXT NOT NULL,
@@ -35,12 +41,22 @@ CREATE TABLE public.branches (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
+-- 2.5 Departments (NEW REQUEST)
+CREATE TABLE IF NOT EXISTS public.departments (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    name TEXT NOT NULL,
+    description TEXT,
+    branch_id TEXT REFERENCES public.branches(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
 -- 3. Employees (Shaqaalaha)
-CREATE TABLE public.employees (
+CREATE TABLE IF NOT EXISTS public.employees (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    employee_id_code TEXT UNIQUE NOT NULL,
+    employee_id_code TEXT UNIQUE NOT NULL, -- This matches ZKTeco User ID
     position TEXT,
+    department_id TEXT REFERENCES public.departments(id) ON DELETE SET NULL, -- Linked to new table
     status TEXT DEFAULT 'ACTIVE',
     joined_date DATE DEFAULT CURRENT_DATE,
     xarun_id TEXT REFERENCES public.xarumo(id) ON DELETE SET NULL,
@@ -52,7 +68,7 @@ CREATE TABLE public.employees (
 );
 
 -- 4. Inventory Items (Stock-ga)
-CREATE TABLE public.inventory_items (
+CREATE TABLE IF NOT EXISTS public.inventory_items (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     category TEXT,
@@ -68,7 +84,7 @@ CREATE TABLE public.inventory_items (
 );
 
 -- 5. Transactions (Dhaqdhaqaaqa)
-CREATE TABLE public.transactions (
+CREATE TABLE IF NOT EXISTS public.transactions (
     id TEXT PRIMARY KEY,
     item_id TEXT,
     item_name TEXT,
@@ -88,7 +104,7 @@ CREATE TABLE public.transactions (
 );
 
 -- 6. Users Registry (Admin Accounts)
-CREATE TABLE public.users_registry (
+CREATE TABLE IF NOT EXISTS public.users_registry (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     username TEXT UNIQUE NOT NULL,
@@ -99,19 +115,22 @@ CREATE TABLE public.users_registry (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
--- 7. Attendance (Iimaanshaha)
-CREATE TABLE public.attendance (
-    id TEXT PRIMARY KEY,
+-- 7. Attendance / Attendance Logs (Iimaanshaha)
+-- This table serves as the 'attendance_logs' requested.
+CREATE TABLE IF NOT EXISTS public.attendance (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     employee_id TEXT REFERENCES public.employees(id) ON DELETE CASCADE,
     date DATE NOT NULL,
     status TEXT CHECK (status IN ('PRESENT', 'ABSENT', 'LATE', 'LEAVE')),
     clock_in TIMESTAMP WITH TIME ZONE,
+    clock_out TIMESTAMP WITH TIME ZONE, -- Added Clock Out
+    device_id TEXT, -- To track which ZK device sent the data
     notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 -- 8. Payroll (Mushaharka)
-CREATE TABLE public.payroll (
+CREATE TABLE IF NOT EXISTS public.payroll (
     id TEXT PRIMARY KEY,
     employee_id TEXT REFERENCES public.employees(id) ON DELETE CASCADE,
     month TEXT NOT NULL,
@@ -135,6 +154,7 @@ ALTER TABLE public.users_registry DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.employees DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payroll DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.departments DISABLE ROW LEVEL SECURITY;
 
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 NOTIFY pgrst, 'reload schema';
