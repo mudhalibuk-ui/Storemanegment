@@ -27,13 +27,22 @@ export enum PackType {
 }
 
 export enum POStatus {
-  DRAFT = 'DRAFT',
-  PENDING_PRICING = 'PENDING_PRICING',
-  AWAITING_APPROVAL = 'AWAITING_APPROVAL',
-  PURCHASING = 'PURCHASING',
+  NEW = 'NEW', // Newly sent from Manager
+  PRICED = 'PRICED', // Buyer added prices
+  AWAITING_FUNDS = 'AWAITING_FUNDS', // Manager notified to send money
+  PURCHASING = 'PURCHASING', // Money received, currently buying
   SHIPPED = 'SHIPPED',
   ARRIVED = 'ARRIVED',
   COMPLETED = 'COMPLETED'
+}
+
+export interface POTransfer {
+  id: string;
+  amount: number;
+  date: string;
+  reference: string;
+  method: string;
+  status: 'SENT' | 'RECEIVED';
 }
 
 export interface POItem {
@@ -57,6 +66,9 @@ export interface PurchaseOrder {
   items: POItem[];
   status: POStatus;
   totalFundsSent: number;
+  transfers: POTransfer[];
+  isReadByBuyer: boolean;
+  isReadByManager: boolean; // For when buyer updates prices
   notes?: string;
   createdAt: string;
 }
@@ -115,15 +127,6 @@ export interface InventoryItem {
   lastKnownPrice?: number;
   packType?: PackType;
   landedCost?: number;
-}
-
-export interface StockRequest {
-  id: string;
-  branchId: string;
-  requesterId: string;
-  items: { itemId: string; name: string; qty: number }[];
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  createdAt: string;
 }
 
 export interface Transaction {
@@ -188,7 +191,7 @@ export interface Payroll {
   netPay: number;
   status: 'PAID' | 'UNPAID';
   xarunId: string;
-  baseSalary: number;
+  base_salary: number;
   bonus: number;
   deduction: number;
   paymentDate?: string;

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { PurchaseOrder, POItem, POStatus, Container, PackType, User, UserRole, InventoryItem, SystemSettings, Branch } from '../types';
+import { PurchaseOrder, POItem, POStatus, Container, PackType, User, UserRole, InventoryItem, SystemSettings, Branch, POTransfer } from '../types';
 import { API } from '../services/api';
 
 interface LogisticsProcurementProps {
@@ -15,17 +15,31 @@ interface LogisticsProcurementProps {
 const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, masterItems, buyers, settings, branches, onRefresh }) => {
   const [pos, setPos] = useState<PurchaseOrder[]>([]);
   const [containers, setContainers] = useState<Container[]>([]);
-  const [activeTab, setActiveTab] = useState<'quotation' | 'purchasing' | 'container' | 'arrivals'>('quotation');
+  const [activeTab, setActiveTab] = useState<'orders' | 'finance' | 'container' | 'arrivals'>('orders');
   
   const [isPOModalOpen, setIsPOModalOpen] = useState(false);
   const [newPOTitle, setNewPOTitle] = useState('');
   const [selectedBuyerId, setSelectedBuyerId] = useState('');
   const [poItems, setPoItems] = useState<Partial<POItem>[]>([{ id: '1', name: '', requestedQty: 1, lastPurchasePrice: 0, packType: PackType.BOX }]);
-  const [activeSearchIndex, setActiveSearchIndex] = useState<number | null>(null);
+  
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState<{poId: string} | null>(null);
+  const [transferForm, setTransferForm] = useState({ amount: 0, ref: '', method: 'Hawala' });
 
+  // Pricing Modal State
+  const [pricingPO, setPricingPO] = useState<PurchaseOrder | null>(null);
+  const [pricingValues, setPricingValues] = useState<Record<string, number>>({});
+
+  // Container Modal State
   const [isContainerModalOpen, setIsContainerModalOpen] = useState(false);
-  const [containerForm, setContainerForm] = useState({ name: '', number: '', freight: 0, tracking: '', type: '20FT' as '20FT' | '40FT' });
-  const [selectedForContainer, setSelectedForContainer] = useState<string[]>([]);
+  const [newContainer, setNewContainer] = useState<Partial<Container>>({
+    number: '',
+    type: '40FT',
+    status: 'LOADING',
+    poId: '',
+    items: [],
+    freightCost: 0,
+    taxPaid: 0
+  });
 
   useEffect(() => {
     const savedPO = localStorage.getItem('smartstock_pos');
@@ -41,86 +55,36 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
     localStorage.setItem('smartstock_containers', JSON.stringify(updatedContainers));
   };
 
-  const getTaxForPackType = (pt: PackType) => {
-    switch (pt) {
-      case PackType.BOX: return settings.taxPerBox || 0;
-      case PackType.KIISH: return settings.taxPerKiish || 0;
-      case PackType.DRAM: return settings.taxPerDram || 0;
-      case PackType.FALAG: return settings.taxPerFalag || 0;
-      default: return 0;
-    }
+  const isBuyer = user.role === UserRole.BUYER;
+  
+  // Notifications
+  const unreadOrders = pos.filter(p => p.buyerId === user.id && !p.isReadByBuyer).length;
+  const pendingReceivedMoney = pos.filter(p => p.buyerId === user.id && p.transfers.some(t => t.status === 'SENT')).length;
+  const pricedOrdersToFund = pos.filter(p => !isBuyer && p.status === POStatus.PRICED && !p.isReadByManager).length;
+
+  const calculateFinance = (po: PurchaseOrder) => {
+    const sent = po.transfers.filter(t => t.status === 'SENT').reduce((acc, t) => acc + t.amount, 0);
+    const received = po.transfers.filter(t => t.status === 'RECEIVED').reduce((acc, t) => acc + t.amount, 0);
+    const spent = po.items.filter(i => i.isPurchased).reduce((acc, i) => acc + (i.actualPrice * i.requestedQty), 0);
+    const estimatedTotal = po.items.reduce((acc, i) => acc + ((i.actualPrice || i.lastPurchasePrice) * i.requestedQty), 0);
+    return { sent, received, spent, balance: received - spent, estimatedTotal };
   };
 
-  const handleProcessArrival = async (containerId: string) => {
-    const container = containers.find(c => c.id === containerId);
-    if (!container) return;
-
-    if (!settings.mainStoreId) {
-      alert("Fadlan deji 'Main Store' gudaha Settings ka hor intaadan alaabta qaabilin.");
+  const handleSendOrder = () => {
+    if (!newPOTitle || !selectedBuyerId || poItems.length === 0) {
+      alert("Fadlan buuxi xogta Order-ka.");
       return;
     }
-
-    if (!confirm("Ma hubtaa inaad alaabtan u gudbiso Main Store oo aad xisaabiso canshuurta?")) return;
-
-    for (const item of container.items) {
-      const tax = getTaxForPackType(item.packType);
-      const landedPrice = item.actualPrice + tax;
-
-      // Update or Create in Inventory
-      const existing = masterItems.find(mi => mi.name === item.name && mi.branchId === settings.mainStoreId);
-      
-      if (existing) {
-        await API.items.save({
-          ...existing,
-          quantity: existing.quantity + item.requestedQty,
-          landedCost: landedPrice,
-          lastKnownPrice: item.actualPrice,
-          lastUpdated: new Date().toISOString()
-        });
-      } else {
-        await API.items.save({
-          name: item.name,
-          sku: `SKU-${Math.floor(1000 + Math.random() * 9000)}`,
-          category: 'General',
-          quantity: item.requestedQty,
-          branchId: settings.mainStoreId,
-          xarunId: branches.find(b => b.id === settings.mainStoreId)?.xarunId || 'x1',
-          minThreshold: 5,
-          shelves: 1,
-          sections: 1,
-          landedCost: landedPrice,
-          lastKnownPrice: item.actualPrice,
-          packType: item.packType
-        });
-      }
-
-      // Create Transaction
-      await API.transactions.create({
-        itemId: item.id,
-        itemName: item.name,
-        type: 'IN' as any,
-        quantity: item.requestedQty,
-        branchId: settings.mainStoreId,
-        personnel: user.name,
-        notes: `Arrived from Container ${container.number}`,
-        xarunId: branches.find(b => b.id === settings.mainStoreId)?.xarunId || 'x1'
-      });
-    }
-
-    const updatedContainers = containers.map(c => c.id === containerId ? { ...c, status: 'CLEARED' as any } : c);
-    saveAll(pos, updatedContainers);
-    alert("Alaabtii si guul leh ayaa loogu daray Main Store, Unit Price-kana waa la xisaabiyey!");
-    onRefresh();
-  };
-
-  const handleCreatePO = () => {
     const newPO: PurchaseOrder = {
       id: `PO-${Date.now()}`,
       creatorId: user.id,
       buyerId: selectedBuyerId,
       title: newPOTitle,
-      status: POStatus.PENDING_PRICING,
+      status: POStatus.NEW,
       totalFundsSent: 0,
+      transfers: [],
+      isReadByBuyer: false,
+      isReadByManager: true,
       createdAt: new Date().toISOString(),
       items: poItems.map(i => ({
         id: Math.random().toString(36).substr(2, 9),
@@ -135,327 +99,506 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
     };
     saveAll([...pos, newPO], containers);
     setIsPOModalOpen(false);
+    setNewPOTitle('');
+    setSelectedBuyerId('');
+    setPoItems([{ id: '1', name: '', requestedQty: 1, lastPurchasePrice: 0, packType: PackType.BOX }]);
+    alert("Order-ka waa la diray! Buyer-ka ayaa loo sheegi doonaa.");
   };
 
-  const submitQuotation = (poId: string) => {
-    const updatedPOs = pos.map(p => p.id === poId ? { ...p, status: POStatus.AWAITING_APPROVAL } : p);
+  const openPricingModal = (po: PurchaseOrder) => {
+    setPricingPO(po);
+    const initialValues: Record<string, number> = {};
+    po.items.forEach(item => {
+      initialValues[item.id] = item.actualPrice || item.lastPurchasePrice || 0;
+    });
+    setPricingValues(initialValues);
+  };
+
+  const handleSavePrices = () => {
+    if (!pricingPO) return;
+    const updatedItems = pricingPO.items.map(item => ({ ...item, actualPrice: pricingValues[item.id] || 0 }));
+    const updatedPOs = pos.map(p => p.id === pricingPO.id ? { ...p, items: updatedItems, status: POStatus.PRICED, isReadByManager: false, isReadByBuyer: true } : p);
     saveAll(updatedPOs, containers);
-    alert("Quotation-ka waa la diray.");
+    setPricingPO(null);
+    alert("Qiimaha waa la xaqiijiyey! Manager-ka waa la ogeysiiyey.");
   };
 
-  const handleManagerApprove = (poId: string) => {
-    const funds = prompt("Gali lacagta (Funds) loo diray Buyer-ka:", "0");
-    const updatedPOs = pos.map(p => p.id === poId ? { ...p, status: POStatus.PURCHASING, totalFundsSent: Number(funds) || 0 } : p);
-    saveAll(updatedPOs, containers);
-  };
-
-  const togglePurchased = (poId: string, itemId: string) => {
+  const handleSendMoney = () => {
+    if (!isTransferModalOpen || transferForm.amount <= 0) return;
     const updatedPOs = pos.map(p => {
-      if (p.id !== poId) return p;
-      return {
-        ...p,
-        items: p.items.map(i => i.id === itemId ? { ...i, isPurchased: !i.isPurchased } : i)
-      };
+      if (p.id !== isTransferModalOpen.poId) return p;
+      const newT: POTransfer = { id: `TR-${Date.now()}`, amount: transferForm.amount, date: new Date().toISOString(), reference: transferForm.ref, method: transferForm.method, status: 'SENT' };
+      return { ...p, transfers: [...p.transfers, newT], status: POStatus.AWAITING_FUNDS, isReadByManager: true };
     });
     saveAll(updatedPOs, containers);
+    setIsTransferModalOpen(null);
+    setTransferForm({ amount: 0, ref: '', method: 'Hawala' });
+    alert("Lacagta waa la diray!");
+  };
+
+  const handleReceiveMoney = (poId: string, transferId: string) => {
+    const updatedPOs = pos.map(p => {
+      if (p.id !== poId) return p;
+      return { ...p, transfers: p.transfers.map(t => t.id === transferId ? { ...t, status: 'RECEIVED' as any } : t), status: POStatus.PURCHASING };
+    });
+    saveAll(updatedPOs, containers);
+    alert("Lacagta waa la xaqiijiyey!");
+  };
+
+  const handleMarkPurchased = (poId: string, itemId: string) => {
+    const po = pos.find(p => p.id === poId);
+    if (!po) return;
+    const item = po.items.find(i => i.id === itemId);
+    if (!item) return;
+    const { balance } = calculateFinance(po);
+    const itemCost = item.actualPrice * item.requestedQty;
+    if (!item.isPurchased) {
+      if (itemCost > balance) { return alert("Wallet balance low!"); }
+      const updatedPOs = pos.map(p => p.id === poId ? { ...p, items: p.items.map(i => i.id === itemId ? { ...i, isPurchased: true } : i) } : p);
+      saveAll(updatedPOs, containers);
+    } else {
+      const updatedPOs = pos.map(p => p.id === poId ? { ...p, items: p.items.map(i => i.id === itemId ? { ...i, isPurchased: false } : i) } : p);
+      saveAll(updatedPOs, containers);
+    }
   };
 
   const handleCreateContainer = () => {
-    if (!containerForm.number || selectedForContainer.length === 0) return;
-    const allPurchasedItems: POItem[] = [];
-    pos.forEach(p => {
-      p.items.forEach(i => { if (selectedForContainer.includes(i.id)) allPurchasedItems.push(i); });
-    });
-    const newContainer: Container = {
-      id: `CONT-${Date.now()}`,
-      number: containerForm.number,
-      type: containerForm.type,
-      poId: 'MULTIPLE', 
-      items: allPurchasedItems,
+    if (!newContainer.number || !newContainer.poId || newContainer.items?.length === 0) {
+      return alert("Fadlan buuxi lambarka kuntenarka, doora PO, oo xulo alaabta.");
+    }
+    const container: Container = {
+      id: `CT-${Date.now()}`,
+      number: newContainer.number!,
+      type: newContainer.type as any,
+      poId: newContainer.poId!,
+      items: newContainer.items!,
       status: 'LOADING',
-      freightCost: containerForm.freight,
-      taxPaid: 0
+      freightCost: newContainer.freightCost || 0,
+      taxPaid: newContainer.taxPaid || 0
     };
-    saveAll(pos, [...containers, newContainer]);
+    
+    // Update PO status to SHIPPED
+    const updatedPOs = pos.map(p => p.id === container.poId ? { ...p, status: POStatus.SHIPPED } : p);
+    
+    saveAll(updatedPOs, [...containers, container]);
     setIsContainerModalOpen(false);
-    setSelectedForContainer([]);
+    setNewContainer({ number: '', type: '40FT', status: 'LOADING', poId: '', items: [], freightCost: 0, taxPaid: 0 });
+    alert("Kuntenarkii waa la abuuray! Logistics-ka ayuu ku jiraa hadda.");
   };
 
-  const buyerPOs = pos.filter(p => p.buyerId === user.id || user.role === UserRole.SUPER_ADMIN);
-
-  const selectExistingItem = (idx: number, item: InventoryItem) => {
-    const newItems = [...poItems];
-    newItems[idx] = { 
-      ...newItems[idx], 
-      name: item.name, 
-      lastPurchasePrice: item.landedCost || item.lastKnownPrice || 0, 
-      packType: item.packType || PackType.BOX 
-    };
-    setPoItems(newItems);
-    setActiveSearchIndex(null);
+  const updateContainerStatus = (id: string, status: any) => {
+    const updated = containers.map(c => c.id === id ? { ...c, status } : c);
+    saveAll(pos, updated);
   };
 
   return (
     <div className="space-y-6 pb-20">
-      <div className="flex bg-white p-2 rounded-[2rem] shadow-sm border border-slate-100 gap-2 overflow-x-auto no-scrollbar">
-        {['quotation', 'purchasing', 'container', 'arrivals'].map((tab) => (
-          <button key={tab} onClick={() => setActiveTab(tab as any)} className={`flex-1 min-w-[120px] px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === tab ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100' : 'text-slate-400 hover:bg-slate-50'}`}>
-            {tab.toUpperCase()}
+      {/* Tab Navigation */}
+      <div className="flex bg-white p-2 rounded-[2rem] shadow-sm border border-slate-100 gap-2 overflow-x-auto no-scrollbar relative">
+        {[
+          {id: 'orders', label: 'Order Hub', icon: '📝', notify: isBuyer ? unreadOrders : pricedOrdersToFund},
+          {id: 'finance', label: 'Financial Hub', icon: '💰', notify: isBuyer ? pendingReceivedMoney : 0},
+          {id: 'container', label: 'Logistics', icon: '📦', notify: 0},
+          {id: 'arrivals', label: 'Main Arrivals', icon: '🛳️', notify: 0}
+        ].map((tab) => (
+          <button 
+            key={tab.id} 
+            onClick={() => setActiveTab(tab.id as any)} 
+            className={`flex-1 min-w-[150px] px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3 relative ${activeTab === tab.id ? 'bg-indigo-600 text-white shadow-xl' : 'text-slate-400 hover:bg-slate-50'}`}
+          >
+            <span>{tab.icon}</span>
+            {tab.label}
+            {tab.notify > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center text-[8px] animate-bounce border-2 border-white">{tab.notify}</span>
+            )}
           </button>
         ))}
       </div>
 
-      {activeTab === 'quotation' && (
-        <div className="space-y-6 animate-in fade-in duration-500">
-           <div className="flex justify-between items-center bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
+      {/* 1. Order Hub Tab */}
+      {activeTab === 'orders' && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+           <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
               <div>
-                <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Quotation Management</h2>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Diiwaangali qiimaha alaabta laga soo helay dibadda.</p>
+                <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">Order Hub</h2>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                   {isBuyer ? 'U sameey qiimayn (Pricing) alaabta Manager-ku dalbaday.' : 'Diri dalab cusub oo alaab ah si loo soo qiimeeyo.'}
+                </p>
               </div>
-              {(user.role === UserRole.MANAGER || user.role === UserRole.SUPER_ADMIN) && (
-                <button onClick={() => setIsPOModalOpen(true)} className="bg-indigo-600 text-white px-8 py-3.5 rounded-2xl font-black shadow-lg uppercase text-[10px] tracking-widest">+ Abuur PO Cusub</button>
+              {!isBuyer && (
+                <button onClick={() => setIsPOModalOpen(true)} className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black shadow-xl hover:scale-105 transition-all uppercase text-[11px] tracking-widest">
+                  + DIR DALAB CUSUB 🚀
+                </button>
               )}
            </div>
 
            <div className="grid grid-cols-1 gap-6">
-              {buyerPOs.filter(p => p.status === POStatus.PENDING_PRICING || p.status === POStatus.AWAITING_APPROVAL).map(po => (
-                <div key={po.id} className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
-                   <div className="flex justify-between items-start mb-6">
-                      <div>
-                         <span className="text-[9px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase tracking-widest">{po.id}</span>
-                         <h3 className="text-xl font-black text-slate-800 mt-2">{po.title}</h3>
-                      </div>
-                      <div className="flex flex-col items-end gap-2">
-                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${po.status === POStatus.PENDING_PRICING ? 'bg-amber-50 text-amber-600' : 'bg-indigo-50 text-indigo-600'}`}>
-                          {po.status === POStatus.PENDING_PRICING ? 'Sugaya Qiimeyn' : 'Sugaya Approval'}
-                        </span>
-                        {(user.role === UserRole.MANAGER || user.role === UserRole.SUPER_ADMIN) && po.status === POStatus.AWAITING_APPROVAL && (
-                          <button onClick={() => handleManagerApprove(po.id)} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase shadow-lg hover:bg-emerald-700">Approve & Send $ ✅</button>
-                        )}
-                      </div>
-                   </div>
+              {pos.filter(p => !isBuyer || p.buyerId === user.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt)).map(po => {
+                const { estimatedTotal } = calculateFinance(po);
+                return (
+                  <div key={po.id} className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm relative group">
+                    <div className="flex flex-col lg:flex-row justify-between gap-8 mb-8 border-b border-slate-50 pb-6">
+                       <div className="flex-1">
+                          <div className="flex items-center gap-3">
+                             <span className="text-[9px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase">{po.id}</span>
+                             <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-lg ${po.status === POStatus.NEW ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                               {po.status}
+                             </span>
+                          </div>
+                          <h3 className="text-2xl font-black text-slate-800 mt-3">{po.title}</h3>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Lagu abuuray: {new Date(po.createdAt).toLocaleDateString()}</p>
+                       </div>
 
-                   <div className="space-y-3">
-                      {po.items.map(item => (
-                        <div key={item.id} className="flex flex-col md:flex-row items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                           <div className="flex-1 text-sm font-black text-slate-700 uppercase">{item.name} ({item.requestedQty} {item.packType})</div>
-                           <div className="w-full md:w-48 relative">
-                              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
-                              <input type="number" className="w-full pl-8 pr-4 py-3 bg-white border border-slate-200 rounded-xl font-black text-indigo-600 outline-none" placeholder="Actual Price" disabled={po.status === POStatus.AWAITING_APPROVAL} value={item.actualPrice || ''} onChange={(e) => {
-                                const newPOs = pos.map(p => p.id === po.id ? {...p, items: p.items.map(i => i.id === item.id ? {...i, actualPrice: Number(e.target.value)} : i)} : p);
-                                setPos(newPOs);
-                              }} />
-                           </div>
-                        </div>
-                      ))}
-                   </div>
-                   {po.status === POStatus.PENDING_PRICING && (
-                     <div className="mt-8 flex justify-end">
-                        <button onClick={() => submitQuotation(po.id)} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-indigo-600 transition-all">Submit Quotation to Manager 🚀</button>
-                     </div>
-                   )}
-                </div>
-              ))}
+                       <div className="flex flex-wrap gap-4 items-center">
+                          <div className="bg-slate-50 px-6 py-4 rounded-2xl border border-slate-100 text-center min-w-[140px]">
+                             <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Estimated Total</p>
+                             <p className="text-xl font-black text-slate-700">${estimatedTotal.toLocaleString()}</p>
+                          </div>
+                          {isBuyer && po.status === POStatus.NEW && (
+                            <button onClick={() => openPricingModal(po)} className="bg-emerald-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase shadow-xl hover:bg-emerald-700 transition-all flex items-center gap-2">
+                              <span>💰</span> SII QIIMAHA ➔
+                            </button>
+                          )}
+                          {!isBuyer && po.status === POStatus.PRICED && (
+                            <button onClick={() => { setActiveTab('finance'); setIsTransferModalOpen({poId: po.id}); }} className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase shadow-xl hover:bg-indigo-700 transition-all">DIR LACAGTA 💵</button>
+                          )}
+                       </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                       {po.items.map(item => (
+                         <div key={item.id} className="bg-slate-50/50 p-5 rounded-[2rem] border border-slate-100 flex justify-between items-center">
+                            <div>
+                               <p className="font-black text-slate-700 text-sm uppercase">{item.name}</p>
+                               <p className="text-[9px] font-bold text-slate-400 uppercase">Dalabka: {item.requestedQty} {item.packType}</p>
+                            </div>
+                            <div className="text-right">
+                               <p className="text-[9px] font-black text-indigo-400 uppercase">Unit Price</p>
+                               <p className="font-black text-slate-800">${item.actualPrice || item.lastPurchasePrice || 0}</p>
+                            </div>
+                         </div>
+                       ))}
+                    </div>
+                  </div>
+                );
+              })}
            </div>
         </div>
       )}
 
-      {activeTab === 'purchasing' && (
-        <div className="space-y-6 animate-in fade-in duration-500">
-           <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Purchasing Checklist</h2>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Calaamadi alaabta aad suuqa kasoo iibsatay.</p>
-           </div>
-           <div className="grid grid-cols-1 gap-6">
-              {buyerPOs.filter(p => p.status === POStatus.PURCHASING).map(po => (
-                <div key={po.id} className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
-                   <div className="flex justify-between items-center mb-6">
-                      <h3 className="text-lg font-black text-slate-800 uppercase">{po.title}</h3>
-                      <div className="bg-emerald-50 text-emerald-600 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest">Received: ${po.totalFundsSent}</div>
-                   </div>
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {po.items.map(item => (
-                        <button key={item.id} onClick={() => togglePurchased(po.id, item.id)} className={`flex items-center justify-between p-5 rounded-[2rem] border-2 transition-all text-left ${item.isPurchased ? 'bg-emerald-50 border-emerald-200 shadow-inner' : 'bg-white border-slate-100 shadow-sm'}`}>
-                           <div className="flex items-center gap-4">
-                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl ${item.isPurchased ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'}`}>{item.isPurchased ? '✓' : '🛒'}</div>
-                              <div><p className={`font-black uppercase text-sm ${item.isPurchased ? 'text-emerald-900 line-through opacity-50' : 'text-slate-800'}`}>{item.name}</p></div>
-                           </div>
-                        </button>
-                      ))}
-                   </div>
-                </div>
-              ))}
-           </div>
-        </div>
-      )}
-
-      {activeTab === 'arrivals' && (
-        <div className="space-y-6 animate-in fade-in duration-500">
+      {/* 2. Financial Hub Tab */}
+      {activeTab === 'finance' && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
            <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex justify-between items-center">
               <div>
-                <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Arrivals & Taxing</h2>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Xaqiiji alaabta soo gaartay dekada ama main store.</p>
+                <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">Financial Hub</h2>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                   {isBuyer ? 'Xaqiiji lacagaha Manager-ku kuu soo diray.' : 'Maamul Tranches-ka lacagta iyo Wallets-ka.'}
+                </p>
               </div>
            </div>
-
            <div className="grid grid-cols-1 gap-6">
-              {containers.filter(c => c.status !== 'CLEARED').map(c => (
-                <div key={c.id} className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
-                   <div className="flex justify-between items-start mb-6">
-                      <div className="flex items-center gap-4">
-                         <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-[1.5rem] flex items-center justify-center text-2xl shadow-inner">🛳️</div>
-                         <div><h3 className="text-xl font-black text-slate-800">#{c.number}</h3><p className="text-[10px] font-bold text-slate-400 uppercase">{c.type} Container</p></div>
-                      </div>
-                      <button onClick={() => handleProcessArrival(c.id)} className="bg-emerald-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl hover:bg-emerald-700 transition-all uppercase text-[10px] tracking-[0.2em]">QAABIL ALAABTA (TAX & STORE) ✅</button>
-                   </div>
-                   
-                   <div className="space-y-3">
-                      {c.items.map(item => {
-                        const tax = getTaxForPackType(item.packType);
-                        return (
-                          <div key={item.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                             <div className="flex items-center gap-4">
-                                <span className="text-[10px] font-black bg-white px-3 py-1 rounded border border-slate-100 uppercase">{item.packType}</span>
-                                <span className="font-black text-slate-700 text-sm">{item.name} (x{item.requestedQty})</span>
+              {pos.filter(p => (!isBuyer || p.buyerId === user.id) && p.status !== POStatus.NEW).map(po => {
+                const { sent, received, spent, balance } = calculateFinance(po);
+                return (
+                  <div key={po.id} className="bg-white p-8 rounded-[3.5rem] border border-slate-100 shadow-sm">
+                    <div className="flex flex-col xl:flex-row justify-between gap-10 mb-10">
+                       <div className="flex-1">
+                          <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">{po.title}</h3>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+                             <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
+                                <p className="text-[8px] font-black text-indigo-400 uppercase">Total Sent</p>
+                                <p className="text-lg font-black text-indigo-700">${sent.toLocaleString()}</p>
                              </div>
-                             <div className="flex gap-10">
-                                <div className="text-right">
-                                   <p className="text-[9px] font-black text-slate-400 uppercase">Purchase</p>
-                                   <p className="font-black text-slate-800">${item.actualPrice}</p>
-                                </div>
-                                <div className="text-right">
-                                   <p className="text-[9px] font-black text-emerald-400 uppercase">Est. Tax</p>
-                                   <p className="font-black text-emerald-600">+${tax}</p>
-                                </div>
-                                <div className="text-right">
-                                   <p className="text-[9px] font-black text-indigo-400 uppercase">Unit Landed Cost</p>
-                                   <p className="font-black text-indigo-600 underline">${item.actualPrice + tax}</p>
-                                </div>
+                             <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                                <p className="text-[8px] font-black text-emerald-400 uppercase">Total Received</p>
+                                <p className="text-lg font-black text-emerald-700">${received.toLocaleString()}</p>
+                             </div>
+                             <div className="bg-rose-50 p-4 rounded-2xl border border-rose-100">
+                                <p className="text-[8px] font-black text-rose-400 uppercase">Total Spent</p>
+                                <p className="text-lg font-black text-rose-700">${spent.toLocaleString()}</p>
+                             </div>
+                             <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800">
+                                <p className="text-[8px] font-black text-slate-400 uppercase">Wallet Balance</p>
+                                <p className="text-lg font-black text-white">${balance.toLocaleString()}</p>
                              </div>
                           </div>
-                        );
-                      })}
-                   </div>
-                </div>
-              ))}
+                       </div>
+                       {isBuyer && (
+                         <div className="w-full xl:w-80 space-y-4">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Confirm Incoming Funds</p>
+                            <div className="space-y-2">
+                               {po.transfers.filter(t => t.status === 'SENT').map(t => (
+                                 <div key={t.id} className="bg-emerald-50 p-4 rounded-2xl border-2 border-emerald-200 flex justify-between items-center animate-pulse">
+                                    <div>
+                                       <p className="font-black text-emerald-800 text-sm">${t.amount.toLocaleString()}</p>
+                                       <p className="text-[8px] font-bold text-emerald-600 uppercase">{t.method} - {t.reference}</p>
+                                    </div>
+                                    <button onClick={() => handleReceiveMoney(po.id, t.id)} className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-black text-[9px] uppercase shadow-lg active:scale-95">Confirm ✅</button>
+                                 </div>
+                               ))}
+                            </div>
+                         </div>
+                       )}
+                       {!isBuyer && (
+                         <button onClick={() => setIsTransferModalOpen({poId: po.id})} className="bg-indigo-600 text-white px-8 py-5 rounded-3xl font-black uppercase text-[11px] shadow-2xl hover:scale-105 active:scale-95 transition-all self-center">SEND MORE MONEY 💳</button>
+                       )}
+                    </div>
+                    {isBuyer && (
+                       <div className="bg-slate-50 p-8 rounded-[3rem] border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Purchasing Checklist (Wallet Mode)</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             {po.items.map(item => (
+                               <div key={item.id} className={`flex items-center justify-between p-6 rounded-[2.5rem] border-2 transition-all ${item.isPurchased ? 'bg-emerald-100/50 border-emerald-200 opacity-60' : 'bg-white border-slate-100 shadow-sm'}`}>
+                                  <div className="flex items-center gap-5">
+                                     <button onClick={() => handleMarkPurchased(po.id, item.id)} className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl shadow-md ${item.isPurchased ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400 hover:bg-indigo-50'}`}>
+                                       {item.isPurchased ? '✓' : '🛒'}
+                                     </button>
+                                     <div>
+                                        <p className={`font-black uppercase text-sm ${item.isPurchased ? 'text-emerald-900 line-through' : 'text-slate-800'}`}>{item.name}</p>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase">Cost: ${item.actualPrice * item.requestedQty}</p>
+                                     </div>
+                                  </div>
+                               </div>
+                             ))}
+                          </div>
+                       </div>
+                    )}
+                  </div>
+                );
+              })}
            </div>
         </div>
       )}
 
-      {/* PO Modal */}
-      {isPOModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[60000] flex items-center justify-center p-4">
-           <div className="bg-white w-full max-w-4xl rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in duration-300 flex flex-col max-h-[90vh]">
-              <div className="p-8 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0">
+      {/* 3. Container Tab (Kuntenar Management) */}
+      {activeTab === 'container' && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
+            <div>
+              <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">Kuntenarada (Logistics)</h2>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Ku dar alaabta kuntenar cusub oo la soco xaaladiisa.</p>
+            </div>
+            {isBuyer && (
+              <button onClick={() => setIsContainerModalOpen(true)} className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black shadow-xl hover:scale-105 transition-all uppercase text-[11px] tracking-widest">
+                + ABUUR KUNTENAR CUSUB 🏗️
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 gap-6">
+            {containers.map(c => (
+              <div key={c.id} className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden group">
+                <div className="flex flex-col lg:flex-row justify-between gap-10 mb-8 border-b border-slate-50 pb-6">
+                   <div className="flex items-center gap-6">
+                      <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-[2rem] flex items-center justify-center text-4xl shadow-inner font-black">📦</div>
+                      <div>
+                         <span className="text-[9px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase">{c.type} Container</span>
+                         <h3 className="text-2xl font-black text-slate-800 mt-2 uppercase tracking-tighter">{c.number}</h3>
+                         <div className="flex items-center gap-2 mt-2">
+                           <span className={`w-3 h-3 rounded-full ${c.status === 'CLEARED' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`}></span>
+                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{c.status}</span>
+                         </div>
+                      </div>
+                   </div>
+
+                   <div className="flex flex-wrap gap-4 items-center">
+                      <div className="bg-slate-50 px-6 py-4 rounded-2xl border border-slate-100 text-center">
+                         <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Freight Cost</p>
+                         <p className="text-lg font-black text-slate-700">${c.freightCost.toLocaleString()}</p>
+                      </div>
+                      {!isBuyer && (
+                        <select 
+                          className="bg-slate-900 text-white px-6 py-4 rounded-2xl font-black text-[10px] uppercase outline-none cursor-pointer"
+                          value={c.status}
+                          onChange={(e) => updateContainerStatus(c.id, e.target.value)}
+                        >
+                           <option value="LOADING">LOADING</option>
+                           <option value="ON_SEA">ON SEA 🚢</option>
+                           <option value="ARRIVED">ARRIVED 🛳️</option>
+                           <option value="CLEARED">CLEARED ✅</option>
+                        </select>
+                      )}
+                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                   {c.items.map(item => (
+                     <div key={item.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex justify-between items-center">
+                        <div>
+                           <p className="font-black text-slate-700 text-xs uppercase">{item.name}</p>
+                           <p className="text-[8px] font-bold text-slate-400 uppercase">Qty: {item.requestedQty} {item.packType}</p>
+                        </div>
+                     </div>
+                   ))}
+                </div>
+              </div>
+            ))}
+            {containers.length === 0 && <div className="py-32 text-center text-slate-300 font-black uppercase tracking-widest bg-white rounded-[3rem] border-2 border-dashed border-slate-100">Ma jiraan Kuntenaro weli la abuuray.</div>}
+          </div>
+        </div>
+      )}
+
+      {/* 4. Arrivals Tab */}
+      {activeTab === 'arrivals' && <div className="p-32 text-center text-slate-300 font-black uppercase tracking-widest bg-white rounded-[3rem] border border-slate-100 border-dashed">Port Arrivals & Main Store Clearance Hub Coming Soon</div>}
+
+      {/* Container Creation Modal */}
+      {isContainerModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[60000] flex items-center justify-center p-4">
+           <div className="bg-white w-full max-w-4xl rounded-[3.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in duration-300">
+              <div className="p-10 bg-indigo-600 text-white flex justify-between items-center">
                  <div>
-                    <h2 className="text-2xl font-black text-slate-800 tracking-tight">Abuur Dalabka Alaabta (PO)</h2>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Kaliya Manager-ka ayaa qaban kara.</p>
+                    <h2 className="text-3xl font-black uppercase tracking-tighter">Abuura Kuntenar Cusub</h2>
+                    <p className="text-[10px] font-bold uppercase opacity-70 tracking-widest mt-1">Ku dar alaabta aad soo iibsatay rarka.</p>
                  </div>
-                 <button onClick={() => setIsPOModalOpen(false)} className="w-12 h-12 rounded-full hover:bg-white text-slate-400 flex items-center justify-center text-xl font-bold transition-all">✕</button>
+                 <button onClick={() => setIsContainerModalOpen(false)} className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center font-black text-xl hover:bg-white/40">✕</button>
               </div>
 
-              <div className="p-8 overflow-y-auto no-scrollbar space-y-8 min-h-[400px]">
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Cinwaanka (PO Title)</label>
-                       <input className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold focus:border-indigo-500 outline-none" placeholder="Adeega Shiinaha..." value={newPOTitle} onChange={e => setNewPOTitle(e.target.value)} />
+              <div className="p-10 overflow-y-auto no-scrollbar space-y-8 bg-slate-50/30">
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="space-y-1">
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Container Number</label>
+                       <input className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-black text-slate-800 outline-none focus:border-indigo-500" placeholder="e.g. MSCU123456" value={newContainer.number} onChange={e => setNewContainer({...newContainer, number: e.target.value})} />
                     </div>
-                    <div className="space-y-2">
-                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Qofka Soo Adeegaya (Buyer)</label>
-                       <select className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none cursor-pointer" value={selectedBuyerId} onChange={e => setSelectedBuyerId(e.target.value)}>
-                          <option value="">Dooro Buyer...</option>
-                          {buyers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    <div className="space-y-1">
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Nooca (Size)</label>
+                       <select className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-black text-slate-800 outline-none" value={newContainer.type} onChange={e => setNewContainer({...newContainer, type: e.target.value as any})}>
+                          <option value="20FT">20 FT Standard</option>
+                          <option value="40FT">40 FT Standard</option>
+                          <option value="40HQ">40 HQ High Cube</option>
+                       </select>
+                    </div>
+                    <div className="space-y-1">
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Dooro Dalabka (PO)</label>
+                       <select className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-black text-slate-800 outline-none" value={newContainer.poId} onChange={e => {
+                          const poId = e.target.value;
+                          const po = pos.find(p => p.id === poId);
+                          setNewContainer({...newContainer, poId, items: po?.items.filter(i => i.isPurchased) || []});
+                       }}>
+                          <option value="">-- Dooro PO --</option>
+                          {pos.filter(p => p.buyerId === user.id && (p.status === POStatus.PURCHASING || p.status === POStatus.PRICED)).map(p => (
+                             <option key={p.id} value={p.id}>{p.title} ({p.id})</option>
+                          ))}
                        </select>
                     </div>
                  </div>
 
-                 <div className="space-y-4">
-                    <div className="flex justify-between items-center px-1">
-                       <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Alaabta Dalabka (Items)</h3>
-                       <button onClick={() => setPoItems([...poItems, { id: Date.now().toString(), name: '', requestedQty: 1, lastPurchasePrice: 0, packType: PackType.BOX }])} className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100">+ Ku dar Row</button>
-                    </div>
-                    
-                    <div className="space-y-3 pb-32">
-                       {poItems.map((item, idx) => {
-                         // Improved search matching: Case insensitive, searches both name and SKU
-                         const matches = item.name ? masterItems.filter(m => 
-                           m.name.toLowerCase().includes(item.name!.toLowerCase()) || 
-                           m.sku.toLowerCase().includes(item.name!.toLowerCase())
-                         ).slice(0, 5) : [];
-                         
-                         return (
-                           <div key={item.id} className="flex flex-col md:flex-row gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100 items-start md:items-center">
-                              <div className="flex-1 w-full relative">
-                                 <input 
-                                   className="w-full p-3 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:border-indigo-500 outline-none" 
-                                   placeholder="Magaca Alaabta (Search or Type New)..." 
-                                   value={item.name} 
-                                   onFocus={() => setActiveSearchIndex(idx)}
-                                   onBlur={() => setTimeout(() => setActiveSearchIndex(null), 300)}
-                                   onChange={e => {
-                                      const newItems = [...poItems];
-                                      newItems[idx] = { ...newItems[idx], name: e.target.value };
-                                      setPoItems(newItems);
-                                   }} 
-                                 />
-                                 
-                                 {/* Search Dropdown */}
-                                 {activeSearchIndex === idx && matches.length > 0 && (
-                                   <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-100 z-50 overflow-hidden ring-4 ring-indigo-500/10">
-                                      {matches.map(m => (
-                                        <div 
-                                          key={m.id} 
-                                          onMouseDown={(e) => {
-                                            e.preventDefault();
-                                            selectExistingItem(idx, m);
-                                          }}
-                                          className="p-3 hover:bg-indigo-50 cursor-pointer flex justify-between items-center border-b border-slate-50 last:border-0"
-                                        >
-                                           <span className="text-xs font-bold text-slate-700">{m.name}</span>
-                                           <span className="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">{m.sku}</span>
-                                        </div>
-                                      ))}
-                                   </div>
-                                 )}
-                                 
-                                 {/* New Item Indicator */}
-                                 {activeSearchIndex === idx && item.name && matches.length === 0 && (
-                                    <div className="absolute top-full left-0 right-0 mt-2 bg-emerald-50 rounded-xl shadow-xl border border-emerald-100 z-50 p-3 flex items-center gap-2">
-                                       <span className="text-emerald-600 text-lg">✨</span>
-                                       <div>
-                                          <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">New Item</p>
-                                          <p className="text-[10px] font-bold text-emerald-600">"{item.name}" will be auto-created on arrival.</p>
-                                       </div>
-                                    </div>
-                                 )}
+                 {newContainer.poId && (
+                   <div className="space-y-4">
+                      <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest px-2">Alaabta la rarayo (Purchased Only)</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         {newContainer.items?.map(item => (
+                           <div key={item.id} className="bg-white p-5 rounded-[2rem] border border-slate-100 flex justify-between items-center shadow-sm">
+                              <div>
+                                 <p className="font-black text-slate-700 text-sm uppercase">{item.name}</p>
+                                 <p className="text-[9px] font-bold text-slate-400 uppercase">Tirada: {item.requestedQty} {item.packType}</p>
                               </div>
-                              <div className="w-24 shrink-0">
-                                 <input type="number" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-center" placeholder="Qty" value={item.requestedQty} onChange={e => {
-                                    const newItems = [...poItems];
-                                    newItems[idx].requestedQty = parseInt(e.target.value) || 0;
-                                    setPoItems(newItems);
-                                 }} />
-                              </div>
-                              <div className="w-32 shrink-0">
-                                 <select className="w-full p-3 bg-white border border-slate-200 rounded-xl text-xs font-bold" value={item.packType} onChange={e => {
-                                    const newItems = [...poItems];
-                                    newItems[idx].packType = e.target.value as PackType;
-                                    setPoItems(newItems);
-                                 }}>
-                                    {Object.values(PackType).map(v => <option key={v} value={v}>{v}</option>)}
-                                 </select>
-                              </div>
-                              <button onClick={() => setPoItems(poItems.filter(i => i.id !== item.id))} className="text-rose-300 hover:text-rose-600 px-2 font-bold shrink-0">✕</button>
+                              <span className="text-emerald-500 font-black text-xs">✓ READY</span>
                            </div>
-                         );
-                       })}
+                         ))}
+                      </div>
+                   </div>
+                 )}
+
+                 <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-1">
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Freight Cost ($)</label>
+                       <input type="number" className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-black text-slate-800 outline-none" value={newContainer.freightCost} onChange={e => setNewContainer({...newContainer, freightCost: Number(e.target.value)})} />
+                    </div>
+                    <div className="space-y-1">
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Expected Tax/Duty ($)</label>
+                       <input type="number" className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-black text-slate-800 outline-none" value={newContainer.taxPaid} onChange={e => setNewContainer({...newContainer, taxPaid: Number(e.target.value)})} />
                     </div>
                  </div>
               </div>
 
-              <div className="p-8 bg-slate-50 border-t border-slate-100 flex gap-4 shrink-0">
-                 <button onClick={() => setIsPOModalOpen(false)} className="flex-1 py-4 bg-white border border-slate-200 text-slate-500 font-black rounded-2xl uppercase text-[10px] tracking-widest">Jooji</button>
-                 <button onClick={handleCreatePO} className="flex-[2] py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl uppercase text-[10px] tracking-widest hover:bg-indigo-700 transition-all">Gali Dalabka Cusub 🚀</button>
+              <div className="p-10 bg-slate-50 border-t border-slate-100 flex gap-4 shrink-0">
+                 <button onClick={() => setIsContainerModalOpen(false)} className="flex-1 py-5 bg-white text-slate-400 font-black rounded-[2.5rem] uppercase text-[11px] border border-slate-200">JOOJI</button>
+                 <button onClick={handleCreateContainer} className="flex-[2] py-5 bg-indigo-600 text-white font-black rounded-[2.5rem] shadow-2xl uppercase text-[11px] hover:bg-indigo-700 transition-all active:scale-95">XAQUJI RARKA KUNTENARKA ➔</button>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* Pricing Modal */}
+      {pricingPO && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[70000] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in duration-300 flex flex-col max-h-[90vh]">
+            <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+               <div>
+                  <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Sii Qiimaha Alaabta</h2>
+                  <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mt-1">Diiwaangali qiimaha dhabta ah ee alaab kasta</p>
+               </div>
+               <button onClick={() => setPricingPO(null)} className="w-10 h-10 rounded-full hover:bg-white text-slate-400 flex items-center justify-center">✕</button>
+            </div>
+            <div className="p-8 overflow-y-auto no-scrollbar space-y-4">
+              {pricingPO.items.map(item => (
+                <div key={item.id} className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <p className="font-black text-slate-700 text-sm uppercase">{item.name}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">Dalabka: {item.requestedQty} {item.packType}</p>
+                  </div>
+                  <div className="w-full sm:w-48 relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-400">$</span>
+                    <input type="number" className="w-full pl-10 pr-4 py-3 bg-white border-2 border-slate-200 rounded-xl font-black text-indigo-600 outline-none focus:border-indigo-500" value={pricingValues[item.id] || 0} onChange={(e) => setPricingValues({ ...pricingValues, [item.id]: Number(e.target.value) })} />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="p-8 bg-slate-50 border-t border-slate-100 flex gap-4 shrink-0">
+               <button onClick={() => setPricingPO(null)} className="flex-1 py-4 bg-white text-slate-400 font-black rounded-2xl uppercase text-[10px]">Jooji</button>
+               <button onClick={handleSavePrices} className="flex-[2] py-4 bg-emerald-600 text-white font-black rounded-2xl shadow-xl uppercase text-[10px] hover:bg-emerald-700">XAQIIJI QIIMAHA GUUD ➔</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PO Creation Modal (Send Order) */}
+      {isPOModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[60000] flex items-center justify-center p-4">
+           <div className="bg-white w-full max-w-4xl rounded-[3.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in duration-300">
+              <div className="p-10 bg-indigo-600 text-white flex justify-between items-center">
+                 <div>
+                    <h2 className="text-3xl font-black uppercase tracking-tighter">Dir Dalab Cusub (Order)</h2>
+                    <p className="text-[10px] font-bold uppercase opacity-70 tracking-widest mt-1">Diiwaangali alaabta aad rabto in Buyer-ku soo qiimeeyo.</p>
+                 </div>
+                 <button onClick={() => setIsPOModalOpen(false)} className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center font-black text-xl hover:bg-white/40 transition-all font-black text-xl">✕</button>
+              </div>
+              <div className="p-10 overflow-y-auto no-scrollbar space-y-8 bg-slate-50/30">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-1"><label className="text-[10px] font-black px-2 uppercase text-slate-400">Title</label><input className="w-full p-5 bg-white border-2 border-slate-100 rounded-3xl font-black text-slate-800 outline-none" value={newPOTitle} onChange={e => setNewPOTitle(e.target.value)} /></div>
+                    <div className="space-y-1"><label className="text-[10px] font-black px-2 uppercase text-slate-400">Buyer</label><select className="w-full p-5 bg-white border-2 border-slate-100 rounded-3xl font-black text-slate-800 outline-none" value={selectedBuyerId} onChange={e => setSelectedBuyerId(e.target.value)}><option value="">-- Select Buyer --</option>{buyers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
+                 </div>
+                 <div className="space-y-3">
+                    {poItems.map((item, idx) => (
+                      <div key={item.id} className="flex gap-4 bg-white p-4 rounded-3xl border border-slate-100 items-center">
+                         <input className="flex-1 p-3 bg-slate-50 rounded-2xl font-bold" placeholder="Item Name" value={item.name} onChange={e => { const n = [...poItems]; n[idx].name = e.target.value; setPoItems(n); }} />
+                         <input type="number" className="w-24 p-3 bg-slate-50 rounded-2xl font-bold text-center" value={item.requestedQty} onChange={e => { const n = [...poItems]; n[idx].requestedQty = parseInt(e.target.value) || 0; setPoItems(n); }} />
+                         <button onClick={() => setPoItems(poItems.filter(i => i.id !== item.id))} className="text-rose-500 font-bold p-2">✕</button>
+                      </div>
+                    ))}
+                    <button onClick={() => setPoItems([...poItems, { id: Date.now().toString(), name: '', requestedQty: 1, lastPurchasePrice: 0, packType: PackType.BOX }])} className="w-full py-4 border-2 border-dashed border-slate-200 rounded-3xl text-[10px] font-black text-slate-400">+ Add New Item</button>
+                 </div>
+              </div>
+              <div className="p-10 bg-slate-50 border-t border-slate-100 flex gap-4">
+                 <button onClick={() => setIsPOModalOpen(false)} className="flex-1 py-5 bg-white text-slate-400 font-black rounded-[2.5rem] uppercase text-[11px]">JOOJI</button>
+                 <button onClick={handleSendOrder} className="flex-[2] py-5 bg-indigo-600 text-white font-black rounded-[2.5rem] shadow-2xl uppercase text-[11px]">DIIRAD DALABKA ➔</button>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* Send Money Modal */}
+      {isTransferModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[70000] flex items-center justify-center p-4">
+           <div className="bg-white w-full max-w-md rounded-[3.5rem] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
+              <div className="p-8 bg-emerald-600 text-white text-center">
+                 <h2 className="text-xl font-black uppercase">Dir Lacag Cusub</h2>
+              </div>
+              <div className="p-10 space-y-8 bg-slate-50/50">
+                 <div className="space-y-1"><label className="text-[10px] font-black uppercase px-2 text-slate-400">Amount ($)</label><input type="number" className="w-full p-6 bg-white border-2 border-slate-100 rounded-3xl font-black text-3xl text-emerald-600 outline-none text-center" value={transferForm.amount} onChange={e => setTransferForm({...transferForm, amount: Number(e.target.value)})} /></div>
+                 <div className="space-y-1"><label className="text-[10px] font-black uppercase px-2 text-slate-400">Method</label><input className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-bold" value={transferForm.method} onChange={e => setTransferForm({...transferForm, method: e.target.value})} /></div>
+                 <button onClick={handleSendMoney} className="w-full py-5 bg-emerald-600 text-white font-black rounded-3xl shadow-xl uppercase text-[11px]">SEND MONEY ➔</button>
+                 <button onClick={() => setIsTransferModalOpen(null)} className="w-full text-[10px] font-black text-slate-300 uppercase text-center">Jooji</button>
               </div>
            </div>
         </div>

@@ -1,4 +1,3 @@
-
 import { InventoryItem, Transaction, Branch, User, TransactionStatus, Xarun, UserRole, TransactionType, Employee, Attendance, Payroll } from '../types';
 import { supabaseFetch, isDbConnected } from './supabaseClient';
 
@@ -270,7 +269,7 @@ export const API = {
         id: t.id, itemId: t.item_id, itemName: t.item_name, type: t.type as TransactionType, 
         quantity: t.quantity, branchId: t.branch_id, targetBranchId: t.target_branch_id, 
         timestamp: t.timestamp, notes: t.notes, personnel: t.personnel, 
-        originOrSource: t.origin_source, placementInfo: t.placement_info, 
+        origin_source: t.origin_source, placementInfo: t.placement_info, 
         status: t.status as TransactionStatus, requestedBy: t.requested_by, 
         approvedBy: t.approved_by, xarunId: t.xarun_id
       }));
@@ -400,7 +399,8 @@ export const API = {
       const data = await fetchAllPages('payroll');
       return data.map(p => ({
         id: p.id, employeeId: p.employee_id, month: p.month, year: p.year,
-        baseSalary: p.base_salary, bonus: p.bonus, deduction: p.deduction,
+        // Using base_salary instead of baseSalary to match Payroll interface
+        base_salary: p.base_salary, bonus: p.bonus, deduction: p.deduction,
         netPay: p.net_pay, status: p.status, paymentDate: p.payment_date,
         xarunId: p.xarun_id
       }));

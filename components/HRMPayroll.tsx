@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Employee, Payroll, Xarun } from '../types';
 import { API } from '../services/api';
@@ -32,7 +31,8 @@ const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo }) => {
           employeeId: emp.id,
           month: selectedMonth,
           year: selectedYear,
-          baseSalary: emp.salary,
+          // Correct property name is base_salary per interface
+          base_salary: emp.salary,
           bonus: 0,
           deduction: 0,
           netPay: emp.salary,
@@ -79,7 +79,8 @@ const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo }) => {
               <div class="row"><span>Employee Name:</span> <strong>${emp.name}</strong></div>
               <div class="row"><span>Employee ID:</span> <strong>${emp.employeeIdCode}</strong></div>
               <div class="row"><span>Position:</span> <strong>${emp.position}</strong></div>
-              <div class="row"><span>Base Salary:</span> <strong>$${payroll.baseSalary}</strong></div>
+              <!-- Correct property name is base_salary per interface -->
+              <div class="row"><span>Base Salary:</span> <strong>$${payroll.base_salary}</strong></div>
               <div class="row"><span>Bonuses:</span> <strong>$${payroll.bonus}</strong></div>
               <div class="row"><span>Deductions:</span> <strong style="color:red">-$${payroll.deduction}</strong></div>
               <div class="total"><div class="row"><span>NET PAY:</span> <span>$${payroll.netPay}</span></div></div>
@@ -137,7 +138,8 @@ const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo }) => {
                       </div>
                     </div>
                   </td>
-                  <td className="px-10 py-4 font-bold text-slate-600">${pay.baseSalary}</td>
+                  {/* Correct property name is base_salary per interface */}
+                  <td className="px-10 py-4 font-bold text-slate-600">${pay.base_salary}</td>
                   <td className="px-10 py-4">
                     <div className="flex flex-col text-[10px] font-black">
                       <span className="text-emerald-500">+{pay.bonus}</span>
