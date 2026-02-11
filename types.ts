@@ -81,6 +81,7 @@ export interface Container {
   items: POItem[];
   trackingUrl?: string;
   status: 'LOADING' | 'ON_SEA' | 'ARRIVED' | 'CLEARED';
+  containerStatus?: 'LOADING' | 'ON_SEA' | 'ARRIVED' | 'CLEARED';
   freightCost: number;
   taxPaid: number;
 }
@@ -145,6 +146,8 @@ export interface Transaction {
   originOrSource?: string;
   placementInfo?: string;
   targetBranchId?: string;
+  // Added approvedBy property to fix TypeScript error when updating transactions
+  approvedBy?: string;
 }
 
 export interface SystemSettings {

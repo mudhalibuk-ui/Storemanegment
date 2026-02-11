@@ -20,6 +20,8 @@ import ItemMovementHistoryModal from './components/ItemMovementHistoryModal';
 import TransferModal from './components/TransferModal';
 import ImportModal from './components/ImportModal';
 import BulkTransactionModal from './components/BulkTransactionModal';
+import ApprovalQueue from './components/ApprovalQueue';
+import TransactionReceipt from './components/TransactionReceipt';
 
 // HRM Imports
 import HRMEmployeeManagement from './components/HRMEmployeeManagement';
@@ -69,6 +71,7 @@ const App: React.FC = () => {
   const [historyModalItem, setHistoryModalItem] = useState<InventoryItem | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [receiptTransaction, setReceiptTransaction] = useState<Transaction | null>(null);
 
   const [settings, setSettings] = useState<SystemSettings>(() => {
     const saved = localStorage.getItem('smartstock_settings');
@@ -133,6 +136,36 @@ const App: React.FC = () => {
     }
   }, [user, refreshAllData]);
 
+  const handleApprove = async (t: Transaction) => {
+    const item = items.find(i => i.id === t.itemId);
+    if (!item) return;
+
+    // Apply the transaction effect to stock
+    let newQty = item.quantity;
+    if (t.type === TransactionType.IN) newQty += t.quantity;
+    else if (t.type === TransactionType.OUT) newQty -= t.quantity;
+    else if (t.type === TransactionType.TRANSFER) newQty -= t.quantity;
+
+    try {
+      await API.items.save({ ...item, quantity: newQty });
+      await API.transactions.update(t.id, { status: TransactionStatus.APPROVED, approvedBy: user?.id });
+      refreshAllData(true);
+      setReceiptTransaction(t);
+    } catch (err) {
+      alert("Cilad ayaa dhacday ogolaanshaha!");
+    }
+  };
+
+  const handleReject = async (id: string) => {
+    if(!confirm("Ma hubtaa inaad diido rarkan?")) return;
+    try {
+      await API.transactions.update(id, { status: TransactionStatus.REJECTED });
+      refreshAllData(true);
+    } catch (err) {
+      alert("Cilad ayaa dhacday diidmada!");
+    }
+  };
+
   if (!user) return <Login onLogin={setUser} />;
 
   return (
@@ -158,12 +191,8 @@ const App: React.FC = () => {
                 if (result.success) {
                   setItems(prev => prev.filter(i => i.id !== id));
                   refreshAllData(true);
-                } else {
-                  throw new Error(result.error || "Unknown error");
                 }
-              } catch (err: any) {
-                alert(`CILAD DATABASE: ${err.message || 'Error'}`);
-              }
+              } catch (err) { alert("Cilad tirtiridda!"); }
             } 
           }}
           onTransaction={(item, type) => {
@@ -177,6 +206,15 @@ const App: React.FC = () => {
           onRefresh={() => refreshAllData()}
         />
       )}
+      
+      {activeTab === 'approvals' && (
+        <ApprovalQueue 
+          transactions={transactions} 
+          onApprove={handleApprove} 
+          onReject={handleReject} 
+        />
+      )}
+
       {activeTab === 'transactions' && <TransactionHistory transactions={transactions} branches={branches} items={items} onRefresh={refreshAllData} />}
       {activeTab === 'map' && <WarehouseMap items={items} branches={branches} />}
 
@@ -222,15 +260,10 @@ const App: React.FC = () => {
           hardwareUrl="http://localhost:5000"
           onAdd={() => { setEditingEmployee(null); setIsEmployeeFormOpen(true); }} 
           onEdit={(e) => { setEditingEmployee(e); setIsEmployeeFormOpen(true); }} 
-          onDelete={async (id) => { if(confirm('Tir-tir shaqaalahan?')) { await API.employees.delete(id); refreshAllData(); } }} 
+          onDelete={async (id) => { await API.employees.delete(id); refreshAllData(); }} 
         />
       )}
-      {activeTab === 'hr-attendance' && (
-        <HRMAttendanceTracker 
-          employees={employees} 
-          xarumo={xarumo} 
-        />
-      )}
+      {activeTab === 'hr-attendance' && <HRMAttendanceTracker employees={employees} xarumo={xarumo} />}
       {activeTab === 'hr-payroll' && <HRMPayroll employees={employees} xarumo={xarumo} />}
       {activeTab === 'hr-reports' && <HRMReports employees={employees} attendance={attendance} payrolls={payrolls} xarumo={xarumo} />}
 
@@ -243,7 +276,6 @@ const App: React.FC = () => {
           onSwitchUser={() => {}} 
         />
       )}
-      {/* Updated Settings with full data payload for backup */}
       {activeTab === 'settings' && (
         <Settings 
           settings={settings} 
@@ -260,54 +292,12 @@ const App: React.FC = () => {
         />
       )}
 
-      {isUserFormOpen && (
-        <UserForm 
-          xarumo={xarumo} 
-          editingUser={editingUser} 
-          onSave={async (u) => { await API.users.save(u); setIsUserFormOpen(false); refreshAllData(); }} 
-          onCancel={() => setIsUserFormOpen(false)} 
-        />
-      )}
-
-      {isXarunFormOpen && (
-        <XarunForm 
-          editingXarun={editingXarun} 
-          onSave={async (x) => { await API.xarumo.save(x); setIsXarunFormOpen(false); refreshAllData(); }} 
-          onCancel={() => setIsXarunFormOpen(false)} 
-        />
-      )}
-
-      {isBranchFormOpen && (
-        <BranchForm 
-          xarumo={xarumo} 
-          editingBranch={editingBranch} 
-          onSave={async (b) => { await API.branches.save(b); setIsBranchFormOpen(false); refreshAllData(); }} 
-          onCancel={() => setIsBranchFormOpen(false)} 
-        />
-      )}
-
-      {isItemFormOpen && (
-        <InventoryForm 
-          branches={branches} 
-          editingItem={editingItem} 
-          onSave={async (item) => { await API.items.save(item); setIsItemFormOpen(false); refreshAllData(); }} 
-          onCancel={() => setIsItemFormOpen(false)} 
-        />
-      )}
-
-      {isEmployeeFormOpen && (
-        <EmployeeForm 
-          branches={branches} 
-          xarumo={xarumo} 
-          editingEmployee={editingEmployee} 
-          onSave={async (emp) => { 
-            await API.employees.save(emp); 
-            setIsEmployeeFormOpen(false); 
-            refreshAllData(); 
-          }} 
-          onCancel={() => setIsEmployeeFormOpen(false)} 
-        />
-      )}
+      {/* FORM MODALS */}
+      {isUserFormOpen && <UserForm xarumo={xarumo} editingUser={editingUser} onSave={async (u) => { await API.users.save(u); setIsUserFormOpen(false); refreshAllData(); }} onCancel={() => setIsUserFormOpen(false)} />}
+      {isXarunFormOpen && <XarunForm editingXarun={editingXarun} onSave={async (x) => { await API.xarumo.save(x); setIsXarunFormOpen(false); refreshAllData(); }} onCancel={() => setIsXarunFormOpen(false)} />}
+      {isBranchFormOpen && <BranchForm xarumo={xarumo} editingBranch={editingBranch} onSave={async (b) => { await API.branches.save(b); setIsBranchFormOpen(false); refreshAllData(); }} onCancel={() => setIsBranchFormOpen(false)} />}
+      {isItemFormOpen && <InventoryForm branches={branches} editingItem={editingItem} onSave={async (item) => { await API.items.save(item); setIsItemFormOpen(false); refreshAllData(); }} onCancel={() => setIsItemFormOpen(false)} />}
+      {isEmployeeFormOpen && <EmployeeForm branches={branches} xarumo={xarumo} editingEmployee={editingEmployee} onSave={async (emp) => { await API.employees.save(emp); setIsEmployeeFormOpen(false); refreshAllData(); }} onCancel={() => setIsEmployeeFormOpen(false)} />}
 
       {adjustmentModal && (
         <StockAdjustmentModal 
@@ -317,9 +307,11 @@ const App: React.FC = () => {
           onSave={async (data) => { 
             const type = adjustmentModal.type;
             const item = adjustmentModal.item;
-            const newQty = type === TransactionType.IN ? item.quantity + data.qty : item.quantity - data.qty;
             
-            await API.transactions.create({
+            // IF OUT, must be PENDING for admin approval
+            const status = type === TransactionType.OUT ? TransactionStatus.PENDING : TransactionStatus.APPROVED;
+            
+            const trans = await API.transactions.create({
               itemId: item.id,
               itemName: item.name,
               type: type,
@@ -328,12 +320,19 @@ const App: React.FC = () => {
               personnel: data.personnel,
               originOrSource: data.source,
               placementInfo: data.placement,
-              status: TransactionStatus.APPROVED,
+              status: status,
               requestedBy: user.id,
               xarunId: user.xarunId || ''
             });
 
-            await API.items.save({ ...item, quantity: newQty, shelves: data.shelf || item.shelves, sections: data.section || item.sections });
+            // Only update stock immediately if it's an IN move
+            if (type === TransactionType.IN) {
+                await API.items.save({ ...item, quantity: item.quantity + data.qty, shelves: data.shelf || item.shelves, sections: data.section || item.sections });
+                setReceiptTransaction(trans);
+            } else {
+                alert("Codsiga bixinta waa la diray. Sug ogolaanshaha Admin-ka.");
+            }
+
             setAdjustmentModal(null); 
             refreshAllData(); 
           }} 
@@ -348,43 +347,7 @@ const App: React.FC = () => {
           onCancel={() => setTransferModalItem(null)} 
           onTransfer={async (data) => {
             const item = transferModalItem;
-            if (!item || !user) return;
-
-            const targetBranch = branches.find(b => b.id === data.targetBranchId);
-            const targetXarunId = targetBranch?.xarunId || user.xarunId || '';
-            
-            const newSourceQty = item.quantity - data.qty;
-            await API.items.save({ ...item, quantity: newSourceQty });
-
-            const existingTargetItem = items.find(i => 
-              i.sku === item.sku && i.branchId === data.targetBranchId
-            );
-
-            if (existingTargetItem) {
-              await API.items.save({
-                ...existingTargetItem,
-                quantity: existingTargetItem.quantity + data.qty,
-                shelves: data.targetShelf,
-                sections: data.targetSection
-              });
-            } else {
-              await API.items.save({
-                name: item.name,
-                category: item.category,
-                sku: item.sku,
-                shelves: data.targetShelf,
-                sections: data.targetSection,
-                quantity: data.qty,
-                minThreshold: item.minThreshold,
-                branchId: data.targetBranchId,
-                xarunId: targetXarunId,
-                packType: item.packType,
-                lastKnownPrice: item.lastKnownPrice
-              });
-            }
-
-            const placementLabel = formatPlacement(data.targetShelf, data.targetSection);
-            await API.transactions.create({
+            const trans = await API.transactions.create({
               itemId: item.id,
               itemName: item.name,
               type: TransactionType.TRANSFER,
@@ -392,80 +355,47 @@ const App: React.FC = () => {
               branchId: item.branchId,
               targetBranchId: data.targetBranchId,
               personnel: data.personnel,
-              originOrSource: `To: ${targetBranch?.name}`,
-              placementInfo: `Target: ${placementLabel}`,
+              originOrSource: `To: ${branches.find(b=>b.id===data.targetBranchId)?.name}`,
+              placementInfo: `Target: ${formatPlacement(data.targetShelf, data.targetSection)}`,
               notes: data.notes,
-              status: TransactionStatus.APPROVED,
+              status: TransactionStatus.PENDING,
               requestedBy: user.id,
               xarunId: user.xarunId || ''
             });
-
             setTransferModalItem(null);
             refreshAllData();
-            alert("Transfer Completed Successfully!");
+            alert("Transfer request sent for approval!");
           }}
         />
       )}
 
-      {historyModalItem && (
-        <ItemMovementHistoryModal 
-          item={historyModalItem} 
-          transactions={transactions} 
-          branches={branches} 
-          onClose={() => setHistoryModalItem(null)} 
+      {receiptTransaction && (
+        <TransactionReceipt 
+            transaction={receiptTransaction} 
+            item={items.find(i => i.id === receiptTransaction.itemId)}
+            branch={branches.find(b => b.id === receiptTransaction.branchId)}
+            issuedBy={user.name}
+            onClose={() => setReceiptTransaction(null)}
         />
       )}
 
-      {isImportModalOpen && (
-        <ImportModal 
-          branches={branches} 
-          userXarunId={user.xarunId}
-          onImport={async (newItems) => {
-            const success = await API.items.bulkSave(newItems);
-            if (success) {
-              setIsImportModalOpen(false);
-              refreshAllData();
-            }
-            return success;
-          }}
-          onCancel={() => setIsImportModalOpen(false)}
-        />
-      )}
-
-      {isBulkModalOpen && (
-        <BulkTransactionModal 
-          items={items} 
-          branches={branches}
-          onSave={async (type, data) => {
-            for (const row of data.items) {
+      {historyModalItem && <ItemMovementHistoryModal item={historyModalItem} transactions={transactions} branches={branches} onClose={() => setHistoryModalItem(null)} />}
+      {isImportModalOpen && <ImportModal branches={branches} userXarunId={user.xarunId} onImport={async (newItems) => { const success = await API.items.bulkSave(newItems); if (success) { setIsImportModalOpen(false); refreshAllData(); } return success; }} onCancel={() => setIsImportModalOpen(false)} />}
+      {isBulkModalOpen && <BulkTransactionModal items={items} branches={branches} onSave={async (type, data) => { 
+          for (const row of data.items) {
               const item = items.find(i => i.id === row.itemId);
               if (item) {
-                const newQty = type === TransactionType.IN ? item.quantity + row.qty : item.quantity - row.qty;
-                
+                const status = type === TransactionType.OUT ? TransactionStatus.PENDING : TransactionStatus.APPROVED;
                 await API.transactions.create({
-                  itemId: item.id,
-                  itemName: item.name,
-                  type: type,
-                  quantity: row.qty,
-                  branchId: data.branchId,
-                  personnel: data.personnel,
-                  originOrSource: data.source,
-                  notes: data.notes,
-                  status: TransactionStatus.APPROVED,
-                  requestedBy: user.id,
-                  xarunId: user.xarunId || ''
+                  itemId: item.id, itemName: item.name, type: type, quantity: row.qty, branchId: data.branchId, 
+                  personnel: data.personnel, originOrSource: data.source, notes: data.notes, status: status, 
+                  requestedBy: user.id, xarunId: user.xarunId || ''
                 });
-
-                await API.items.save({ ...item, quantity: newQty });
+                if (type === TransactionType.IN) await API.items.save({ ...item, quantity: item.quantity + row.qty });
               }
-            }
-            setIsBulkModalOpen(false);
-            refreshAllData();
-            alert("Bulk Transactions Processed Successfully!");
-          }}
-          onCancel={() => setIsBulkModalOpen(false)}
-        />
-      )}
+          }
+          setIsBulkModalOpen(false); refreshAllData(); alert(type === TransactionType.OUT ? "Bulk OUT requests sent for approval!" : "Bulk IN Processed!");
+      }} onCancel={() => setIsBulkModalOpen(false)} />}
     </Layout>
   );
 };

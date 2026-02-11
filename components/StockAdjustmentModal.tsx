@@ -33,7 +33,6 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
     setPlacement(formatPlacement(shelf, section));
   }, [shelf, section]);
 
-  // Markay iskafalahu baddalanto, hubi in godka (section) uusan ka badneyn inta meeshaas taal
   useEffect(() => {
     if (selectedBranch) {
         const maxSections = selectedBranch.customSections?.[shelf] || selectedBranch.totalSections;
@@ -73,7 +72,6 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
     label: numberToLetter(i + 1)
   }));
 
-  // Halkan waxaan ka xisaabineynaa godadka iskafalada gaarka ah
   const currentShelfMaxSections = selectedBranch?.customSections?.[shelf] || selectedBranch?.totalSections || 1;
   const sectionOptions = Array.from({ length: currentShelfMaxSections }, (_, i) => ({
     value: i + 1,
@@ -102,6 +100,15 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 space-y-6 overflow-y-auto no-scrollbar">
+          {isOut && (
+            <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start gap-3">
+              <span className="text-xl">🛡️</span>
+              <p className="text-[10px] font-bold text-amber-700 uppercase leading-relaxed">
+                Fiiro Gaar ah: Dhaqdhaqaaqa "OUT" wuxuu u baahan yahay ogolaanshaha Admin-ka ka hor inta aan laga goyn stock-ga.
+              </p>
+            </div>
+          )}
+
           <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 shadow-inner space-y-4">
              <div className="flex justify-between items-center">
                 <div>
@@ -120,7 +127,7 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
              </div>
 
              <div>
-                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 px-1">Branch-ga (Meesha xogtu ka socoto)</label>
+                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 px-1">Branch-ga</label>
                 <select 
                   required
                   className="w-full px-5 py-3.5 bg-white border-2 border-slate-200 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-800 transition-all cursor-pointer shadow-sm"
@@ -147,58 +154,31 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
             {isIn && (
               <div className="bg-indigo-50/50 p-6 rounded-[2rem] border-2 border-dashed border-indigo-100">
                 <h3 className="text-xs font-black text-indigo-800 mb-4 flex items-center gap-2 uppercase tracking-widest">
-                  📍 Layout Selection (Specific for this Shelf)
+                  📍 Layout Selection
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2 px-1">Iskafalo (Shelf)</label>
-                    <select 
-                      className="w-full px-5 py-3.5 bg-white border-2 border-indigo-50 rounded-2xl focus:border-indigo-500 outline-none font-black text-indigo-900 shadow-sm cursor-pointer"
-                      value={shelf}
-                      onChange={e => setShelf(parseInt(e.target.value))}
-                    >
-                      {shelfOptions.map(opt => (
-                        <option key={opt.value} value={opt.value}>Iskafalo: {opt.label}</option>
-                      ))}
+                    <label className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2 px-1">Iskafalo</label>
+                    <select className="w-full px-5 py-3.5 bg-white border-2 border-indigo-50 rounded-2xl font-black text-indigo-900 shadow-sm" value={shelf} onChange={e => setShelf(parseInt(e.target.value))}>
+                      {shelfOptions.map(opt => <option key={opt.value} value={opt.value}>Iskafalo: {opt.label}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2 px-1">Godka (Section: 1-{currentShelfMaxSections})</label>
-                    <select 
-                      className="w-full px-5 py-3.5 bg-white border-2 border-indigo-50 rounded-2xl focus:border-indigo-500 outline-none font-black text-indigo-900 shadow-sm cursor-pointer"
-                      value={section}
-                      onChange={e => setSection(parseInt(e.target.value))}
-                    >
-                      {sectionOptions.map(opt => (
-                        <option key={opt.value} value={opt.value}>Godka: {opt.label}</option>
-                      ))}
+                    <label className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2 px-1">Godka</label>
+                    <select className="w-full px-5 py-3.5 bg-white border-2 border-indigo-50 rounded-2xl font-black text-indigo-900 shadow-sm" value={section} onChange={e => setSection(parseInt(e.target.value))}>
+                      {sectionOptions.map(opt => <option key={opt.value} value={opt.value}>Godka: {opt.label}</option>)}
                     </select>
                   </div>
-                </div>
-                <p className="text-[9px] text-indigo-400 mt-3 font-bold uppercase text-center tracking-widest">
-                  Hada waxaa loo qorsheeyay: <span className="text-indigo-600 underline font-black">{placement}</span>
-                </p>
-              </div>
-            )}
-
-            {isOut && (
-              <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 flex items-center justify-between">
-                <div>
-                   <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Booska Alaabta (Location)</p>
-                   <p className="text-base font-black text-slate-800 tracking-tight">📍 {currentPlacement}</p>
-                </div>
-                <div className="text-right">
-                   <p className="text-[9px] text-slate-300 font-bold uppercase italic">Sida ku cad Layout-ka</p>
                 </div>
               </div>
             )}
 
             <div className="grid grid-cols-2 gap-5">
-              <div className="col-span-1">
+              <div>
                 <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 px-1">{isOut ? 'Qofka Qaadaya' : 'Qofka Keenay'}</label>
                 <input required type="text" className="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 focus:bg-white outline-none text-sm font-bold text-slate-800 transition-all" placeholder="Magaca qofka" value={personnel} onChange={e => setPersonnel(e.target.value)} />
               </div>
-              <div className="col-span-1">
+              <div>
                 <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 px-1">{isOut ? 'Loo dirayo' : 'Laga keenay'}</label>
                 <input required type="text" className="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 focus:bg-white outline-none text-sm font-bold text-slate-800 transition-all" placeholder="Meesha" value={source} onChange={e => setSource(e.target.value)} />
               </div>
@@ -206,16 +186,14 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
 
             <div>
               <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 px-1">Notes / Faahfaahin</label>
-              <textarea className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-[2rem] focus:border-indigo-500 focus:bg-white outline-none text-sm min-h-[100px] transition-all resize-none font-medium text-slate-600" placeholder="Ku qor hadii ay jiraan waxyaabo dheeraad ah..." value={notes} onChange={e => setNotes(e.target.value)} />
+              <textarea className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-[2rem] focus:border-indigo-500 focus:bg-white outline-none text-sm min-h-[100px] transition-all resize-none font-medium text-slate-600" placeholder="Faahfaahin..." value={notes} onChange={e => setNotes(e.target.value)} />
             </div>
           </div>
 
           <div className="pt-4 flex gap-4">
-             <button type="button" onClick={onCancel} className="flex-1 py-5 bg-slate-100 text-slate-500 font-black rounded-3xl hover:bg-slate-200 transition-all active:scale-95 uppercase text-[10px] tracking-widest">
-               Jooji
-             </button>
+             <button type="button" onClick={onCancel} className="flex-1 py-5 bg-slate-100 text-slate-500 font-black rounded-3xl hover:bg-slate-200 transition-all active:scale-95 uppercase text-[10px] tracking-widest">Jooji</button>
              <button type="submit" className={`flex-[2] py-5 ${buttonBg} ${buttonHover} text-white font-black rounded-3xl shadow-2xl ${shadowColor} transition-all active:scale-95 uppercase text-[10px] tracking-widest`}>
-               Hubi Stock {type}
+               {isOut ? 'DIR CODSIGA ➔' : 'HUBI STOCK IN'}
              </button>
           </div>
         </form>

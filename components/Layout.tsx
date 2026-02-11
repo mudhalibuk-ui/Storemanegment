@@ -30,6 +30,7 @@ const Layout: React.FC<LayoutProps> = ({
       section: 'INVENTORY & STORES', 
       items: [
         { id: 'inventory', label: 'Stock Items', icon: '📦', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF] },
+        { id: 'approvals', label: 'Ogolaanshaha', icon: '🛡️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], badge: pendingApprovalsCount },
         { id: 'transactions', label: 'Dhaqdhaqaaqa', icon: '🔄', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF] },
         { id: 'map', label: 'Warehouse Map', icon: '🗺️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF] },
         { id: 'xarumo', label: 'Xarumaha (Centers)', icon: '📍', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
@@ -46,7 +47,7 @@ const Layout: React.FC<LayoutProps> = ({
       section: 'HUMAN RESOURCES', 
       items: [
         { id: 'hr-employees', label: 'Shaqaalaha', icon: '👥', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
-        { id: 'hr-attendance', label: 'Iimaanshaha', icon: '☝️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
+        { id: 'hr-attendance', label: 'Iimaanshaha', icon: '📝', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
         { id: 'hr-payroll', label: 'Mushaharka', icon: '💰', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
         { id: 'hr-reports', label: 'HR Reports', icon: '📈', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
       ]
@@ -63,7 +64,7 @@ const Layout: React.FC<LayoutProps> = ({
   const mobileTabs = [
     { id: 'dashboard', label: 'Home', icon: '📊' },
     { id: 'inventory', label: 'Stock', icon: '📦' },
-    { id: 'transactions', label: 'Moves', icon: '🔄' },
+    { id: 'approvals', label: 'Admin', icon: '🛡️' },
     { id: 'hr-employees', label: 'HR', icon: '👤' },
     { id: 'procurement', label: 'Buy', icon: '🛒' }
   ];
@@ -99,6 +100,9 @@ const Layout: React.FC<LayoutProps> = ({
                       <span className="text-lg">{tab.icon}</span>
                       <span className="font-bold text-xs tracking-tight">{tab.label}</span>
                     </div>
+                    {tab.badge && tab.badge > 0 && (
+                      <span className="bg-rose-600 text-white text-[8px] font-black px-2 py-0.5 rounded-full animate-pulse">{tab.badge}</span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -124,6 +128,11 @@ const Layout: React.FC<LayoutProps> = ({
           <h1 className="text-lg md:text-xl font-black text-slate-800 tracking-tighter uppercase">{activeTab.replace('hr-', 'HR ').replace('-', ' ')}</h1>
           
           <div className="flex items-center gap-4">
+             {lowStockCount > 0 && (
+               <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-rose-50 text-rose-600 rounded-full border border-rose-100 text-[9px] font-black uppercase">
+                 ⚠️ {lowStockCount} Items Low
+               </div>
+             )}
              <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${isCloud ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${isCloud ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
                 <span>{isCloud ? 'Cloud Connected' : 'Local'}</span>
