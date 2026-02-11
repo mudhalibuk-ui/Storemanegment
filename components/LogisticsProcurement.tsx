@@ -194,16 +194,91 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
     if (!po) return;
     const item = (po.items || []).find(i => i.id === itemId);
     if (!item) return;
-    const { balance } = calculateFinance(po);
-    const itemCost = item.actualPrice * item.requestedQty;
+    
+    // UPDATED LOGIC: Allow negative balance (Credit System)
+    // We removed the `if (itemCost > balance) return alert(...)` check.
+    
     if (!item.isPurchased) {
-      if (itemCost > balance) { return alert("Wallet balance low!"); }
       const updatedPOs = pos.map(p => p.id === poId ? { ...p, items: p.items.map(i => i.id === itemId ? { ...i, isPurchased: true } : i) } : p);
       saveAll(updatedPOs, containers);
     } else {
       const updatedPOs = pos.map(p => p.id === poId ? { ...p, items: p.items.map(i => i.id === itemId ? { ...i, isPurchased: false } : i) } : p);
       saveAll(updatedPOs, containers);
     }
+  };
+
+  const printPurchaseOrder = (po: PurchaseOrder) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return alert("Fadlan ogolow Pop-ups");
+
+    const itemsHtml = po.items.map((item, index) => `
+      <tr style="border-bottom: 1px solid #eee;">
+        <td style="padding: 12px;">${index + 1}</td>
+        <td style="padding: 12px; font-weight: bold;">${item.name}</td>
+        <td style="padding: 12px; text-align: center;">${item.packType}</td>
+        <td style="padding: 12px; text-align: center; font-weight: bold;">${item.requestedQty}</td>
+        <td style="padding: 12px; text-align: right;">$${item.actualPrice > 0 ? item.actualPrice : '____'}</td>
+        <td style="padding: 12px; text-align: right;">$${item.actualPrice > 0 ? (item.actualPrice * item.requestedQty).toLocaleString() : '____'}</td>
+      </tr>
+    `).join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Purchase Order - ${po.title}</title>
+          <style>
+            body { font-family: sans-serif; padding: 40px; color: #333; }
+            .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 30px; }
+            h1 { margin: 0; font-size: 24px; text-transform: uppercase; }
+            .meta { font-size: 12px; color: #666; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th { text-align: left; background: #f8f8f8; padding: 12px; border-bottom: 2px solid #ddd; }
+            .footer { margin-top: 50px; border-top: 1px solid #ccc; padding-top: 20px; text-align: center; font-size: 10px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <h1>${settings.systemName}</h1>
+              <p>Logistics & Procurement Department</p>
+            </div>
+            <div style="text-align: right;">
+              <h2>PURCHASE ORDER</h2>
+              <p class="meta">PO Ref: ${po.id}</p>
+              <p class="meta">Date: ${new Date().toLocaleDateString()}</p>
+            </div>
+          </div>
+          
+          <div style="margin-bottom: 30px; background: #f9f9f9; padding: 20px; border-radius: 10px;">
+            <strong style="display:block; margin-bottom: 5px; text-transform: uppercase; font-size: 12px;">Order Title:</strong>
+            <span style="font-size: 16px; font-weight: bold;">${po.title}</span>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th width="5%">#</th>
+                <th width="40%">Item Description</th>
+                <th width="10%" style="text-align: center;">Unit</th>
+                <th width="15%" style="text-align: center;">Qty</th>
+                <th width="15%" style="text-align: right;">Est. Price</th>
+                <th width="15%" style="text-align: right;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <div class="footer">
+            <p>Please purchase items as specified. Ensure quality checks before shipment.</p>
+            <p>Authorized Signature: __________________________</p>
+          </div>
+          <script>window.onload = () => { window.print(); window.close(); }</script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   const handleCreateContainer = () => {
@@ -332,6 +407,11 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                              <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Estimated Total</p>
                              <p className="text-xl font-black text-slate-700">${estimatedTotal.toLocaleString()}</p>
                           </div>
+                          {/* NEW PDF PRINT BUTTON */}
+                          <button onClick={() => printPurchaseOrder(po)} className="bg-slate-100 text-slate-600 px-6 py-4 rounded-2xl font-black text-[10px] uppercase hover:bg-slate-200 transition-all flex items-center gap-2">
+                             <span>🖨️</span> PDF
+                          </button>
+
                           {isBuyer && po.status === POStatus.NEW && (
                             <button onClick={() => openPricingModal(po)} className="bg-emerald-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase shadow-xl hover:bg-emerald-700 transition-all flex items-center gap-2">
                               <span>💰</span> SII QIIMAHA ➔
@@ -377,6 +457,8 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
            <div className="grid grid-cols-1 gap-6">
               {pos.filter(p => (!isBuyer || p.buyerId === user.id) && p.status !== POStatus.NEW).map(po => {
                 const { sent, received, spent, balance } = calculateFinance(po);
+                const isNegativeBalance = balance < 0;
+                
                 return (
                   <div key={po.id} className="bg-white p-8 rounded-[3.5rem] border border-slate-100 shadow-sm">
                     <div className="flex flex-col xl:flex-row justify-between gap-10 mb-10">
@@ -395,9 +477,10 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                                 <p className="text-[8px] font-black text-rose-400 uppercase">Total Spent</p>
                                 <p className="text-lg font-black text-rose-700">${spent.toLocaleString()}</p>
                              </div>
-                             <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800">
-                                <p className="text-[8px] font-black text-slate-400 uppercase">Wallet Balance</p>
-                                <p className="text-lg font-black text-white">${balance.toLocaleString()}</p>
+                             {/* UPDATED: Balance Display handles Negative values visually */}
+                             <div className={`${isNegativeBalance ? 'bg-rose-600' : 'bg-slate-900'} p-4 rounded-2xl border border-slate-800 transition-colors duration-300`}>
+                                <p className={`text-[8px] font-black uppercase ${isNegativeBalance ? 'text-white' : 'text-slate-400'}`}>Wallet Balance</p>
+                                <p className="text-lg font-black text-white">{isNegativeBalance ? '' : ''}${balance.toLocaleString()}</p>
                              </div>
                           </div>
 
@@ -622,7 +705,11 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
            </div>
 
            <div className="grid grid-cols-1 gap-6">
-              {containers.filter(c => c.status === 'CLEARED').map(c => (
+              {containers.filter(c => c.status === 'CLEARED').map(c => {
+                  const itemsCost = c.items.reduce((sum, item) => sum + (item.actualPrice * item.requestedQty), 0);
+                  const totalLandedCost = itemsCost + c.freightCost + c.taxPaid;
+
+                  return (
                   <div key={c.id} className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm relative group hover:border-emerald-200 transition-all">
                       <div className="flex justify-between items-center mb-6">
                           <div className="flex items-center gap-4">
@@ -633,15 +720,16 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                               </div>
                           </div>
                           <div className="text-right">
-                              <p className="text-[9px] font-black text-slate-400 uppercase">Tax Paid</p>
-                              <p className="text-lg font-black text-slate-700">${c.taxPaid.toLocaleString()}</p>
+                              <p className="text-[9px] font-black text-slate-400 uppercase">Total Landed Cost</p>
+                              <p className="text-lg font-black text-emerald-600">${totalLandedCost.toLocaleString()}</p>
+                              <p className="text-[8px] font-bold text-slate-300">(Goods: ${itemsCost.toLocaleString()} + Freight + Tax)</p>
                           </div>
                       </div>
                       <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 text-center">
                           <p className="text-slate-400 font-bold text-xs uppercase">Please go to "Stock Items" to process inventory check-in.</p>
                       </div>
                   </div>
-              ))}
+              )})}
               {containers.filter(c => c.status === 'CLEARED').length === 0 && (
                   <div className="py-32 text-center text-slate-300 font-black uppercase tracking-widest bg-white rounded-[3rem] border-2 border-dashed border-slate-100">
                       Ma jiraan kuntenaro la fasaxay.
