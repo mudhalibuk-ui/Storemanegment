@@ -46,10 +46,31 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
   const [clearanceForm, setClearanceForm] = useState({ taxAmount: 0, notes: '' });
 
   useEffect(() => {
-    const savedPO = localStorage.getItem('smartstock_pos');
-    const savedContainers = localStorage.getItem('smartstock_containers');
-    if (savedPO) setPos(JSON.parse(savedPO));
-    if (savedContainers) setContainers(JSON.parse(savedContainers));
+    try {
+      const savedPO = localStorage.getItem('smartstock_pos');
+      const savedContainers = localStorage.getItem('smartstock_containers');
+      
+      if (savedPO) {
+        const parsedPOs = JSON.parse(savedPO);
+        // Ensure transfers and items arrays exist to prevent crashes on old data
+        const safePOs = Array.isArray(parsedPOs) ? parsedPOs.map((p: any) => ({
+          ...p,
+          items: Array.isArray(p.items) ? p.items : [],
+          transfers: Array.isArray(p.transfers) ? p.transfers : []
+        })) : [];
+        setPos(safePOs);
+      }
+      
+      if (savedContainers) {
+        const parsedContainers = JSON.parse(savedContainers);
+        setContainers(Array.isArray(parsedContainers) ? parsedContainers : []);
+      }
+    } catch (error) {
+      console.error("Failed to load procurement data:", error);
+      // Fallback to empty state if local storage is corrupted
+      setPos([]);
+      setContainers([]);
+    }
   }, []);
 
   const saveAll = (updatedPOs: PurchaseOrder[], updatedContainers: Container[]) => {
@@ -61,17 +82,22 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
 
   const isBuyer = user.role === UserRole.BUYER;
   
-  // Notifications
+  // Notifications (Safety Checked)
   const unreadOrders = pos.filter(p => p.buyerId === user.id && !p.isReadByBuyer).length;
-  const pendingReceivedMoney = pos.filter(p => p.buyerId === user.id && p.transfers.some(t => t.status === 'SENT')).length;
+  const pendingReceivedMoney = pos.filter(p => p.buyerId === user.id && (p.transfers || []).some(t => t.status === 'SENT')).length;
   const pricedOrdersToFund = pos.filter(p => !isBuyer && p.status === POStatus.PRICED && !p.isReadByManager).length;
-  const containersAtPort = containers.filter(c => c.status === 'ARRIVED').length; // Waiting for customs
+  const containersAtPort = containers.filter(c => c.status === 'ARRIVED').length;
 
   const calculateFinance = (po: PurchaseOrder) => {
-    const sent = po.transfers.filter(t => t.status === 'SENT').reduce((acc, t) => acc + t.amount, 0);
-    const received = po.transfers.filter(t => t.status === 'RECEIVED').reduce((acc, t) => acc + t.amount, 0);
-    const spent = po.items.filter(i => i.isPurchased).reduce((acc, i) => acc + (i.actualPrice * i.requestedQty), 0);
-    const estimatedTotal = po.items.reduce((acc, i) => acc + ((i.actualPrice || i.lastPurchasePrice) * i.requestedQty), 0);
+    // Robust checks for missing arrays
+    const transfers = Array.isArray(po.transfers) ? po.transfers : [];
+    const items = Array.isArray(po.items) ? po.items : [];
+
+    const sent = transfers.filter(t => t.status === 'SENT').reduce((acc, t) => acc + (t.amount || 0), 0);
+    const received = transfers.filter(t => t.status === 'RECEIVED').reduce((acc, t) => acc + (t.amount || 0), 0);
+    const spent = items.filter(i => i.isPurchased).reduce((acc, i) => acc + ((i.actualPrice || 0) * (i.requestedQty || 0)), 0);
+    const estimatedTotal = items.reduce((acc, i) => acc + ((i.actualPrice || i.lastPurchasePrice || 0) * (i.requestedQty || 0)), 0);
+    
     return { sent, received, spent, balance: received - spent, estimatedTotal };
   };
 
@@ -93,11 +119,11 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
       createdAt: new Date().toISOString(),
       items: poItems.map(i => ({
         id: Math.random().toString(36).substr(2, 9),
-        name: i.name!,
-        packType: i.packType!,
-        requestedQty: i.requestedQty!,
+        name: i.name || 'Unknown Item',
+        packType: i.packType || PackType.BOX,
+        requestedQty: i.requestedQty || 0,
         purchasedQty: 0,
-        lastPurchasePrice: i.lastPurchasePrice!,
+        lastPurchasePrice: i.lastPurchasePrice || 0,
         actualPrice: 0,
         isPurchased: false
       }))
@@ -113,7 +139,7 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
   const openPricingModal = (po: PurchaseOrder) => {
     setPricingPO(po);
     const initialValues: Record<string, number> = {};
-    po.items.forEach(item => {
+    (po.items || []).forEach(item => {
       initialValues[item.id] = item.actualPrice || item.lastPurchasePrice || 0;
     });
     setPricingValues(initialValues);
@@ -121,7 +147,7 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
 
   const handleSavePrices = () => {
     if (!pricingPO) return;
-    const updatedItems = pricingPO.items.map(item => ({ ...item, actualPrice: pricingValues[item.id] || 0 }));
+    const updatedItems = (pricingPO.items || []).map(item => ({ ...item, actualPrice: pricingValues[item.id] || 0 }));
     const updatedPOs = pos.map(p => p.id === pricingPO.id ? { ...p, items: updatedItems, status: POStatus.PRICED, isReadByManager: false, isReadByBuyer: true } : p);
     saveAll(updatedPOs, containers);
     setPricingPO(null);
@@ -133,7 +159,8 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
     const updatedPOs = pos.map(p => {
       if (p.id !== isTransferModalOpen.poId) return p;
       const newT: POTransfer = { id: `TR-${Date.now()}`, amount: transferForm.amount, date: new Date().toISOString(), reference: transferForm.ref, method: transferForm.method, status: 'SENT' };
-      return { ...p, transfers: [...p.transfers, newT], status: POStatus.AWAITING_FUNDS, isReadByManager: true };
+      const currentTransfers = Array.isArray(p.transfers) ? p.transfers : [];
+      return { ...p, transfers: [...currentTransfers, newT], status: POStatus.AWAITING_FUNDS, isReadByManager: true };
     });
     saveAll(updatedPOs, containers);
     setIsTransferModalOpen(null);
@@ -144,7 +171,8 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
   const handleReceiveMoney = (poId: string, transferId: string) => {
     const updatedPOs = pos.map(p => {
       if (p.id !== poId) return p;
-      return { ...p, transfers: p.transfers.map(t => t.id === transferId ? { ...t, status: 'RECEIVED' as any } : t), status: POStatus.PURCHASING };
+      const currentTransfers = Array.isArray(p.transfers) ? p.transfers : [];
+      return { ...p, transfers: currentTransfers.map(t => t.id === transferId ? { ...t, status: 'RECEIVED' as any } : t), status: POStatus.PURCHASING };
     });
     saveAll(updatedPOs, containers);
     alert("Lacagta waa la xaqiijiyey!");
@@ -153,7 +181,7 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
   const handleMarkPurchased = (poId: string, itemId: string) => {
     const po = pos.find(p => p.id === poId);
     if (!po) return;
-    const item = po.items.find(i => i.id === itemId);
+    const item = (po.items || []).find(i => i.id === itemId);
     if (!item) return;
     const { balance } = calculateFinance(po);
     const itemCost = item.actualPrice * item.requestedQty;
@@ -295,7 +323,7 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                        </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                       {po.items.map(item => (
+                       {(po.items || []).map(item => (
                          <div key={item.id} className="bg-slate-50/50 p-5 rounded-[2rem] border border-slate-100 flex justify-between items-center">
                             <div>
                                <p className="font-black text-slate-700 text-sm uppercase">{item.name}</p>
@@ -357,7 +385,7 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                          <div className="w-full xl:w-80 space-y-4">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Confirm Incoming Funds</p>
                             <div className="space-y-2">
-                               {po.transfers.filter(t => t.status === 'SENT').map(t => (
+                               {(po.transfers || []).filter(t => t.status === 'SENT').map(t => (
                                  <div key={t.id} className="bg-emerald-50 p-4 rounded-2xl border-2 border-emerald-200 flex justify-between items-center animate-pulse">
                                     <div>
                                        <p className="font-black text-emerald-800 text-sm">${t.amount.toLocaleString()}</p>
@@ -377,7 +405,7 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                        <div className="bg-slate-50 p-8 rounded-[3rem] border border-slate-100">
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Purchasing Checklist (Wallet Mode)</p>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             {po.items.map(item => (
+                             {(po.items || []).map(item => (
                                <div key={item.id} className={`flex items-center justify-between p-6 rounded-[2.5rem] border-2 transition-all ${item.isPurchased ? 'bg-emerald-100/50 border-emerald-200 opacity-60' : 'bg-white border-slate-100 shadow-sm'}`}>
                                   <div className="flex items-center gap-5">
                                      <button onClick={() => handleMarkPurchased(po.id, item.id)} className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl shadow-md ${item.isPurchased ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400 hover:bg-indigo-50'}`}>
@@ -456,7 +484,6 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                             {['LOADING', 'ON_SEA', 'ARRIVED', 'CUSTOMS'].map((step, idx) => {
                                 const stepNum = idx + 1;
                                 const isActive = currentStep >= stepNum;
-                                const isCurrent = currentStep === stepNum;
                                 return (
                                     <div key={step} className="relative z-10 flex flex-col items-center gap-2">
                                         <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-black transition-all border-4 ${isActive ? 'bg-indigo-600 border-indigo-200 text-white' : 'bg-white border-slate-200 text-slate-300'}`}>
@@ -470,7 +497,7 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                       {c.items.map(item => (
+                       {(c.items || []).map(item => (
                          <div key={item.id} className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 flex justify-between items-center">
                             <div>
                                <p className="font-black text-slate-700 text-xs uppercase">{item.name}</p>
@@ -517,7 +544,7 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                       </div>
                       
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex gap-4 overflow-x-auto">
-                          {c.items.map(i => (
+                          {(c.items || []).map(i => (
                               <span key={i.id} className="text-[9px] font-bold bg-white border border-slate-200 px-3 py-1 rounded-lg text-slate-500 whitespace-nowrap">{i.name} ({i.requestedQty})</span>
                           ))}
                       </div>
@@ -603,7 +630,7 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                        <select className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-black text-slate-800 outline-none" value={newContainer.poId} onChange={e => {
                           const poId = e.target.value;
                           const po = pos.find(p => p.id === poId);
-                          setNewContainer({...newContainer, poId, items: po?.items.filter(i => i.isPurchased) || []});
+                          setNewContainer({...newContainer, poId, items: (po?.items || []).filter(i => i.isPurchased) || []});
                        }}>
                           <option value="">-- Dooro PO --</option>
                           {pos.filter(p => p.buyerId === user.id && (p.status === POStatus.PURCHASING || p.status === POStatus.PRICED)).map(p => (
@@ -617,7 +644,7 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                    <div className="space-y-4">
                       <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest px-2">Alaabta la rarayo (Purchased Only)</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                         {newContainer.items?.map(item => (
+                         {(newContainer.items || []).map(item => (
                            <div key={item.id} className="bg-white p-5 rounded-[2rem] border border-slate-100 flex justify-between items-center shadow-sm">
                               <div>
                                  <p className="font-black text-slate-700 text-sm uppercase">{item.name}</p>
@@ -658,7 +685,7 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                <button onClick={() => setPricingPO(null)} className="w-10 h-10 rounded-full hover:bg-white text-slate-400 flex items-center justify-center">✕</button>
             </div>
             <div className="p-8 overflow-y-auto no-scrollbar space-y-4">
-              {pricingPO.items.map(item => (
+              {(pricingPO.items || []).map(item => (
                 <div key={item.id} className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex-1">
                     <p className="font-black text-slate-700 text-sm uppercase">{item.name}</p>
