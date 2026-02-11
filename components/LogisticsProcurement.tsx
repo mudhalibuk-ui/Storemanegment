@@ -45,30 +45,42 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
   const [clearingContainer, setClearingContainer] = useState<Container | null>(null);
   const [clearanceForm, setClearanceForm] = useState({ taxAmount: 0, notes: '' });
 
+  // Live Auto-Refresh (Polling)
   useEffect(() => {
-    try {
-      const savedPO = localStorage.getItem('smartstock_pos');
-      const savedContainers = localStorage.getItem('smartstock_containers');
-      
-      if (savedPO) {
-        const parsedPOs = JSON.parse(savedPO);
-        const safePOs = Array.isArray(parsedPOs) ? parsedPOs.map((p: any) => ({
-          ...p,
-          items: Array.isArray(p.items) ? p.items : [],
-          transfers: Array.isArray(p.transfers) ? p.transfers : []
-        })) : [];
-        setPos(safePOs);
+    const syncData = () => {
+      try {
+        const savedPO = localStorage.getItem('smartstock_pos');
+        const savedContainers = localStorage.getItem('smartstock_containers');
+        
+        if (savedPO) {
+          const parsedPOs = JSON.parse(savedPO);
+          const safePOs = Array.isArray(parsedPOs) ? parsedPOs.map((p: any) => ({
+            ...p,
+            items: Array.isArray(p.items) ? p.items : [],
+            transfers: Array.isArray(p.transfers) ? p.transfers : []
+          })) : [];
+          
+          setPos(prev => {
+             // Only update if data changed to avoid re-renders (Live Sync)
+             return JSON.stringify(prev) !== JSON.stringify(safePOs) ? safePOs : prev;
+          });
+        }
+        
+        if (savedContainers) {
+          const parsedContainers = JSON.parse(savedContainers);
+          setContainers(prev => {
+             return JSON.stringify(prev) !== JSON.stringify(parsedContainers) ? parsedContainers : prev;
+          });
+        }
+      } catch (error) {
+        console.error("Failed to sync procurement data:", error);
       }
-      
-      if (savedContainers) {
-        const parsedContainers = JSON.parse(savedContainers);
-        setContainers(Array.isArray(parsedContainers) ? parsedContainers : []);
-      }
-    } catch (error) {
-      console.error("Failed to load procurement data:", error);
-      setPos([]);
-      setContainers([]);
-    }
+    };
+
+    syncData(); // Initial load
+    const interval = setInterval(syncData, 2000); // Check every 2 seconds
+
+    return () => clearInterval(interval);
   }, []);
 
   const saveAll = (updatedPOs: PurchaseOrder[], updatedContainers: Container[]) => {
@@ -146,6 +158,14 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
     setSelectedBuyerId('');
     setPoItems([{ id: '1', name: '', requestedQty: 1, lastPurchasePrice: 0, packType: PackType.BOX }]);
     alert("Order-ka waa la diray! Buyer-ka ayaa loo sheegi doonaa.");
+  };
+
+  const handleDeletePO = (poId: string) => {
+    if (window.confirm("DIGNIIN: Ma hubtaa inaad tirtirto Order-kan? Tani dib looma soo celin karo.")) {
+      const updatedPOs = pos.filter(p => p.id !== poId);
+      // Optional: Filter out containers related to this PO if needed, but keeping for history might be safer.
+      saveAll(updatedPOs, containers);
+    }
   };
 
   const openPricingModal = (po: PurchaseOrder) => {
@@ -417,6 +437,16 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                              <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-lg ${po.status === POStatus.NEW ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
                                {po.status}
                              </span>
+                             {/* DELETE BUTTON FOR MANAGERS */}
+                             {!isBuyer && (
+                                <button 
+                                  onClick={() => handleDeletePO(po.id)} 
+                                  className="ml-2 bg-rose-50 text-rose-600 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all shadow-sm"
+                                  title="Delete Order"
+                                >
+                                  🗑️
+                                </button>
+                             )}
                           </div>
                           <h3 className="text-2xl font-black text-slate-800 mt-3">{po.title}</h3>
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Lagu abuuray: {new Date(po.createdAt).toLocaleDateString()}</p>
