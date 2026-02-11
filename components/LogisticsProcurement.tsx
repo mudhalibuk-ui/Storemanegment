@@ -15,7 +15,7 @@ interface LogisticsProcurementProps {
 const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, masterItems, buyers, settings, branches, onRefresh }) => {
   const [pos, setPos] = useState<PurchaseOrder[]>([]);
   const [containers, setContainers] = useState<Container[]>([]);
-  const [activeTab, setActiveTab] = useState<'orders' | 'finance' | 'container' | 'arrivals'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'finance' | 'container' | 'customs' | 'arrivals'>('orders');
   
   const [isPOModalOpen, setIsPOModalOpen] = useState(false);
   const [newPOTitle, setNewPOTitle] = useState('');
@@ -41,6 +41,10 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
     taxPaid: 0
   });
 
+  // Customs Modal State
+  const [clearingContainer, setClearingContainer] = useState<Container | null>(null);
+  const [clearanceForm, setClearanceForm] = useState({ taxAmount: 0, notes: '' });
+
   useEffect(() => {
     const savedPO = localStorage.getItem('smartstock_pos');
     const savedContainers = localStorage.getItem('smartstock_containers');
@@ -61,6 +65,7 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
   const unreadOrders = pos.filter(p => p.buyerId === user.id && !p.isReadByBuyer).length;
   const pendingReceivedMoney = pos.filter(p => p.buyerId === user.id && p.transfers.some(t => t.status === 'SENT')).length;
   const pricedOrdersToFund = pos.filter(p => !isBuyer && p.status === POStatus.PRICED && !p.isReadByManager).length;
+  const containersAtPort = containers.filter(c => c.status === 'ARRIVED').length; // Waiting for customs
 
   const calculateFinance = (po: PurchaseOrder) => {
     const sent = po.transfers.filter(t => t.status === 'SENT').reduce((acc, t) => acc + t.amount, 0);
@@ -174,10 +179,9 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
       items: newContainer.items!,
       status: 'LOADING',
       freightCost: newContainer.freightCost || 0,
-      taxPaid: newContainer.taxPaid || 0
+      taxPaid: 0
     };
     
-    // Update PO status to SHIPPED
     const updatedPOs = pos.map(p => p.id === container.poId ? { ...p, status: POStatus.SHIPPED } : p);
     
     saveAll(updatedPOs, [...containers, container]);
@@ -191,6 +195,31 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
     saveAll(pos, updated);
   };
 
+  const handleClearCustoms = () => {
+    if (!clearingContainer || clearanceForm.taxAmount <= 0) return alert("Fadlan gali lacagta canshuurta.");
+    
+    const updated = containers.map(c => c.id === clearingContainer.id ? { 
+        ...c, 
+        status: 'CLEARED' as any,
+        taxPaid: clearanceForm.taxAmount 
+    } : c);
+    
+    saveAll(pos, updated);
+    setClearingContainer(null);
+    setClearanceForm({ taxAmount: 0, notes: '' });
+    alert("Kuntenarka waa la canshuuray! Hadda wuxuu yaalaa Main Arrivals.");
+  };
+
+  const getTrackingStep = (status: string) => {
+    switch (status) {
+        case 'LOADING': return 1;
+        case 'ON_SEA': return 2;
+        case 'ARRIVED': return 3;
+        case 'CLEARED': return 4;
+        default: return 1;
+    }
+  };
+
   return (
     <div className="space-y-6 pb-20">
       {/* Tab Navigation */}
@@ -198,8 +227,9 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
         {[
           {id: 'orders', label: 'Order Hub', icon: '📝', notify: isBuyer ? unreadOrders : pricedOrdersToFund},
           {id: 'finance', label: 'Financial Hub', icon: '💰', notify: isBuyer ? pendingReceivedMoney : 0},
-          {id: 'container', label: 'Logistics', icon: '📦', notify: 0},
-          {id: 'arrivals', label: 'Main Arrivals', icon: '🛳️', notify: 0}
+          {id: 'container', label: 'Logistics & Track', icon: '🚢', notify: 0},
+          {id: 'customs', label: 'Canshuuraha (Customs)', icon: '🛃', notify: containersAtPort},
+          {id: 'arrivals', label: 'Main Arrivals', icon: '🏢', notify: 0}
         ].map((tab) => (
           <button 
             key={tab.id} 
@@ -370,13 +400,13 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
         </div>
       )}
 
-      {/* 3. Container Tab (Kuntenar Management) */}
+      {/* 3. Logistics & Live Tracking Tab */}
       {activeTab === 'container' && (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
             <div>
-              <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">Kuntenarada (Logistics)</h2>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Ku dar alaabta kuntenar cusub oo la soco xaaladiisa.</p>
+              <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">Logistics & Tracking</h2>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">La soco xaaladda rarka iyo kuntenarada.</p>
             </div>
             {isBuyer && (
               <button onClick={() => setIsContainerModalOpen(true)} className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black shadow-xl hover:scale-105 transition-all uppercase text-[11px] tracking-widest">
@@ -386,60 +416,161 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
           </div>
 
           <div className="grid grid-cols-1 gap-6">
-            {containers.map(c => (
-              <div key={c.id} className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden group">
-                <div className="flex flex-col lg:flex-row justify-between gap-10 mb-8 border-b border-slate-50 pb-6">
-                   <div className="flex items-center gap-6">
-                      <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-[2rem] flex items-center justify-center text-4xl shadow-inner font-black">📦</div>
-                      <div>
-                         <span className="text-[9px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase">{c.type} Container</span>
-                         <h3 className="text-2xl font-black text-slate-800 mt-2 uppercase tracking-tighter">{c.number}</h3>
-                         <div className="flex items-center gap-2 mt-2">
-                           <span className={`w-3 h-3 rounded-full ${c.status === 'CLEARED' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`}></span>
-                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{c.status}</span>
-                         </div>
-                      </div>
-                   </div>
+            {containers.filter(c => c.status !== 'CLEARED').map(c => {
+                const currentStep = getTrackingStep(c.status);
+                return (
+                  <div key={c.id} className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden group">
+                    <div className="flex flex-col lg:flex-row justify-between gap-10 mb-8 border-b border-slate-50 pb-6">
+                       <div className="flex items-center gap-6">
+                          <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-[2rem] flex items-center justify-center text-4xl shadow-inner font-black">📦</div>
+                          <div>
+                             <span className="text-[9px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase">{c.type} Container</span>
+                             <h3 className="text-2xl font-black text-slate-800 mt-2 uppercase tracking-tighter">{c.number}</h3>
+                             <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">PO: {pos.find(p=>p.id===c.poId)?.title || 'N/A'}</p>
+                          </div>
+                       </div>
 
-                   <div className="flex flex-wrap gap-4 items-center">
-                      <div className="bg-slate-50 px-6 py-4 rounded-2xl border border-slate-100 text-center">
-                         <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Freight Cost</p>
-                         <p className="text-lg font-black text-slate-700">${c.freightCost.toLocaleString()}</p>
-                      </div>
-                      {!isBuyer && (
-                        <select 
-                          className="bg-slate-900 text-white px-6 py-4 rounded-2xl font-black text-[10px] uppercase outline-none cursor-pointer"
-                          value={c.status}
-                          onChange={(e) => updateContainerStatus(c.id, e.target.value)}
-                        >
-                           <option value="LOADING">LOADING</option>
-                           <option value="ON_SEA">ON SEA 🚢</option>
-                           <option value="ARRIVED">ARRIVED 🛳️</option>
-                           <option value="CLEARED">CLEARED ✅</option>
-                        </select>
-                      )}
-                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                   {c.items.map(item => (
-                     <div key={item.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex justify-between items-center">
-                        <div>
-                           <p className="font-black text-slate-700 text-xs uppercase">{item.name}</p>
-                           <p className="text-[8px] font-bold text-slate-400 uppercase">Qty: {item.requestedQty} {item.packType}</p>
+                       {!isBuyer && (
+                        <div className="flex flex-col gap-2 min-w-[200px]">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Update Status</label>
+                            <select 
+                              className="bg-slate-900 text-white px-6 py-4 rounded-2xl font-black text-[10px] uppercase outline-none cursor-pointer"
+                              value={c.status}
+                              onChange={(e) => updateContainerStatus(c.id, e.target.value)}
+                            >
+                               <option value="LOADING">LOADING (China)</option>
+                               <option value="ON_SEA">ON SEA (Badda) 🚢</option>
+                               <option value="ARRIVED">ARRIVED (Dekedda) ⚓</option>
+                            </select>
                         </div>
-                     </div>
-                   ))}
-                </div>
-              </div>
-            ))}
-            {containers.length === 0 && <div className="py-32 text-center text-slate-300 font-black uppercase tracking-widest bg-white rounded-[3rem] border-2 border-dashed border-slate-100">Ma jiraan Kuntenaro weli la abuuray.</div>}
+                       )}
+                    </div>
+
+                    {/* LIVE TRACKER VISUALIZATION */}
+                    <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 mb-6">
+                        <div className="flex items-center justify-between relative">
+                            {/* Connector Line */}
+                            <div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-200 -z-0 rounded-full mx-10"></div>
+                            <div className="absolute top-1/2 left-0 right-0 h-1 bg-indigo-500 -z-0 rounded-full mx-10 transition-all duration-700" style={{width: `${(currentStep - 1) * 33}%`}}></div>
+
+                            {['LOADING', 'ON_SEA', 'ARRIVED', 'CUSTOMS'].map((step, idx) => {
+                                const stepNum = idx + 1;
+                                const isActive = currentStep >= stepNum;
+                                const isCurrent = currentStep === stepNum;
+                                return (
+                                    <div key={step} className="relative z-10 flex flex-col items-center gap-2">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-black transition-all border-4 ${isActive ? 'bg-indigo-600 border-indigo-200 text-white' : 'bg-white border-slate-200 text-slate-300'}`}>
+                                            {idx + 1}
+                                        </div>
+                                        <p className={`text-[9px] font-black uppercase tracking-widest ${isActive ? 'text-indigo-600' : 'text-slate-300'}`}>{step.replace('_', ' ')}</p>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                       {c.items.map(item => (
+                         <div key={item.id} className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 flex justify-between items-center">
+                            <div>
+                               <p className="font-black text-slate-700 text-xs uppercase">{item.name}</p>
+                               <p className="text-[8px] font-bold text-slate-400 uppercase">Qty: {item.requestedQty} {item.packType}</p>
+                            </div>
+                         </div>
+                       ))}
+                    </div>
+                  </div>
+                );
+            })}
+            {containers.filter(c => c.status !== 'CLEARED').length === 0 && <div className="py-32 text-center text-slate-300 font-black uppercase tracking-widest bg-white rounded-[3rem] border-2 border-dashed border-slate-100">Ma jiraan Kuntenaro saaran badda.</div>}
           </div>
         </div>
       )}
 
-      {/* 4. Arrivals Tab */}
-      {activeTab === 'arrivals' && <div className="p-32 text-center text-slate-300 font-black uppercase tracking-widest bg-white rounded-[3rem] border border-slate-100 border-dashed">Port Arrivals & Main Store Clearance Hub Coming Soon</div>}
+      {/* 4. CUSTOMS TAB (New Feature) */}
+      {activeTab === 'customs' && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+           <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
+              <div>
+                <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">Customs Clearance (Canshuuraha)</h2>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Bixi canshuurta kuntenarada soo gaaray dekedda si loo fasaxo.</p>
+              </div>
+           </div>
+
+           <div className="grid grid-cols-1 gap-6">
+              {containers.filter(c => c.status === 'ARRIVED').map(c => (
+                  <div key={c.id} className="bg-white p-8 rounded-[3rem] border-2 border-amber-100 shadow-sm relative">
+                      <div className="flex justify-between items-center mb-6">
+                          <div className="flex items-center gap-4">
+                              <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center text-3xl font-black">⚓</div>
+                              <div>
+                                  <h3 className="text-xl font-black text-slate-800">{c.number}</h3>
+                                  <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest animate-pulse">Waiting for Clearance</p>
+                              </div>
+                          </div>
+                          <button 
+                            onClick={() => setClearingContainer(c)}
+                            className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-indigo-100 hover:scale-105 transition-all"
+                          >
+                            Bixi Canshuurta (Clear Customs) ➔
+                          </button>
+                      </div>
+                      
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex gap-4 overflow-x-auto">
+                          {c.items.map(i => (
+                              <span key={i.id} className="text-[9px] font-bold bg-white border border-slate-200 px-3 py-1 rounded-lg text-slate-500 whitespace-nowrap">{i.name} ({i.requestedQty})</span>
+                          ))}
+                      </div>
+                  </div>
+              ))}
+              {containers.filter(c => c.status === 'ARRIVED').length === 0 && (
+                  <div className="py-32 text-center text-slate-300 font-black uppercase tracking-widest bg-white rounded-[3rem] border-2 border-dashed border-slate-100">
+                      Ma jiraan kuntenaro soo gaaray dekedda oo sugaya canshuur.
+                  </div>
+              )}
+           </div>
+        </div>
+      )}
+
+      {/* 5. Arrivals Tab */}
+      {activeTab === 'arrivals' && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
+              <div>
+                <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">Main Arrivals (Bakhaarka Dhexe)</h2>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Kuntenarada la canshuuray ee diyaar u ah dejinta.</p>
+              </div>
+           </div>
+
+           <div className="grid grid-cols-1 gap-6">
+              {containers.filter(c => c.status === 'CLEARED').map(c => (
+                  <div key={c.id} className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm relative group hover:border-emerald-200 transition-all">
+                      <div className="flex justify-between items-center mb-6">
+                          <div className="flex items-center gap-4">
+                              <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center text-3xl font-black">✅</div>
+                              <div>
+                                  <h3 className="text-xl font-black text-slate-800">{c.number}</h3>
+                                  <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Cleared & Ready to Unload</p>
+                              </div>
+                          </div>
+                          <div className="text-right">
+                              <p className="text-[9px] font-black text-slate-400 uppercase">Tax Paid</p>
+                              <p className="text-lg font-black text-slate-700">${c.taxPaid.toLocaleString()}</p>
+                          </div>
+                      </div>
+                      <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 text-center">
+                          <p className="text-slate-400 font-bold text-xs uppercase">Please go to "Stock Items" to process inventory check-in.</p>
+                      </div>
+                  </div>
+              ))}
+              {containers.filter(c => c.status === 'CLEARED').length === 0 && (
+                  <div className="py-32 text-center text-slate-300 font-black uppercase tracking-widest bg-white rounded-[3rem] border-2 border-dashed border-slate-100">
+                      Ma jiraan kuntenaro la fasaxay.
+                  </div>
+              )}
+           </div>
+        </div>
+      )}
 
       {/* Container Creation Modal */}
       {isContainerModalOpen && (
@@ -504,10 +635,6 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Freight Cost ($)</label>
                        <input type="number" className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-black text-slate-800 outline-none" value={newContainer.freightCost} onChange={e => setNewContainer({...newContainer, freightCost: Number(e.target.value)})} />
                     </div>
-                    <div className="space-y-1">
-                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Expected Tax/Duty ($)</label>
-                       <input type="number" className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-black text-slate-800 outline-none" value={newContainer.taxPaid} onChange={e => setNewContainer({...newContainer, taxPaid: Number(e.target.value)})} />
-                    </div>
                  </div>
               </div>
 
@@ -549,6 +676,33 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                <button onClick={handleSavePrices} className="flex-[2] py-4 bg-emerald-600 text-white font-black rounded-2xl shadow-xl uppercase text-[10px] hover:bg-emerald-700">XAQIIJI QIIMAHA GUUD ➔</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Customs Clearance Modal */}
+      {clearingContainer && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[70000] flex items-center justify-center p-4">
+           <div className="bg-white w-full max-w-md rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in duration-300 border border-white/20">
+              <div className="p-8 bg-slate-900 text-white text-center">
+                 <h2 className="text-xl font-black uppercase">Canshuurta & Fasaxa</h2>
+                 <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Customs Clearance - {clearingContainer.number}</p>
+              </div>
+              <div className="p-10 space-y-6 bg-slate-50/50">
+                 <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase px-2 text-slate-400">Total Tax Amount ($)</label>
+                    <input type="number" className="w-full p-6 bg-white border-2 border-slate-100 rounded-3xl font-black text-3xl text-emerald-600 outline-none text-center shadow-inner" value={clearanceForm.taxAmount} onChange={e => setClearanceForm({...clearanceForm, taxAmount: Number(e.target.value)})} autoFocus />
+                 </div>
+                 <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase px-2 text-slate-400">Customs Reference / Notes</label>
+                    <textarea className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-bold text-slate-700 h-24 resize-none outline-none" placeholder="Lambarka waraaqda canshuurta..." value={clearanceForm.notes} onChange={e => setClearanceForm({...clearanceForm, notes: e.target.value})} />
+                 </div>
+                 
+                 <div className="pt-4 flex flex-col gap-3">
+                    <button onClick={handleClearCustoms} className="w-full py-5 bg-indigo-600 text-white font-black rounded-3xl shadow-xl uppercase text-[11px] tracking-widest active:scale-95 hover:bg-indigo-700">Fasax & Gudbi (Clear) ➔</button>
+                    <button onClick={() => setClearingContainer(null)} className="w-full text-[10px] font-black text-slate-400 uppercase text-center hover:text-slate-600">Jooji</button>
+                 </div>
+              </div>
+           </div>
         </div>
       )}
 
