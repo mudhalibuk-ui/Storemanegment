@@ -178,6 +178,17 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
     alert("Lacagta waa la xaqiijiyey!");
   };
 
+  const handleDeleteTransfer = (poId: string, transferId: string) => {
+    if(!window.confirm("Ma hubtaa inaad tirtirto xawilaadan?")) return;
+    
+    const updatedPOs = pos.map(p => {
+      if (p.id !== poId) return p;
+      const updatedTransfers = (p.transfers || []).filter(t => t.id !== transferId);
+      return { ...p, transfers: updatedTransfers };
+    });
+    saveAll(updatedPOs, containers);
+  };
+
   const handleMarkPurchased = (poId: string, itemId: string) => {
     const po = pos.find(p => p.id === poId);
     if (!po) return;
@@ -250,8 +261,8 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
 
   return (
     <div className="space-y-6 pb-20">
-      {/* Tab Navigation */}
-      <div className="flex bg-white p-2 rounded-[2rem] shadow-sm border border-slate-100 gap-2 overflow-x-auto no-scrollbar relative">
+      {/* Tab Navigation with Refresh */}
+      <div className="flex bg-white p-2 rounded-[2rem] shadow-sm border border-slate-100 gap-2 overflow-x-auto no-scrollbar relative items-center">
         {[
           {id: 'orders', label: 'Order Hub', icon: '📝', notify: isBuyer ? unreadOrders : pricedOrdersToFund},
           {id: 'finance', label: 'Financial Hub', icon: '💰', notify: isBuyer ? pendingReceivedMoney : 0},
@@ -271,6 +282,15 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
             )}
           </button>
         ))}
+        
+        {/* REFRESH BUTTON */}
+        <button 
+          onClick={onRefresh}
+          className="px-6 py-4 bg-slate-900 text-white rounded-2xl shadow-lg hover:bg-slate-800 active:scale-95 transition-all flex items-center gap-2"
+          title="Refresh Data"
+        >
+          <span className="text-lg">🔄</span>
+        </button>
       </div>
 
       {/* 1. Order Hub Tab */}
@@ -380,7 +400,39 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                                 <p className="text-lg font-black text-white">${balance.toLocaleString()}</p>
                              </div>
                           </div>
+
+                          {/* Transaction History & Management */}
+                          {(po.transfers || []).length > 0 && (
+                            <div className="mt-8 bg-slate-50 p-5 rounded-[2rem] border border-slate-100">
+                               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-2">Transaction History</p>
+                               <div className="space-y-2">
+                                  {(po.transfers || []).map(t => (
+                                    <div key={t.id} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-100">
+                                       <div className="flex items-center gap-3">
+                                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs ${t.status === 'RECEIVED' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                                            {t.status === 'RECEIVED' ? '✓' : '⏳'}
+                                          </div>
+                                          <div>
+                                             <p className="text-xs font-black text-slate-700">${t.amount.toLocaleString()}</p>
+                                             <p className="text-[9px] font-bold text-slate-400 uppercase">{t.method} • {new Date(t.date).toLocaleDateString()}</p>
+                                          </div>
+                                       </div>
+                                       {!isBuyer && (
+                                         <button 
+                                           onClick={() => handleDeleteTransfer(po.id, t.id)} 
+                                           className="text-rose-400 hover:text-rose-600 p-2 hover:bg-rose-50 rounded-lg transition-all"
+                                           title="Delete Transaction"
+                                         >
+                                           🗑️
+                                         </button>
+                                       )}
+                                    </div>
+                                  ))}
+                               </div>
+                            </div>
+                          )}
                        </div>
+                       
                        {isBuyer && (
                          <div className="w-full xl:w-80 space-y-4">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Confirm Incoming Funds</p>
