@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { InventoryItem, Branch, User, UserRole } from '../types';
 import { formatPlacement } from '../services/mappingUtils';
 import QRCode from 'qrcode';
@@ -27,27 +27,35 @@ const InventoryList: React.FC<InventoryListProps> = ({
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const categories: string[] = Array.from(new Set(items.map(item => item.category))).filter(Boolean) as string[];
+  const categories = useMemo(() => 
+    Array.from(new Set(items.map(item => item.category))).filter(Boolean) as string[]
+  , [items]);
 
-  // ENHANCED SEARCH LOGIC
-  const filteredItems = items
-    .filter(item => {
-      const s = searchTerm.toLowerCase().trim();
+  // STRICT SEARCH ENGINE - FIXES THE "WRONG ITEM" ISSUE
+  const filteredItems = useMemo(() => {
+    // 1. Clean the search term and split by space, ignoring empty strings
+    const rawInput = searchTerm.toLowerCase().trim();
+    const searchTerms = rawInput.split(/\s+/).filter(term => term.length > 0);
+
+    return items.filter(item => {
+      const branch = branches.find(b => b.id === item.branchId);
       
-      // If search is active, strictly filter
-      const matchesSearch = !s || 
-        (item.name || '').toLowerCase().includes(s) || 
-        (item.sku || '').toLowerCase().includes(s) ||
-        (item.category || '').toLowerCase().includes(s);
+      // 2. Multi-term matching: Every typed word must match at least one field
+      // This is the core fix. If you type "poly coat", it MUST have both.
+      const matchesSearch = searchTerms.length === 0 || searchTerms.every(term => 
+        (item.name || '').toLowerCase().includes(term) || 
+        (item.sku || '').toLowerCase().includes(term) ||
+        (item.category || '').toLowerCase().includes(term) ||
+        (branch?.name || '').toLowerCase().includes(term)
+      );
       
+      // 3. Dropdown Filters
       const matchesBranch = branchFilter === 'all' || item.branchId === branchFilter;
       const matchesCategory = categoryFilter === 'all' || item.category === categoryFilter;
       
       return matchesSearch && matchesBranch && matchesCategory;
-    })
-    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-
-  const isFilterActive = searchTerm !== '' || branchFilter !== 'all' || categoryFilter !== 'all';
+    }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [items, searchTerm, branchFilter, categoryFilter, branches]);
 
   const clearFilters = () => {
     setSearchTerm('');
@@ -93,59 +101,65 @@ const InventoryList: React.FC<InventoryListProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Search and Action Header - Layout matched to screenshot */}
+      {/* Search and Action Header - Layout Refined to match Screenshot */}
       <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
-        {/* Search Row */}
         <div className="flex items-center gap-4">
           <div className="flex-1 relative group">
             <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 text-lg">🔍</span>
             <input 
               type="text" 
-              placeholder="Raadi magaca, SKU, ama Qaybta (Category)..."
-              className="w-full pl-14 pr-6 py-5 bg-slate-50 border-2 border-slate-100 rounded-[2rem] focus:border-indigo-500 focus:bg-white outline-none font-bold text-base transition-all shadow-inner"
+              placeholder="Raadi magaca, SKU, ama dhowr erey..."
+              className="w-full pl-14 pr-12 py-5 bg-slate-50 border-2 border-slate-100 rounded-[3rem] focus:border-indigo-500 focus:bg-white outline-none font-bold text-base transition-all shadow-inner"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
+            {searchTerm && (
+              <button 
+                onClick={() => setSearchTerm('')}
+                className="absolute right-5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all font-bold"
+              >
+                ✕
+              </button>
+            )}
           </div>
           <button 
             onClick={onRefresh}
             className="bg-indigo-50 text-indigo-600 p-5 rounded-2xl border border-indigo-100 shadow-sm active:scale-90 transition-all font-bold hover:bg-indigo-600 hover:text-white"
-            title="Refresh Data"
+            title="Cusboonaysii Xogta"
           >
             🔄
           </button>
         </div>
 
-        {/* Buttons Row */}
-        <div className="flex flex-wrap items-center gap-3">
-          <button 
-            onClick={onBulkAction}
-            className="bg-[#6366f1] text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.1em] shadow-lg shadow-indigo-100 flex items-center gap-3 active:scale-95 transition-all"
-          >
-            🚀 BULK ACTION
-          </button>
-          <button 
-            onClick={onAdd}
-            className="bg-[#1e293b] text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.1em] shadow-lg flex items-center gap-3 active:scale-95 transition-all"
-          >
-            <span>+</span> CUSUB
-          </button>
-          <button 
-            onClick={onImport}
-            className="bg-[#ecfdf5] text-[#059669] px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.1em] border border-[#d1fae5] flex items-center gap-3 active:scale-95 transition-all shadow-sm"
-          >
-            📥 IMPORT
-          </button>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <button 
+              onClick={onBulkAction}
+              className="bg-[#6366f1] text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.1em] shadow-lg shadow-indigo-100 flex items-center gap-3 active:scale-95 transition-all"
+            >
+              🚀 BULK ACTION
+            </button>
+            <button 
+              onClick={onAdd}
+              className="bg-[#1e293b] text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.1em] shadow-lg flex items-center gap-3 active:scale-95 transition-all"
+            >
+              <span>+</span> CUSUB
+            </button>
+            <button 
+              onClick={onImport}
+              className="bg-[#ecfdf5] text-[#059669] px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.1em] border border-[#d1fae5] flex items-center gap-3 active:scale-95 transition-all shadow-sm"
+            >
+              📥 IMPORT
+            </button>
+          </div>
           
-          <div className="hidden md:block flex-1"></div>
-
           <div className="flex gap-2 w-full md:w-auto">
             <select 
               className={`flex-1 md:flex-none border-2 rounded-2xl px-6 py-4 text-[10px] font-black outline-none cursor-pointer transition-all ${categoryFilter !== 'all' ? 'bg-indigo-50 border-indigo-500 text-indigo-600' : 'bg-slate-50 border-slate-100 text-slate-600'}`}
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
             >
-              <option value="all">NOOCYADA</option>
+              <option value="all">NOOCYADA (ALL)</option>
               {categories.map(cat => <option key={cat} value={cat}>{cat.toUpperCase()}</option>)}
             </select>
             <select 
@@ -153,12 +167,24 @@ const InventoryList: React.FC<InventoryListProps> = ({
               value={branchFilter}
               onChange={(e) => setBranchFilter(e.target.value)}
             >
-              <option value="all">BAKHAARADA</option>
+              <option value="all">BAKHAARADA (ALL)</option>
               {branches.map(b => <option key={b.id} value={b.id}>{b.name.toUpperCase()}</option>)}
             </select>
           </div>
         </div>
       </div>
+
+      {/* Results Counter - Visual confirmation */}
+      {(searchTerm || branchFilter !== 'all' || categoryFilter !== 'all') && (
+        <div className="px-10 flex items-center justify-between animate-in fade-in duration-300">
+           <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+             Lagu sifeeyay: <span className="text-indigo-600 font-black">{filteredItems.length}</span> alaab ayaa ku habboon raadintaada
+           </p>
+           {filteredItems.length === 0 && (
+             <button onClick={clearFilters} className="text-[9px] font-black text-rose-500 uppercase underline tracking-widest">Nadiifi Filter-ka</button>
+           )}
+        </div>
+      )}
 
       {/* Main List Table */}
       <div className="bg-white rounded-[3rem] shadow-sm border border-slate-200 overflow-hidden">
@@ -166,7 +192,7 @@ const InventoryList: React.FC<InventoryListProps> = ({
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">
-                <th className="px-10 py-6">Product</th>
+                <th className="px-10 py-6">Product & Branch</th>
                 <th className="px-10 py-6">Placement</th>
                 <th className="px-10 py-6 text-center">Qty</th>
                 <th className="px-10 py-6">Updated</th>
@@ -178,14 +204,18 @@ const InventoryList: React.FC<InventoryListProps> = ({
               {filteredItems.length > 0 ? (
                 filteredItems.map((item) => {
                   const isLow = item.quantity <= item.minThreshold;
+                  const branch = branches.find(b => b.id === item.branchId);
                   return (
                     <tr key={item.id} className="hover:bg-slate-50 transition-colors group">
                       <td className="px-10 py-6">
                         <div className="flex flex-col">
                           <span className="font-black text-slate-800 text-base">{item.name}</span>
-                          <div className="flex gap-2 items-center mt-1">
+                          <div className="flex flex-wrap gap-2 items-center mt-1">
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.sku}</span>
                             <span className="text-[9px] font-black text-indigo-400 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 uppercase">{item.category}</span>
+                            {branch && (
+                              <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 uppercase">🏢 {branch.name}</span>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -225,9 +255,9 @@ const InventoryList: React.FC<InventoryListProps> = ({
                   <td colSpan={6} className="py-32 text-center">
                     <div className="flex flex-col items-center justify-center animate-in zoom-in duration-500">
                       <div className="text-8xl mb-6 grayscale opacity-20">📦</div>
-                      <p className="font-black uppercase tracking-[0.3em] text-sm text-slate-400">Xog lama helin</p>
-                      {isFilterActive && (
-                        <button onClick={clearFilters} className="mt-8 px-10 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl">Nadiifi Filter-ka</button>
+                      <p className="font-black uppercase tracking-[0.3em] text-sm text-slate-400">Wax alaab ah lama helin oo raadintaada ku habboon</p>
+                      {(searchTerm || branchFilter !== 'all' || categoryFilter !== 'all') && (
+                        <button onClick={clearFilters} className="mt-8 px-10 py-4 bg-indigo-600 text-white rounded-[2rem] font-black text-[10px] uppercase tracking-widest shadow-xl">Nadiifi oo soo saar dhamaan</button>
                       )}
                     </div>
                   </td>
