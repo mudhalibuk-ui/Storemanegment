@@ -1,4 +1,5 @@
-import { InventoryItem, Transaction, Branch, User, TransactionStatus, Xarun, UserRole, TransactionType, Employee, Attendance, Payroll } from '../types';
+
+import { InventoryItem, Transaction, Branch, User, TransactionStatus, Xarun, UserRole, TransactionType, Employee, Attendance, Payroll, Device } from '../types';
 import { supabaseFetch, isDbConnected } from './supabaseClient';
 
 const FIELD_MAPPING: Record<string, string> = {
@@ -21,7 +22,9 @@ const FIELD_MAPPING: Record<string, string> = {
   baseSalary: 'base_salary',
   netPay: 'net_pay',
   paymentDate: 'payment_date',
-  placementInfo: 'placement_info'
+  placementInfo: 'placement_info',
+  ipAddress: 'ip_address',
+  isActive: 'is_active'
 };
 
 const toSnakeCase = (obj: any) => {
@@ -156,6 +159,25 @@ export const API = {
       await supabaseFetch(`branches?id=eq.${id}`, { method: 'DELETE' });
       const current = getLocal('branches') || [];
       setLocal('branches', current.filter((b: any) => b.id !== id));
+    }
+  },
+
+  devices: {
+    async getAll(): Promise<Device[]> {
+      if (!isDbConnected()) return [];
+      const data = await fetchAllPages('devices');
+      return Array.isArray(data) ? data : [];
+    },
+    async save(device: Partial<Device>): Promise<Device> {
+      if (!isDbConnected()) throw new Error("Cloud connection required for devices");
+      const id = device.id || crypto.randomUUID();
+      const payload = { ...device, id };
+      const saved = await cloudSave('devices', payload);
+      return (Array.isArray(saved) ? saved[0] : saved) || payload;
+    },
+    async delete(id: string): Promise<void> {
+      if (!isDbConnected()) throw new Error("Cloud connection required for devices");
+      await supabaseFetch(`devices?id=eq.${id}`, { method: 'DELETE' });
     }
   },
 
@@ -379,7 +401,8 @@ export const API = {
         date: a.date,
         status: a.status,
         clockIn: a.clock_in,
-        notes: a.notes
+        notes: a.notes,
+        deviceId: a.device_id
       }));
     },
     async save(record: Partial<Attendance>): Promise<Attendance> {

@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Employee, Branch, Xarun, Attendance, Payroll } from '../types';
+import { Employee, Branch, Xarun, Attendance, Payroll, SystemSettings } from '../types';
 import QRCode from 'qrcode';
 import EmployeeProfileModal from './EmployeeProfileModal';
 import BiometricScanModal from './BiometricScanModal';
@@ -11,6 +11,7 @@ interface HRMEmployeeManagementProps {
   xarumo: Xarun[];
   attendance: Attendance[];
   payrolls: Payroll[];
+  settings: SystemSettings;
   hardwareUrl?: string;
   onAdd: () => void;
   onEdit: (e: Employee) => void;
@@ -18,7 +19,7 @@ interface HRMEmployeeManagementProps {
 }
 
 const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({ 
-  employees, branches, xarumo, attendance, payrolls, hardwareUrl, onAdd, onEdit, onDelete 
+  employees, branches, xarumo, attendance, payrolls, settings, hardwareUrl, onAdd, onEdit, onDelete 
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProfile, setSelectedProfile] = useState<Employee | null>(null);
@@ -31,44 +32,61 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
   );
 
   const syncUsersFromDevice = async () => {
-    if (!hardwareUrl) {
-      alert("Fadlan marka hore deji Hardware Bridge URL gudaha Settings.");
-      return;
-    }
-
-    const settings = JSON.parse(localStorage.getItem('smartstock_settings') || '{}');
-    const ip = settings.zkDeviceIp;
+    // 1. U DIR CODSIGA PYTHON
+    const ip = settings.zkDeviceIp || '192.168.100.201';
     const port = settings.zkDevicePort || 4370;
 
-    if (!ip) {
-      alert("Cilad: IP-ga qalabka laguma hayo settings-ka.");
-      return;
-    }
+    if (!window.confirm(`Ma hubtaa inaad rabto inaad soo qaado Users-ka iyo Attendance-ka?\n\nTarget IP: ${ip}\nAction: Read Device -> Save to Database`)) return;
 
     setIsSyncing(true);
-    try {
-      const response = await fetch(`${hardwareUrl}/sync-users`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-            ip: ip, 
-            port: port,
-            default_xarun_id: xarumo[0]?.id || 'x1'
-        })
-      });
-      
-      const result = await response.json();
-      
-      if (!response.ok) throw new Error(result.error || "Unknown Error");
+    let success = false;
+    let lastError = "";
 
-      alert(`✅ GUUL: ${result.message}`);
-      window.location.reload(); 
-    } catch (err) {
-      console.error("Sync Error:", err);
-      alert(`CILAD SYNC: ${err instanceof Error ? err.message : 'Unknown error'}\n\nFadlan hubi in 'python_bridge/app.py' uu ka shaqaynayo kombiyuutarka.`);
-    } finally {
-      setIsSyncing(false);
+    const urlsToTry = [
+        hardwareUrl || 'http://localhost:5050',
+        'http://localhost:5050',
+        'http://127.0.0.1:5050'
+    ];
+    
+    const uniqueUrls = [...new Set(urlsToTry)];
+
+    for (const url of uniqueUrls) {
+        try {
+            console.log(`Sending Full Sync Command to: ${url}`);
+            
+            // Tani waxay amraysaa Python inuu shaqada qabto (Users + Attendance)
+            const response = await fetch(`${url}/sync-users`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    ip: ip, 
+                    port: port,
+                    default_xarun_id: xarumo[0]?.id || 'x1'
+                })
+            });
+
+            const result = await response.json();
+            
+            if (!response.ok) throw new Error(result.error || "Server Error");
+
+            alert(`✅ GUUL: Xogta (Users & Logs) waa la keydiyey Database-ka!\n\n${result.message}`);
+            success = true;
+            
+            // 3. STEP MUHIIM AH: WEB-KU DATA-DA HA KASOO AQRISTO DATABASE-KA
+            // Reload page triggers App.tsx to fetch fresh data from Supabase
+            window.location.reload();
+            break; 
+        } catch (err: any) {
+            console.warn(`Failed to connect to ${url}:`, err);
+            lastError = err.message;
+        }
     }
+
+    if (!success) {
+      alert(`⚠️ CILAD: Ma awoodin inaan la xiriiro Python Service-ka.\nHubi in 'advanced_monitor.py' uu shaqaynayo.`);
+    }
+    
+    setIsSyncing(false);
   };
 
   const printIDBadge = async (employee: Employee) => {
@@ -133,7 +151,18 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
           <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Diiwaangali, Bedel, ama Tirtir Shaqaalaha.</p>
         </div>
         <div className="flex gap-4">
-           {/* Hardware Sync Button Removed to keep UI clean for Manual Mode, can be re-enabled if needed */}
+           {/* STEP 1: BUTTON TRIGGERS PYTHON */}
+           <button 
+             onClick={syncUsersFromDevice}
+             disabled={isSyncing}
+             className={`px-6 py-3.5 rounded-2xl font-black shadow-sm transition-all uppercase text-[10px] tracking-widest flex items-center gap-2 ${isSyncing ? 'bg-indigo-50 text-indigo-400 cursor-wait' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+           >
+             {isSyncing ? (
+                <>
+                  <span className="animate-spin text-lg">⏳</span> FETCHING ALL...
+                </>
+             ) : '⚡ SYNC USERS & LOGS'}
+           </button>
            
            <div className="relative w-64">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300">🔍</span>
@@ -152,6 +181,7 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* STEP 3: DATA IS READ FROM DATABASE VIA APP.TSX PROPS */}
         {filtered.map(emp => (
           <div key={emp.id} className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 hover:shadow-xl hover:border-indigo-100 transition-all group relative">
             
@@ -215,6 +245,7 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
         <BiometricScanModal 
           employees={employees} 
           hardwareUrl={hardwareUrl}
+          zkConfig={{ ip: settings.zkDeviceIp, port: settings.zkDevicePort }}
           onMatch={(emp) => {
             setSelectedProfile(emp);
             setShowBiometricSearch(false);

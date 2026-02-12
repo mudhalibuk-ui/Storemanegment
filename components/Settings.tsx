@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { SystemSettings, InventoryItem, Branch, Xarun, Transaction, User, Employee, Attendance, Payroll } from '../types';
+import { SystemSettings, InventoryItem, Branch, Xarun, Transaction, User, Employee, Attendance, Payroll, Device } from '../types';
 import { isDbConnected } from '../services/supabaseClient';
+import { API } from '../services/api';
 import * as XLSX from 'xlsx';
 
 interface SettingsProps {
@@ -22,7 +23,54 @@ const Settings: React.FC<SettingsProps> = ({
   settings, onSave, items, branches, xarumo, transactions, users, employees, attendance, payrolls 
 }) => {
   const [localSettings, setLocalSettings] = useState<SystemSettings>(settings);
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [newDevice, setNewDevice] = useState<Partial<Device>>({ name: '', ip_address: '', port: 4370, is_active: true, xarun_id: '' });
+  const [isLoadingDevices, setIsLoadingDevices] = useState(false);
   const dbStatus = isDbConnected();
+
+  useEffect(() => {
+    if (dbStatus) {
+      loadDevices();
+    }
+  }, [dbStatus]);
+
+  const loadDevices = async () => {
+    setIsLoadingDevices(true);
+    try {
+      const data = await API.devices.getAll();
+      setDevices(data);
+    } catch (e) {
+      console.error("Failed to load devices", e);
+    } finally {
+      setIsLoadingDevices(false);
+    }
+  };
+
+  const handleAddDevice = async () => {
+    if (!newDevice.name || !newDevice.ip_address || !newDevice.xarun_id) {
+      alert("Fadlan buuxi Magaca, IP-ga, iyo Xarunta.");
+      return;
+    }
+    
+    try {
+      await API.devices.save(newDevice);
+      alert("Aaladda waa la keydiyey! Python-ka ayaa hadda la xiriiri doona.");
+      setNewDevice({ name: '', ip_address: '', port: 4370, is_active: true, xarun_id: '' });
+      loadDevices();
+    } catch (e) {
+      alert("Cilad: Ma awoodin inaan keydiyo aaladda. Hubi internet-ka.");
+    }
+  };
+
+  const handleDeleteDevice = async (id: string) => {
+    if(!confirm("Ma hubtaa inaad tirtirto aaladdan?")) return;
+    try {
+      await API.devices.delete(id);
+      loadDevices();
+    } catch (e) {
+      alert("Cilad tirtiridda.");
+    }
+  };
 
   const handleSave = () => {
     onSave(localSettings);
@@ -81,7 +129,71 @@ const Settings: React.FC<SettingsProps> = ({
               </div>
            </div>
 
-           <div className="bg-white/5 p-6 rounded-[2rem] border border-white/10 space-y-4">
+           {/* DEVICE MANAGEMENT SECTION */}
+           <div className="space-y-4">
+              <h3 className="text-xs font-black text-emerald-400 uppercase tracking-widest">Aaladaha (ZK Devices)</h3>
+              <div className="bg-white/5 p-6 rounded-[2rem] border border-white/10 space-y-4">
+                 
+                 {/* List of Existing Devices */}
+                 <div className="space-y-2 max-h-48 overflow-y-auto no-scrollbar">
+                    {isLoadingDevices ? <p className="text-[10px] text-slate-400">Loading devices...</p> : devices.length === 0 ? <p className="text-[10px] text-slate-400 italic">Ma jiraan aalado la keydiyey.</p> : (
+                        devices.map(d => (
+                            <div key={d.id} className="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/5">
+                                <div>
+                                    <p className="text-[10px] font-black text-white">{d.name}</p>
+                                    <p className="text-[9px] text-slate-400">{d.ip_address}:{d.port} • {xarumo.find(x => x.id === d.xarun_id)?.name}</p>
+                                </div>
+                                <button onClick={() => handleDeleteDevice(d.id)} className="text-rose-400 hover:text-rose-500 text-xs">🗑️</button>
+                            </div>
+                        ))
+                    )}
+                 </div>
+
+                 {/* Add New Device Form */}
+                 <div className="pt-4 border-t border-white/10 space-y-3">
+                    <p className="text-[9px] font-black text-slate-400 uppercase">Ku dar Device Cusub</p>
+                    <input 
+                      type="text" 
+                      className="w-full p-3 bg-white/5 border border-white/10 rounded-xl font-black text-white placeholder-slate-600 text-xs" 
+                      placeholder="Magaca (e.g. Main Gate)"
+                      value={newDevice.name} 
+                      onChange={e => setNewDevice({...newDevice, name: e.target.value})} 
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                        <input 
+                          type="text" 
+                          className="w-full p-3 bg-white/5 border border-white/10 rounded-xl font-black text-white placeholder-slate-600 text-xs" 
+                          placeholder="IP (192.168.1.201)"
+                          value={newDevice.ip_address} 
+                          onChange={e => setNewDevice({...newDevice, ip_address: e.target.value})} 
+                        />
+                        <input 
+                          type="number" 
+                          className="w-full p-3 bg-white/5 border border-white/10 rounded-xl font-black text-white placeholder-slate-600 text-xs" 
+                          placeholder="Port (4370)"
+                          value={newDevice.port} 
+                          onChange={e => setNewDevice({...newDevice, port: parseInt(e.target.value)})} 
+                        />
+                    </div>
+                    <select 
+                        className="w-full p-3 bg-white/5 border border-white/10 rounded-xl font-black text-slate-300 text-xs outline-none"
+                        value={newDevice.xarun_id}
+                        onChange={e => setNewDevice({...newDevice, xarun_id: e.target.value})}
+                    >
+                        <option value="">Dooro Xarun...</option>
+                        {xarumo.map(x => <option key={x.id} value={x.id} className="text-slate-900">{x.name}</option>)}
+                    </select>
+                    <button 
+                        onClick={handleAddDevice}
+                        className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all"
+                    >
+                        + Keydi Device-ka
+                    </button>
+                 </div>
+              </div>
+           </div>
+
+           <div className="col-span-1 md:col-span-2 bg-white/5 p-6 rounded-[2rem] border border-white/10 space-y-4">
               <h3 className="text-xs font-black text-emerald-400 uppercase tracking-widest">Canshuurta Default ($)</h3>
               <div className="grid grid-cols-2 gap-4">
                  <div className="space-y-1">

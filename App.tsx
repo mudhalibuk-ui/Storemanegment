@@ -85,9 +85,25 @@ const App: React.FC = () => {
       taxPerKiish: 1,
       taxPerDram: 5,
       taxPerFalag: 10,
-      mainStoreId: ''
+      mainStoreId: '',
+      zkDeviceIp: '192.168.100.201',
+      zkDevicePort: 4370
     };
   });
+
+  // Calculate Hardware URL dynamically based on current browser location
+  // This allows mobiles to access the PC's Python service if on same WiFi
+  // Updated Port to 5050 to avoid conflicts
+  const getHardwareUrl = () => {
+    try {
+      const hostname = window.location.hostname;
+      if (!hostname) return 'http://localhost:5050';
+      return `http://${hostname}:5050`;
+    } catch (e) {
+      return 'http://localhost:5050';
+    }
+  };
+  const hardwareUrl = getHardwareUrl();
 
   const refreshAllData = useCallback(async (isBackground = false) => {
     if (!user) return;
@@ -257,7 +273,8 @@ const App: React.FC = () => {
           xarumo={xarumo} 
           attendance={attendance} 
           payrolls={payrolls} 
-          hardwareUrl="http://localhost:5000"
+          settings={settings}
+          hardwareUrl={hardwareUrl} // Passed dynamic URL (Port 5050)
           onAdd={() => { setEditingEmployee(null); setIsEmployeeFormOpen(true); }} 
           onEdit={(e) => { setEditingEmployee(e); setIsEmployeeFormOpen(true); }} 
           onDelete={async (id) => { await API.employees.delete(id); refreshAllData(); }} 

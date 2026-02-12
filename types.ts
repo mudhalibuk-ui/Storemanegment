@@ -161,6 +161,18 @@ export interface SystemSettings {
   taxPerDram: number;
   taxPerFalag: number;
   mainStoreId: string;
+  // Removed old single ZK config in favor of DB table
+  zkDeviceIp?: string;
+  zkDevicePort?: number;
+}
+
+export interface Device {
+  id: string;
+  name: string;
+  ip_address: string;
+  port: number;
+  xarun_id: string;
+  is_active: boolean;
 }
 
 export interface Employee {
@@ -184,6 +196,7 @@ export interface Attendance {
   status: 'PRESENT' | 'ABSENT' | 'LATE' | 'LEAVE';
   clockIn?: string;
   notes?: string;
+  deviceId?: string; // Track which device
 }
 
 export interface Payroll {
