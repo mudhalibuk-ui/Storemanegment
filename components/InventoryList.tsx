@@ -31,30 +31,35 @@ const InventoryList: React.FC<InventoryListProps> = ({
     Array.from(new Set(items.map(item => item.category))).filter(Boolean) as string[]
   , [items]);
 
-  // STRICT SEARCH ENGINE - FIXES THE "WRONG ITEM" ISSUE
+  // RAADIN SI TOOS AH U SHAYNAYSA (FILTERING LOGIC)
   const filteredItems = useMemo(() => {
-    // 1. Clean the search term and split by space, ignoring empty strings
-    const rawInput = searchTerm.toLowerCase().trim();
-    const searchTerms = rawInput.split(/\s+/).filter(term => term.length > 0);
-
-    return items.filter(item => {
+    // 1. Nadiifi qoraalka raadinta
+    const query = searchTerm.toLowerCase().trim();
+    
+    // 2. Sifeey alaabta (Filter)
+    const filtered = items.filter(item => {
       const branch = branches.find(b => b.id === item.branchId);
       
-      // 2. Multi-term matching: Every typed word must match at least one field
-      // This is the core fix. If you type "poly coat", it MUST have both.
-      const matchesSearch = searchTerms.length === 0 || searchTerms.every(term => 
-        (item.name || '').toLowerCase().includes(term) || 
-        (item.sku || '').toLowerCase().includes(term) ||
-        (item.category || '').toLowerCase().includes(term) ||
-        (branch?.name || '').toLowerCase().includes(term)
+      // Hubi haddii raadintu ay ku jirto Magaca, SKU, ama Nooca
+      const matchesSearch = !query || (
+        (item.name || '').toLowerCase().includes(query) || 
+        (item.sku || '').toLowerCase().includes(query) ||
+        (item.category || '').toLowerCase().includes(query) ||
+        (branch?.name || '').toLowerCase().includes(query)
       );
       
-      // 3. Dropdown Filters
       const matchesBranch = branchFilter === 'all' || item.branchId === branchFilter;
       const matchesCategory = categoryFilter === 'all' || item.category === categoryFilter;
       
       return matchesSearch && matchesBranch && matchesCategory;
-    }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    });
+
+    // 3. Kala saar xarfaha A ilaa Z (Sorting)
+    return [...filtered].sort((a, b) => {
+      const nameA = (a.name || '').toLowerCase();
+      const nameB = (b.name || '').toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
   }, [items, searchTerm, branchFilter, categoryFilter, branches]);
 
   const clearFilters = () => {
@@ -101,14 +106,14 @@ const InventoryList: React.FC<InventoryListProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Search and Action Header - Layout Refined to match Screenshot */}
+      {/* Search and Action Header */}
       <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
         <div className="flex items-center gap-4">
           <div className="flex-1 relative group">
             <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 text-lg">🔍</span>
             <input 
               type="text" 
-              placeholder="Raadi magaca, SKU, ama dhowr erey..."
+              placeholder="Raadi magaca alaabta, SKU, ama nooca..."
               className="w-full pl-14 pr-12 py-5 bg-slate-50 border-2 border-slate-100 rounded-[3rem] focus:border-indigo-500 focus:bg-white outline-none font-bold text-base transition-all shadow-inner"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -125,7 +130,7 @@ const InventoryList: React.FC<InventoryListProps> = ({
           <button 
             onClick={onRefresh}
             className="bg-indigo-50 text-indigo-600 p-5 rounded-2xl border border-indigo-100 shadow-sm active:scale-90 transition-all font-bold hover:bg-indigo-600 hover:text-white"
-            title="Cusboonaysii Xogta"
+            title="Cusboonaysii"
           >
             🔄
           </button>
@@ -159,7 +164,7 @@ const InventoryList: React.FC<InventoryListProps> = ({
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
             >
-              <option value="all">NOOCYADA (ALL)</option>
+              <option value="all">DHAMAAN NOOCYADA</option>
               {categories.map(cat => <option key={cat} value={cat}>{cat.toUpperCase()}</option>)}
             </select>
             <select 
@@ -167,22 +172,17 @@ const InventoryList: React.FC<InventoryListProps> = ({
               value={branchFilter}
               onChange={(e) => setBranchFilter(e.target.value)}
             >
-              <option value="all">BAKHAARADA (ALL)</option>
+              <option value="all">DHAMAAN BAKHAARADA</option>
               {branches.map(b => <option key={b.id} value={b.id}>{b.name.toUpperCase()}</option>)}
             </select>
           </div>
         </div>
       </div>
 
-      {/* Results Counter - Visual confirmation */}
+      {/* Nadiifi Filter Button - Muuqda kaliya marka raadin jirto */}
       {(searchTerm || branchFilter !== 'all' || categoryFilter !== 'all') && (
-        <div className="px-10 flex items-center justify-between animate-in fade-in duration-300">
-           <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-             Lagu sifeeyay: <span className="text-indigo-600 font-black">{filteredItems.length}</span> alaab ayaa ku habboon raadintaada
-           </p>
-           {filteredItems.length === 0 && (
-             <button onClick={clearFilters} className="text-[9px] font-black text-rose-500 uppercase underline tracking-widest">Nadiifi Filter-ka</button>
-           )}
+        <div className="px-10 flex justify-end">
+          <button onClick={clearFilters} className="text-[10px] font-black text-rose-500 hover:underline uppercase tracking-widest">Nadiifi Filter-ka ✕</button>
         </div>
       )}
 
@@ -255,9 +255,9 @@ const InventoryList: React.FC<InventoryListProps> = ({
                   <td colSpan={6} className="py-32 text-center">
                     <div className="flex flex-col items-center justify-center animate-in zoom-in duration-500">
                       <div className="text-8xl mb-6 grayscale opacity-20">📦</div>
-                      <p className="font-black uppercase tracking-[0.3em] text-sm text-slate-400">Wax alaab ah lama helin oo raadintaada ku habboon</p>
+                      <p className="font-black uppercase tracking-[0.3em] text-sm text-slate-400">Ma jiro wax alaab ah oo la helay</p>
                       {(searchTerm || branchFilter !== 'all' || categoryFilter !== 'all') && (
-                        <button onClick={clearFilters} className="mt-8 px-10 py-4 bg-indigo-600 text-white rounded-[2rem] font-black text-[10px] uppercase tracking-widest shadow-xl">Nadiifi oo soo saar dhamaan</button>
+                        <button onClick={clearFilters} className="mt-8 px-10 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl">SOO SAAR DHAMAAN</button>
                       )}
                     </div>
                   </td>
