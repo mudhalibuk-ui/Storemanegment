@@ -6,6 +6,7 @@ import schedule
 import threading
 import uuid
 import logging
+from collections import deque
 from datetime import datetime, time as dtime, timedelta
 from pathlib import Path
 from zk import ZK
@@ -18,8 +19,20 @@ from flask_cors import CORS
 LOG_FILE = "monitor_service.log"
 
 # --- LOGGING SETUP (Robust for Windows/Docker) ---
+# In-memory log buffer for API access
+log_buffer = deque(maxlen=50)
+
+class ListHandler(logging.Handler):
+    def emit(self, record):
+        try:
+            log_entry = self.format(record)
+            log_buffer.appendleft(log_entry) # Add to start (newest first)
+        except:
+            pass
+
 handlers = [
-    logging.FileHandler(LOG_FILE, encoding='utf-8')
+    logging.FileHandler(LOG_FILE, encoding='utf-8'),
+    ListHandler() # Add our custom memory handler
 ]
 
 try:
@@ -41,7 +54,7 @@ except Exception as e:
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(threadName)s - %(message)s',
+    format='%(asctime)s - %(message)s', # Simplified format
     handlers=handlers
 )
 
@@ -76,6 +89,20 @@ def after_request(response):
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
     return response
 
+@app.route('/')
+def status_check():
+    return jsonify({"status": "online", "message": "Background Service is Running", "timestamp": datetime.now().isoformat()})
+
+@app.route('/logs')
+def get_logs():
+    return jsonify({"logs": list(log_buffer)})
+
+@app.route('/trigger-absent', methods=['POST'])
+def manual_absent_check():
+    logging.info("🔧 Manual Trigger: Running Auto-Absent Check...")
+    threading.Thread(target=run_auto_absent_check).start()
+    return jsonify({"message": "Absent check started in background.", "status": "running"})
+
 def ensure_valid_xarun(target_id):
     try:
         if target_id:
@@ -93,7 +120,7 @@ def ensure_valid_xarun(target_id):
 
 # --- AUTO ABSENT CHECK (9:00 AM) ---
 def run_auto_absent_check():
-    logging.info("⏰ Running Auto-Absent Check (No-show by 9:00 AM)...")
+    logging.info("⏰ Running Auto-Absent Check Logic...")
     try:
         # 1. Get all active employees
         emps_res = supabase.table('employees').select("id, name").eq("status", "ACTIVE").execute()
@@ -116,7 +143,7 @@ def run_auto_absent_check():
                     "date": today_str,
                     "status": "ABSENT",
                     "clock_in": None, # IMPORTANT: Null indicates they haven't arrived yet
-                    "notes": "Auto-Absent: No show by 9:00am"
+                    "notes": "Auto-Absent: No show by cutoff time"
                 })
         
         if absent_payloads:
@@ -352,9 +379,9 @@ def main():
     print("   SMARTSTOCK PRO - UNIFIED SERVICE")
     print("   [1] Flask API: http://localhost:5050")
     print("   [2] Real-time Monitors: Active (With Offline Sync)")
-    print("   [3] Auto-Absent Scheduler: Active (09:00 AM)")
+    print("   [3] Auto-Absent Scheduler: Active")
     print("------------------------------------------------")
-    logging.info("Service Started.")
+    logging.info("Service Started. Waiting for events...")
     
     refresh_employee_cache()
     
@@ -362,6 +389,13 @@ def main():
     schedule.every(30).minutes.do(refresh_employee_cache)
     schedule.every().day.at("09:00").do(run_auto_absent_check) # Run absent check at 9am
     
+    # --- IMMEDIATE CHECK ON STARTUP ---
+    # If service restarts after 9am, we don't want to miss today's check
+    if datetime.now().hour >= 9:
+        logging.info("Startup Check: It's past 9:00 AM. Running immediate Auto-Absent check...")
+        threading.Thread(target=run_auto_absent_check).start()
+    # ----------------------------------
+
     threading.Thread(target=run_flask_api, daemon=True, name="FlaskAPI").start()
     start_monitors()
 

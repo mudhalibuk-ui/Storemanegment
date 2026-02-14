@@ -280,7 +280,13 @@ const App: React.FC = () => {
           onDelete={async (id) => { await API.employees.delete(id); refreshAllData(); }} 
         />
       )}
-      {activeTab === 'hr-attendance' && <HRMAttendanceTracker employees={employees} xarumo={xarumo} />}
+      {activeTab === 'hr-attendance' && (
+        <HRMAttendanceTracker 
+          employees={employees} 
+          xarumo={xarumo} 
+          hardwareUrl={hardwareUrl} // PASS HARDWARE URL FOR STATUS CHECK
+        />
+      )}
       {activeTab === 'hr-payroll' && <HRMPayroll employees={employees} xarumo={xarumo} />}
       {activeTab === 'hr-reports' && <HRMReports employees={employees} attendance={attendance} payrolls={payrolls} xarumo={xarumo} />}
 

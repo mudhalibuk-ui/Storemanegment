@@ -6,21 +6,83 @@ import { API } from '../services/api';
 interface HRMAttendanceTrackerProps {
   employees: Employee[];
   xarumo: Xarun[];
+  hardwareUrl?: string; // New prop for status checking
 }
 
 const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({ 
-  employees, xarumo 
+  employees, xarumo, hardwareUrl
 }) => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedXarunId, setSelectedXarunId] = useState<string>('all');
   const [attendanceData, setAttendanceData] = useState<Attendance[]>([]);
   const [loading, setLoading] = useState(false);
+  
+  // Status State
+  const [serviceStatus, setServiceStatus] = useState<'ONLINE' | 'OFFLINE' | 'CHECKING'>('CHECKING');
+  const [showLogsModal, setShowLogsModal] = useState(false);
+  const [serviceLogs, setServiceLogs] = useState<string[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
 
   useEffect(() => {
     loadAttendance();
     const interval = setInterval(loadAttendance, 10000);
     return () => clearInterval(interval);
   }, [selectedDate]);
+
+  // Status Polling
+  useEffect(() => {
+    if (!hardwareUrl) {
+      setServiceStatus('OFFLINE');
+      return;
+    }
+    
+    const checkService = async () => {
+        try {
+            const res = await fetch(`${hardwareUrl}/`); // The Flask route '/' returns JSON status
+            if(res.ok) setServiceStatus('ONLINE');
+            else setServiceStatus('OFFLINE');
+        } catch { 
+            setServiceStatus('OFFLINE'); 
+        }
+    }
+    
+    checkService();
+    const timer = setInterval(checkService, 5000); // Check every 5s
+    return () => clearInterval(timer);
+  }, [hardwareUrl]);
+
+  const fetchLogs = async () => {
+    if (!hardwareUrl) return;
+    setLogsLoading(true);
+    try {
+        const res = await fetch(`${hardwareUrl}/logs`);
+        const data = await res.json();
+        setServiceLogs(data.logs || []);
+    } catch (e) {
+        console.error(e);
+        setServiceLogs(["Failed to fetch logs. Service might be down."]);
+    } finally {
+        setLogsLoading(false);
+    }
+  };
+
+  const triggerAbsentCheck = async () => {
+    if (!hardwareUrl) return;
+    if (!confirm("Ma hubtaa inaad hada socodsiiso 'Absent Check'?\nTani waxay ABSENT ka dhigaysaa cid kasta oo aan imaan maanta.")) return;
+    
+    try {
+        const res = await fetch(`${hardwareUrl}/trigger-absent`, { method: 'POST' });
+        if(res.ok) {
+            alert("Amar waa la diray! Hubi Logs-ka.");
+            fetchLogs();
+            setTimeout(loadAttendance, 2000); // Reload data after a moment
+        } else {
+            alert("Khalad ayaa dhacay markii la dirayay amarka.");
+        }
+    } catch(e) {
+        alert("Cilad xiriirka server-ka.");
+    }
+  };
 
   const loadAttendance = async () => {
     setLoading(true);
@@ -31,7 +93,6 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
 
   const markAttendance = async (empId: string, status: 'PRESENT' | 'ABSENT' | 'LATE' | 'LEAVE') => {
     const existing = attendanceData.find(a => a.employeeId === empId);
-    // Simple manual mark, defaults to current time if Present
     const newRecord: Partial<Attendance> = {
       id: existing?.id,
       employeeId: empId,
@@ -65,7 +126,21 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
           <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center text-2xl">📝</div>
           <div>
             <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Manual Attendance</h2>
-            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Calaamadi Iimaanshaha (Gacanta)</p>
+            
+            {/* Status Indicator with Click Handler */}
+            <div 
+                className="flex items-center gap-2 mt-1 cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => { setShowLogsModal(true); fetchLogs(); }}
+                title="Click to view logs"
+            >
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Service Status:</p>
+                <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border ${serviceStatus === 'ONLINE' ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
+                    <span className={`w-2 h-2 rounded-full ${serviceStatus === 'ONLINE' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
+                    <span className={`text-[9px] font-black uppercase ${serviceStatus === 'ONLINE' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {serviceStatus === 'ONLINE' ? 'ONLINE (CLICK FOR LOGS)' : 'OFFLINE (CHECK SCRIPT)'}
+                    </span>
+                </div>
+            </div>
           </div>
         </div>
         
@@ -103,6 +178,46 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
           </div>
         </div>
       </div>
+
+      {/* SERVICE LOGS MODAL */}
+      {showLogsModal && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[50000] flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in duration-300 border border-slate-100 flex flex-col max-h-[85vh]">
+                <div className="p-6 bg-slate-900 text-white flex justify-between items-center">
+                    <div>
+                        <h3 className="text-lg font-black uppercase tracking-tight">System Logs & Diagnostics</h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Python Bridge Status: {serviceStatus}</p>
+                    </div>
+                    <button onClick={() => setShowLogsModal(false)} className="text-white/70 hover:text-white">✕</button>
+                </div>
+                
+                <div className="p-6 bg-black text-green-400 font-mono text-xs overflow-y-auto flex-1 space-y-1 h-96">
+                    {logsLoading ? (
+                        <p className="animate-pulse">Loading logs from server...</p>
+                    ) : serviceLogs.length > 0 ? (
+                        serviceLogs.map((log, idx) => <div key={idx} className="border-b border-white/10 pb-1 mb-1">{log}</div>)
+                    ) : (
+                        <p className="text-slate-500 italic">No logs available or service offline.</p>
+                    )}
+                </div>
+
+                <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-4">
+                    <button 
+                        onClick={fetchLogs} 
+                        className="flex-1 py-4 bg-white border border-slate-200 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-100 transition-all"
+                    >
+                        🔄 Refresh Logs
+                    </button>
+                    <button 
+                        onClick={triggerAbsentCheck} 
+                        className="flex-[2] py-4 bg-rose-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-rose-700 shadow-lg shadow-rose-100 transition-all"
+                    >
+                        ⚡ Run "Absent" Check Now
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
