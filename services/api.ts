@@ -27,7 +27,8 @@ const FIELD_MAPPING: Record<string, string> = {
   paymentDate: 'payment_date',
   placementInfo: 'placement_info',
   ipAddress: 'ip_address',
-  isActive: 'is_active'
+  isActive: 'is_active',
+  totalHours: 'total_hours'
 };
 
 const toSnakeCase = (obj: any) => {
@@ -384,6 +385,21 @@ export const API = {
   },
 
   attendance: {
+    async getAll(): Promise<Attendance[]> {
+      const data = await fetchAllPages('attendance', '', 'date');
+      return data.map((a: any) => ({
+        id: a.id,
+        employeeId: a.employee_id,
+        date: a.date,
+        status: a.status,
+        clockIn: a.clock_in,
+        clockOut: a.clock_out,
+        overtimeIn: a.overtime_in,
+        overtimeOut: a.overtime_out,
+        notes: a.notes,
+        deviceId: a.device_id
+      }));
+    },
     async getByDate(date: string): Promise<Attendance[]> {
       const data = await supabaseFetch(`attendance?select=*&date=eq.${date}`);
       
@@ -429,7 +445,7 @@ export const API = {
         // Using base_salary instead of baseSalary to match Payroll interface
         base_salary: p.base_salary, bonus: p.bonus, deduction: p.deduction,
         netPay: p.net_pay, status: p.status, paymentDate: p.payment_date,
-        xarunId: p.xarun_id
+        xarunId: p.xarun_id, totalHours: p.total_hours
       }));
     },
     async save(record: Partial<Payroll>): Promise<Payroll> {

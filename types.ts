@@ -214,6 +214,7 @@ export interface Payroll {
   bonus: number;
   deduction: number;
   paymentDate?: string;
+  totalHours?: number; // Calculated hours for the month
 }
 
 export interface Supplier {

@@ -44,5 +44,8 @@ SELECT
 FROM employees e
 LEFT JOIN shifts s ON e.shift_id = s.id;
 
--- 7. Force Schema Reload
+-- 7. Update Payroll Table for Hourly Calculation
+ALTER TABLE public.payroll ADD COLUMN IF NOT EXISTS total_hours NUMERIC DEFAULT 0;
+
+-- 8. Force Schema Reload
 NOTIFY pgrst, 'reload schema';

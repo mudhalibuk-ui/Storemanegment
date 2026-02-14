@@ -91,6 +91,43 @@ def ensure_valid_xarun(target_id):
         logging.error(f"Xarun Validation Error: {e}")
         return None
 
+# --- AUTO ABSENT CHECK (9:00 AM) ---
+def run_auto_absent_check():
+    logging.info("⏰ Running Auto-Absent Check (No-show by 9:00 AM)...")
+    try:
+        # 1. Get all active employees
+        emps_res = supabase.table('employees').select("id, name").eq("status", "ACTIVE").execute()
+        if not emps_res.data: 
+            logging.info("No active employees found.")
+            return
+
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        
+        # 2. Get today's attendance
+        atts_res = supabase.table('attendance').select("employee_id").eq("date", today_str).execute()
+        present_ids = {a['employee_id'] for a in atts_res.data}
+
+        absent_payloads = []
+        for emp in emps_res.data:
+            if emp['id'] not in present_ids:
+                absent_payloads.append({
+                    "id": str(uuid.uuid4()),
+                    "employee_id": emp['id'],
+                    "date": today_str,
+                    "status": "ABSENT",
+                    "clock_in": None, # IMPORTANT: Null indicates they haven't arrived yet
+                    "notes": "Auto-Absent: No show by 9:00am"
+                })
+        
+        if absent_payloads:
+            supabase.table('attendance').insert(absent_payloads).execute()
+            logging.info(f"❌ Marked {len(absent_payloads)} employees as ABSENT.")
+        else:
+            logging.info("✅ Everyone has clocked in or already accounted for.")
+            
+    except Exception as e:
+        logging.error(f"Auto-Absent Error: {e}")
+
 # --- ATTENDANCE MONITOR (REAL TIME) ---
 def push_attendance(user_id, timestamp, device_info):
     """
@@ -148,7 +185,6 @@ def push_attendance(user_id, timestamp, device_info):
             elif check_in_hour >= 9:
                 status = 'ABSENT' # As requested: Absent without excuse if > 9am
                 notes = 'Auto-Absent (Arrived after 9am)'
-            # Optional: Before 7am counts as Present too? Usually yes.
             elif check_in_hour < 7:
                 status = 'PRESENT'
                 notes = 'Early Arrival'
@@ -166,7 +202,7 @@ def push_attendance(user_id, timestamp, device_info):
             logging.info(f"✅ CHECK IN: {emp['name']} - Status: {status}")
 
         else:
-            # === SCENARIO 2: CHECK OUT / OVERTIME ===
+            # === SCENARIO 2: UPDATE EXISTING ===
             record = existing.data[0]
             record_id = record['id']
             
@@ -179,11 +215,10 @@ def push_attendance(user_id, timestamp, device_info):
 
             if last_action_time:
                 last_dt = datetime.fromisoformat(last_action_time.replace('Z', '+00:00'))
-                # Handle timezone naive/aware comparison simply by ignoring tz if mismatch
                 try:
                     time_diff = (timestamp - last_dt.replace(tzinfo=None)).total_seconds()
                 except:
-                    time_diff = 60 # Force allow if error
+                    time_diff = 60 
 
                 if time_diff < 60: 
                     logging.info(f"⏳ Ignored rapid scan for {emp['name']}")
@@ -193,7 +228,18 @@ def push_attendance(user_id, timestamp, device_info):
             update_payload = {}
             action_type = ""
 
-            if not record.get('clock_out'):
+            # Case: Auto-Absent Record (Clock In is missing)
+            if record.get('clock_in') is None:
+                # They arrived late (after 9am auto-check)
+                # We update clock_in but KEEP status as ABSENT (as per rule)
+                update_payload = {
+                    "clock_in": iso_time,
+                    "device_id": f"{dev_name} ({ip_addr})",
+                    "notes": "Arrived after 9am (Auto-Absent Applied)"
+                }
+                action_type = "LATE ARRIVAL (Status: ABSENT)"
+                
+            elif not record.get('clock_out'):
                 # First exit -> Check Out
                 update_payload = {"clock_out": iso_time}
                 action_type = "CHECK OUT"
@@ -306,11 +352,16 @@ def main():
     print("   SMARTSTOCK PRO - UNIFIED SERVICE")
     print("   [1] Flask API: http://localhost:5050")
     print("   [2] Real-time Monitors: Active (With Offline Sync)")
+    print("   [3] Auto-Absent Scheduler: Active (09:00 AM)")
     print("------------------------------------------------")
     logging.info("Service Started.")
     
     refresh_employee_cache()
+    
+    # Schedule Tasks
     schedule.every(30).minutes.do(refresh_employee_cache)
+    schedule.every().day.at("09:00").do(run_auto_absent_check) # Run absent check at 9am
+    
     threading.Thread(target=run_flask_api, daemon=True, name="FlaskAPI").start()
     start_monitors()
 
