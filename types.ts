@@ -27,10 +27,10 @@ export enum PackType {
 }
 
 export enum POStatus {
-  NEW = 'NEW', // Newly sent from Manager
-  PRICED = 'PRICED', // Buyer added prices
-  AWAITING_FUNDS = 'AWAITING_FUNDS', // Manager notified to send money
-  PURCHASING = 'PURCHASING', // Money received, currently buying
+  NEW = 'NEW', 
+  PRICED = 'PRICED', 
+  AWAITING_FUNDS = 'AWAITING_FUNDS', 
+  PURCHASING = 'PURCHASING', 
   SHIPPED = 'SHIPPED',
   ARRIVED = 'ARRIVED',
   COMPLETED = 'COMPLETED'
@@ -68,7 +68,7 @@ export interface PurchaseOrder {
   totalFundsSent: number;
   transfers: POTransfer[];
   isReadByBuyer: boolean;
-  isReadByManager: boolean; // For when buyer updates prices
+  isReadByManager: boolean;
   notes?: string;
   createdAt: string;
 }
@@ -146,7 +146,6 @@ export interface Transaction {
   originOrSource?: string;
   placementInfo?: string;
   targetBranchId?: string;
-  // Added approvedBy property to fix TypeScript error when updating transactions
   approvedBy?: string;
 }
 
@@ -161,7 +160,6 @@ export interface SystemSettings {
   taxPerDram: number;
   taxPerFalag: number;
   mainStoreId: string;
-  // Removed old single ZK config in favor of DB table
   zkDeviceIp?: string;
   zkDevicePort?: number;
 }
@@ -175,18 +173,52 @@ export interface Device {
   is_active: boolean;
 }
 
+// --- HRM ENHANCED TYPES ---
+
+export interface Shift {
+  id: string;
+  name: string; // e.g. "Morning Shift", "Night Shift"
+  startTime: string; // "07:00"
+  endTime: string; // "17:00"
+  lateThreshold: string; // "08:00"
+}
+
+export interface LeaveRequest {
+  id: string;
+  employeeId: string;
+  type: 'SICK' | 'ANNUAL' | 'EMERGENCY' | 'UNPAID';
+  startDate: string;
+  endDate: string;
+  reason: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+}
+
+export interface EmployeeDocument {
+  id: string;
+  employeeId: string;
+  title: string; // "Contract", "Passport"
+  type: string;
+  url?: string;
+  uploadDate: string;
+  notes?: string;
+}
+
 export interface Employee {
   id: string;
   name: string;
   employeeIdCode: string;
   position: string;
+  department?: string; // New
   status: string;
   joinedDate: string;
   xarunId: string;
+  branchId?: string;
   salary: number;
   avatar: string;
-  branchId?: string;
   fingerprintHash?: string;
+  shiftId?: string; // New
+  phone?: string; // New
+  email?: string; // New
 }
 
 export interface Attendance {
@@ -199,7 +231,7 @@ export interface Attendance {
   overtimeIn?: string;
   overtimeOut?: string;
   notes?: string;
-  deviceId?: string; // Track which device
+  deviceId?: string; 
 }
 
 export interface Payroll {
@@ -214,7 +246,7 @@ export interface Payroll {
   bonus: number;
   deduction: number;
   paymentDate?: string;
-  totalHours?: number; // Calculated hours for the month
+  totalHours?: number; 
 }
 
 export interface Supplier {
