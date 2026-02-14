@@ -6,7 +6,7 @@ import schedule
 import threading
 import uuid
 import logging
-from datetime import datetime, time as dtime
+from datetime import datetime, time as dtime, timedelta
 from pathlib import Path
 from zk import ZK
 from supabase import create_client, Client
@@ -16,13 +16,33 @@ from flask_cors import CORS
 
 # --- CONFIGURATION ---
 LOG_FILE = "monitor_service.log"
+
+# --- LOGGING SETUP (Robust for Windows/Docker) ---
+handlers = [
+    logging.FileHandler(LOG_FILE, encoding='utf-8')
+]
+
+try:
+    if sys.platform.startswith('win'):
+        import io
+        console_stream = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        handlers.append(logging.StreamHandler(console_stream))
+        try:
+            sys.stdout.reconfigure(encoding='utf-8')
+            sys.stderr.reconfigure(encoding='utf-8')
+        except AttributeError:
+            sys.stdout = console_stream
+            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    else:
+        handlers.append(logging.StreamHandler(sys.stdout))
+except Exception as e:
+    print(f"Warning: Could not configure UTF-8 logging: {e}")
+    handlers.append(logging.StreamHandler(sys.stdout))
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(threadName)s - %(message)s',
-    handlers=[
-        logging.FileHandler(LOG_FILE),
-        logging.StreamHandler()
-    ]
+    handlers=handlers
 )
 
 base_dir = Path(__file__).resolve().parent
@@ -71,151 +91,20 @@ def ensure_valid_xarun(target_id):
         logging.error(f"Xarun Validation Error: {e}")
         return None
 
-# --- SYNC ALL DATA: DEVICE -> DATABASE ---
-@app.route('/sync-users', methods=['POST'])
-def sync_device_data():
-    """
-    1. Connect to Device.
-    2. Fetch USERS -> Save to DB.
-    3. Fetch ATTENDANCE -> Save to DB.
-    """
-    data = request.json or {}
-    ip = data.get('ip', '192.168.100.201')
-    port = int(data.get('port', 4370))
-    requested_xarun = data.get('default_xarun_id', 'x1')
-    valid_xarun_id = ensure_valid_xarun(requested_xarun)
-
-    logging.info(f"🔄 Starting Full Sync (Users + Logs) for {ip}...")
-
-    # Lock Device
-    device_locks[ip] = True
-    if ip in active_zk_connections:
-        try: active_zk_connections[ip].disconnect()
-        except: pass
-        time.sleep(1)
-
-    zk = ZK(ip, port=port, timeout=30)
-    conn = None
-    
-    stats = { "new_users": 0, "updated_users": 0, "new_logs": 0 }
-
-    try:
-        conn = zk.connect()
-        conn.disable_device()
-        
-        # ==========================================
-        # STEP 1: SYNC USERS
-        # ==========================================
-        device_users = conn.get_users()
-        logging.info(f"👤 Found {len(device_users)} users on device.")
-
-        # Get DB Map
-        db_emps = supabase.table('employees').select("id, employee_id_code, name").execute()
-        db_map = {e['employee_id_code']: e for e in db_emps.data}
-        zk_id_to_uuid = {} # Map ZK ID to DB UUID for attendance
-
-        for user in device_users:
-            zk_id = str(user.user_id)
-            zk_name = user.name.strip() if user.name else f"Staff {zk_id}"
-            
-            if zk_id not in db_map:
-                # INSERT
-                new_uuid = str(uuid.uuid4())
-                new_emp_payload = {
-                    "id": new_uuid,
-                    "name": zk_name,
-                    "employee_id_code": zk_id,
-                    "position": "STAFF",
-                    "status": "ACTIVE",
-                    "joined_date": datetime.now().strftime("%Y-%m-%d"),
-                    "xarun_id": valid_xarun_id,
-                    "avatar": f"https://api.dicebear.com/7.x/avataaars/svg?seed={zk_id}",
-                    "salary": 0
-                }
-                supabase.table('employees').insert(new_emp_payload).execute()
-                stats['new_users'] += 1
-                zk_id_to_uuid[zk_id] = new_uuid
-            else:
-                # UPDATE
-                existing = db_map[zk_id]
-                zk_id_to_uuid[zk_id] = existing['id']
-                if user.name and existing['name'] != zk_name:
-                    supabase.table('employees').update({"name": zk_name}).eq('id', existing['id']).execute()
-                    stats['updated_users'] += 1
-
-        # ==========================================
-        # STEP 2: SYNC ATTENDANCE LOGS
-        # ==========================================
-        logging.info("📝 Fetching Attendance Logs...")
-        logs = conn.get_attendance()
-        logging.info(f"📥 Found {len(logs)} total logs.")
-
-        # Batch process logs to avoid timeouts
-        # For simplicity, we check duplicates one by one or fetch recent ones
-        # optimization: Fetch recent DB logs to memory to reduce API calls
-        
-        for log in logs:
-            user_id_str = str(log.user_id)
-            if user_id_str not in zk_id_to_uuid:
-                continue # Skip unknown users (shouldn't happen as we just synced users)
-
-            emp_uuid = zk_id_to_uuid[user_id_str]
-            log_date = log.timestamp.strftime("%Y-%m-%d")
-            log_time = log.timestamp.isoformat()
-
-            # Determine Status
-            # Need to get shift info from cache or default
-            # For bulk sync, we default to 'PRESENT' or check time logic
-            status = "PRESENT"
-            if log.timestamp.hour >= 8: # Simple rule: After 8am is Late
-                status = "LATE"
-
-            # Check Duplicate in DB (Composite check: Employee + Exact Time)
-            # This is slow but safe. 
-            exists = supabase.table('attendance').select('id').eq('employee_id', emp_uuid).eq('clock_in', log_time).execute()
-            
-            if not exists.data:
-                # Insert
-                new_record = {
-                    "id": str(uuid.uuid4()),
-                    "employee_id": emp_uuid,
-                    "date": log_date,
-                    "status": status,
-                    "clock_in": log_time,
-                    "device_id": f"Device {ip}",
-                    "notes": "Bulk Sync"
-                }
-                supabase.table('attendance').insert(new_record).execute()
-                stats['new_logs'] += 1
-
-        conn.enable_device()
-        refresh_employee_cache()
-        
-        msg = f"Sync Complete!\nUsers: +{stats['new_users']} New, {stats['updated_users']} Updated.\nLogs: +{stats['new_logs']} Records added to Database."
-        logging.info(msg)
-        
-        return jsonify({ "success": True, "message": msg })
-
-    except Exception as e:
-        logging.error(f"❌ Sync Error: {e}")
-        return jsonify({"error": str(e)}), 500
-    finally:
-        if conn:
-            try: conn.disconnect()
-            except: pass
-        device_locks[ip] = False
-
 # --- ATTENDANCE MONITOR (REAL TIME) ---
 def push_attendance(user_id, timestamp, device_info):
     """
-    Real-time: Finger Scan -> Database
+    Real-time Logic:
+    1. Checks if record exists for TODAY.
+    2. If NO: Creates 'Check In' with Status Logic (Present/Late/Absent).
+    3. If YES: Updates 'Check Out', 'Overtime In', or 'Overtime Out' sequentially.
     """
     zk_id = str(user_id)
     if zk_id not in employee_cache:
         refresh_employee_cache()
     
+    # Auto Create user if missing
     if zk_id not in employee_cache:
-        # Auto Create user if missing
         try:
             new_uuid = str(uuid.uuid4())
             supabase.table('employees').insert({
@@ -233,32 +122,99 @@ def push_attendance(user_id, timestamp, device_info):
     emp = employee_cache.get(zk_id)
     if not emp: return
 
-    check_in_time = timestamp.time()
     date_str = timestamp.strftime("%Y-%m-%d")
-    status = 'PRESENT'
-    notes = 'On Time'
-    
-    if check_in_time > emp['shift']['late']:
-        status = 'LATE'
-        notes = 'Late Arrival'
+    iso_time = timestamp.isoformat()
+    ip_addr = device_info.get('ip_address', device_info.get('ip', 'Unknown'))
+    dev_name = device_info.get('name', 'Device')
 
     try:
-        # Check duplicate for THIS DAY (Realtime logic usually allows 1 check-in per day or per shift)
-        check = supabase.table('attendance').select("id").eq("employee_id", emp['uuid']).eq("date", date_str).execute()
-        if not check.data:
+        # Fetch existing record for THIS EMPLOYEE on THIS DAY
+        existing = supabase.table('attendance').select("*").eq("employee_id", emp['uuid']).eq("date", date_str).execute()
+        
+        if not existing.data:
+            # === SCENARIO 1: CHECK IN (First Scan) ===
+            
+            # Logic: 7-8am (Present), 8-9am (Late), >9am (Absent)
+            check_in_hour = timestamp.hour
+            status = 'PRESENT'
+            notes = 'On Time'
+
+            if 7 <= check_in_hour < 8:
+                status = 'PRESENT'
+                notes = 'On Time (7am-8am)'
+            elif 8 <= check_in_hour < 9:
+                status = 'LATE'
+                notes = 'Late Arrival (8am-9am)'
+            elif check_in_hour >= 9:
+                status = 'ABSENT' # As requested: Absent without excuse if > 9am
+                notes = 'Auto-Absent (Arrived after 9am)'
+            # Optional: Before 7am counts as Present too? Usually yes.
+            elif check_in_hour < 7:
+                status = 'PRESENT'
+                notes = 'Early Arrival'
+
             data = {
                 "id": str(uuid.uuid4()),
                 "employee_id": emp['uuid'],
                 "date": date_str,
                 "status": status,
-                "clock_in": timestamp.isoformat(),
-                "device_id": f"{device_info['name']} ({device_info['ip']})",
-                "notes": f"Auto: {notes}"
+                "clock_in": iso_time,
+                "device_id": f"{dev_name} ({ip_addr})",
+                "notes": notes
             }
             supabase.table('attendance').insert(data).execute()
-            logging.info(f"✅ REALTIME SAVED: {emp['name']}")
+            logging.info(f"✅ CHECK IN: {emp['name']} - Status: {status}")
+
+        else:
+            # === SCENARIO 2: CHECK OUT / OVERTIME ===
+            record = existing.data[0]
+            record_id = record['id']
+            
+            # Debounce: Prevent double scanning within 1 minute
+            last_action_time = None
+            if record.get('overtime_out'): last_action_time = record['overtime_out']
+            elif record.get('overtime_in'): last_action_time = record['overtime_in']
+            elif record.get('clock_out'): last_action_time = record['clock_out']
+            elif record.get('clock_in'): last_action_time = record['clock_in']
+
+            if last_action_time:
+                last_dt = datetime.fromisoformat(last_action_time.replace('Z', '+00:00'))
+                # Handle timezone naive/aware comparison simply by ignoring tz if mismatch
+                try:
+                    time_diff = (timestamp - last_dt.replace(tzinfo=None)).total_seconds()
+                except:
+                    time_diff = 60 # Force allow if error
+
+                if time_diff < 60: 
+                    logging.info(f"⏳ Ignored rapid scan for {emp['name']}")
+                    return
+
+            # Determine which field to update
+            update_payload = {}
+            action_type = ""
+
+            if not record.get('clock_out'):
+                # First exit -> Check Out
+                update_payload = {"clock_out": iso_time}
+                action_type = "CHECK OUT"
+            elif not record.get('overtime_in'):
+                # Second entry -> Overtime In
+                update_payload = {"overtime_in": iso_time}
+                action_type = "OVERTIME IN"
+            elif not record.get('overtime_out'):
+                # Second exit -> Overtime Out
+                update_payload = {"overtime_out": iso_time}
+                action_type = "OVERTIME OUT"
+            else:
+                logging.info(f"ℹ️ {emp['name']} has completed all cycle steps for today.")
+                return
+
+            if update_payload:
+                supabase.table('attendance').update(update_payload).eq('id', record_id).execute()
+                logging.info(f"✅ {action_type}: {emp['name']}")
+
     except Exception as e:
-        logging.error(f"DB Error: {e}")
+        logging.error(f"DB Error processing attendance: {e}")
 
 def refresh_employee_cache():
     global employee_cache
@@ -267,18 +223,13 @@ def refresh_employee_cache():
         new_cache = {}
         for row in response.data:
             key_code = str(row.get('employee_id_code'))
-            def parse_time(t_str, default):
-                try: return datetime.strptime(t_str, "%H:%M:%S").time()
-                except: return default
             data = {
                 'uuid': row['employee_id'],
-                'name': row['name'],
-                'shift': {
-                    'late': parse_time(row.get('late_threshold'), dtime(8,0)),
-                }
+                'name': row['name']
             }
             new_cache[key_code] = data
         employee_cache = new_cache
+        logging.info(f"🔄 Cache Refreshed: {len(employee_cache)} employees loaded.")
     except Exception as e:
         logging.error(f"Cache Error: {e}")
 
@@ -286,7 +237,8 @@ def monitor_single_device(device):
     ip = device['ip_address']
     port = device.get('port', 4370)
     zk = ZK(ip, port=port, timeout=10, force_udp=False, ommit_ping=False)
-    
+    dev_name = device.get('name', 'Unknown')
+
     while True:
         if device_locks.get(ip, False):
             time.sleep(2)
@@ -294,17 +246,36 @@ def monitor_single_device(device):
 
         conn = None
         try:
+            logging.info(f"🔌 Monitor Connecting to {dev_name} ({ip})...")
             conn = zk.connect()
             active_zk_connections[ip] = conn
-            logging.info(f"✅ Connected to {ip}")
+            
+            # --- CATCH UP LOGIC (OFFLINE SYNC) ---
+            logging.info(f"📥 Checking offline logs for today from {dev_name}...")
+            try:
+                logs = conn.get_attendance()
+                today_str = datetime.now().strftime("%Y-%m-%d")
+                sync_count = 0
+                for log in logs:
+                    if log.timestamp.strftime("%Y-%m-%d") == today_str:
+                        # Process sequentially to ensure IN -> OUT -> OT logic holds
+                        push_attendance(log.user_id, log.timestamp, device)
+                        sync_count += 1
+                logging.info(f"✅ Offline Sync Checked. Processed {sync_count} logs for today.")
+            except Exception as e:
+                logging.error(f"⚠️ Offline Sync Warning: {e}")
+            # -------------------------------------
+
+            logging.info(f"✅ MONITOR ACTIVE: {dev_name} - Waiting for live scans...")
             
             for event in conn.live_capture():
                 if device_locks.get(ip, False): break
                 if event and event.user_id:
                     threading.Thread(target=push_attendance, args=(event.user_id, event.timestamp, device)).start()
         except Exception as e:
-            logging.error(f"Connection lost {ip}: {e}")
-            time.sleep(10)
+            if not device_locks.get(ip, False):
+                logging.error(f"Connection lost {dev_name} ({ip}): {e}")
+                time.sleep(10)
         finally:
             if ip in active_zk_connections: del active_zk_connections[ip]
             if conn: 
@@ -317,11 +288,12 @@ def start_monitors():
         res = supabase.table('devices').select("*").eq('is_active', True).execute()
         devices = res.data or []
         if not devices:
+             logging.info("No devices found in DB. Defaulting to local config.")
              devices = [{'name': 'Default', 'ip_address': '192.168.100.201', 'port': 4370, 'id': None, 'xarun_id': None}]
 
         for dev in devices:
             if dev['ip_address'] in active_devices: continue
-            t = threading.Thread(target=monitor_single_device, args=(dev,), name=f"Thread-{dev['ip_address']}")
+            t = threading.Thread(target=monitor_single_device, args=(dev,), name=f"Thread-{dev['name']}")
             t.daemon = True
             t.start()
             active_devices[dev['ip_address']] = t
@@ -330,12 +302,16 @@ def start_monitors():
         logging.error(f"Failed to fetch devices: {e}")
 
 def main():
-    print("SMARTSTOCK PRO - UNIFIED SERVICE")
-    logging.info("Service Started on Port 5050")
+    print("------------------------------------------------")
+    print("   SMARTSTOCK PRO - UNIFIED SERVICE")
+    print("   [1] Flask API: http://localhost:5050")
+    print("   [2] Real-time Monitors: Active (With Offline Sync)")
+    print("------------------------------------------------")
+    logging.info("Service Started.")
     
     refresh_employee_cache()
     schedule.every(30).minutes.do(refresh_employee_cache)
-    threading.Thread(target=run_flask_api, daemon=True).start()
+    threading.Thread(target=run_flask_api, daemon=True, name="FlaskAPI").start()
     start_monitors()
 
     try:

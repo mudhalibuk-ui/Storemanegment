@@ -2,6 +2,8 @@
 -- 1. Fix Attendance Table (Add missing columns safely)
 ALTER TABLE public.attendance ADD COLUMN IF NOT EXISTS device_id TEXT;
 ALTER TABLE public.attendance ADD COLUMN IF NOT EXISTS clock_out TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.attendance ADD COLUMN IF NOT EXISTS overtime_in TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.attendance ADD COLUMN IF NOT EXISTS overtime_out TIMESTAMP WITH TIME ZONE;
 
 -- 2. Create Shifts Table
 CREATE TABLE IF NOT EXISTS public.shifts (

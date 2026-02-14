@@ -18,6 +18,8 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
 
   useEffect(() => {
     loadAttendance();
+    const interval = setInterval(loadAttendance, 10000);
+    return () => clearInterval(interval);
   }, [selectedDate]);
 
   const loadAttendance = async () => {
@@ -29,12 +31,13 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
 
   const markAttendance = async (empId: string, status: 'PRESENT' | 'ABSENT' | 'LATE' | 'LEAVE') => {
     const existing = attendanceData.find(a => a.employeeId === empId);
+    // Simple manual mark, defaults to current time if Present
     const newRecord: Partial<Attendance> = {
       id: existing?.id,
       employeeId: empId,
       date: selectedDate,
       status: status,
-      clockIn: status === 'PRESENT' ? new Date().toISOString() : undefined,
+      clockIn: status === 'PRESENT' && !existing?.clockIn ? new Date().toISOString() : existing?.clockIn,
       notes: 'Manual Entry'
     };
     await API.attendance.save(newRecord);
@@ -50,6 +53,11 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
   const lateCount = attendanceData.filter(a => filteredEmployees.some(e => e.id === a.employeeId) && a.status === 'LATE').length;
   const pendingCount = filteredEmployees.length - (presentCount + absentCount + lateCount);
 
+  const formatTime = (isoString?: string) => {
+    if (!isoString) return '--:--';
+    return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col xl:flex-row justify-between items-center gap-6">
@@ -62,6 +70,14 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
         </div>
         
         <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
+          <button 
+            onClick={() => loadAttendance()}
+            className="px-6 py-3 bg-slate-900 text-white rounded-2xl shadow-lg hover:bg-slate-700 active:scale-95 transition-all flex items-center gap-2"
+            title="Refresh Data"
+          >
+            <span className={`text-lg ${loading ? 'animate-spin' : ''}`}>🔄</span>
+          </button>
+
           <div className="flex flex-col gap-1 flex-1 min-w-[150px]">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Xarunta (Center)</label>
             <select 
@@ -118,10 +134,13 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
-                <th className="px-10 py-6">Shaqaalaha</th>
-                <th className="px-10 py-6">Xarunta</th>
-                <th className="px-10 py-6 text-center">Xaaladda</th>
-                <th className="px-10 py-6 text-right">Calaamadi (Action)</th>
+                <th className="px-6 py-6">Shaqaalaha</th>
+                <th className="px-6 py-6 text-center">Clock In</th>
+                <th className="px-6 py-6 text-center">Clock Out</th>
+                <th className="px-6 py-6 text-center bg-indigo-50/30">OT In</th>
+                <th className="px-6 py-6 text-center bg-indigo-50/30">OT Out</th>
+                <th className="px-6 py-6 text-center">Status</th>
+                <th className="px-6 py-6 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -130,52 +149,59 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
                 const empXarun = xarumo.find(x => x.id === emp.xarunId)?.name || 'N/A';
                 return (
                   <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-10 py-4">
-                      <div className="flex items-center gap-4">
-                        <img src={emp.avatar} className="w-10 h-10 rounded-xl shadow-sm border border-slate-100" alt="" />
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <img src={emp.avatar} className="w-8 h-8 rounded-lg shadow-sm border border-slate-100" alt="" />
                         <div>
-                          <span className="font-black text-slate-700 block">{emp.name}</span>
-                          <span className="text-[9px] font-bold text-slate-400 uppercase">{emp.employeeIdCode}</span>
+                          <span className="font-black text-slate-700 block text-xs">{emp.name}</span>
+                          <span className="text-[9px] font-bold text-slate-400 uppercase">{empXarun}</span>
                         </div>
                       </div>
                     </td>
-                    <td className="px-10 py-4">
-                      <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-3 py-1 rounded-lg uppercase">
-                        {empXarun}
-                      </span>
+                    <td className="px-6 py-4 text-center font-mono text-xs font-bold text-emerald-600">
+                      {formatTime(record?.clockIn)}
                     </td>
-                    <td className="px-10 py-4 text-center">
+                    <td className="px-6 py-4 text-center font-mono text-xs font-bold text-rose-600">
+                      {formatTime(record?.clockOut)}
+                    </td>
+                    <td className="px-6 py-4 text-center font-mono text-xs font-bold text-indigo-600 bg-indigo-50/30">
+                      {formatTime(record?.overtimeIn)}
+                    </td>
+                    <td className="px-6 py-4 text-center font-mono text-xs font-bold text-indigo-600 bg-indigo-50/30">
+                      {formatTime(record?.overtimeOut)}
+                    </td>
+                    <td className="px-6 py-4 text-center">
                       {record ? (
-                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
                           record.status === 'PRESENT' ? 'bg-emerald-50 text-emerald-600' :
                           record.status === 'ABSENT' ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-600'
                         }`}>
                           {record.status}
                         </span>
                       ) : (
-                        <span className="text-[10px] font-black text-slate-300 uppercase italic">-- Pending --</span>
+                        <span className="text-[9px] font-black text-slate-300 uppercase italic">--</span>
                       )}
                     </td>
-                    <td className="px-10 py-4 text-right">
-                      <div className="flex justify-end gap-2">
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex justify-end gap-1">
                         <button 
                           onClick={() => markAttendance(emp.id, 'PRESENT')} 
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all active:scale-95 ${record?.status === 'PRESENT' ? 'bg-emerald-600 text-white ring-4 ring-emerald-100' : 'bg-white border border-slate-100 text-emerald-600 hover:bg-emerald-50'}`}
-                          title="Present (Yimid)"
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center shadow-sm transition-all active:scale-95 ${record?.status === 'PRESENT' ? 'bg-emerald-600 text-white ring-2 ring-emerald-100' : 'bg-white border border-slate-100 text-emerald-600 hover:bg-emerald-50'}`}
+                          title="Present"
                         >
                           ✅
                         </button>
                         <button 
                           onClick={() => markAttendance(emp.id, 'ABSENT')} 
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all active:scale-95 ${record?.status === 'ABSENT' ? 'bg-rose-600 text-white ring-4 ring-rose-100' : 'bg-white border border-slate-100 text-rose-600 hover:bg-rose-50'}`}
-                          title="Absent (Maqan)"
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center shadow-sm transition-all active:scale-95 ${record?.status === 'ABSENT' ? 'bg-rose-600 text-white ring-2 ring-rose-100' : 'bg-white border border-slate-100 text-rose-600 hover:bg-rose-50'}`}
+                          title="Absent"
                         >
                           ❌
                         </button>
                         <button 
                           onClick={() => markAttendance(emp.id, 'LATE')} 
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all active:scale-95 ${record?.status === 'LATE' ? 'bg-amber-600 text-white ring-4 ring-amber-100' : 'bg-white border border-slate-100 text-amber-600 hover:bg-amber-50'}`}
-                          title="Late (Dahahay)"
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center shadow-sm transition-all active:scale-95 ${record?.status === 'LATE' ? 'bg-amber-600 text-white ring-2 ring-amber-100' : 'bg-white border border-slate-100 text-amber-600 hover:bg-amber-50'}`}
+                          title="Late"
                         >
                           ⏰
                         </button>

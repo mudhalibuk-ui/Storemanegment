@@ -19,6 +19,9 @@ const FIELD_MAPPING: Record<string, string> = {
   fingerprintHash: 'fingerprint_hash',
   employeeId: 'employee_id',
   clockIn: 'clock_in',
+  clockOut: 'clock_out',
+  overtimeIn: 'overtime_in',
+  overtimeOut: 'overtime_out',
   baseSalary: 'base_salary',
   netPay: 'net_pay',
   paymentDate: 'payment_date',
@@ -248,16 +251,14 @@ export const API = {
       if (isDbConnected()) {
         try {
           // A. Force Delete related Transactions first (using multiple potential column names to be safe)
-          // We don't care if these fail (e.g. if table doesn't exist or rows don't exist)
           await Promise.allSettled([
             supabaseFetch(`transactions?item_id=eq.${id}`, { method: 'DELETE' }),
-            supabaseFetch(`transactions?itemId=eq.${id}`, { method: 'DELETE' }) // CamelCase check
+            supabaseFetch(`transactions?itemId=eq.${id}`, { method: 'DELETE' })
           ]);
           
           // B. Delete the Item
           const res = await supabaseFetch(`inventory_items?id=eq.${id}`, { method: 'DELETE' });
           
-          // Check if response has error property
           if (res && res.error) {
              console.error("Cloud Delete Error:", res);
              return { success: false, error: res.details || res.error };
@@ -401,6 +402,9 @@ export const API = {
         date: a.date,
         status: a.status,
         clockIn: a.clock_in,
+        clockOut: a.clock_out,
+        overtimeIn: a.overtime_in,
+        overtimeOut: a.overtime_out,
         notes: a.notes,
         deviceId: a.device_id
       }));

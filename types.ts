@@ -195,6 +195,9 @@ export interface Attendance {
   date: string;
   status: 'PRESENT' | 'ABSENT' | 'LATE' | 'LEAVE';
   clockIn?: string;
+  clockOut?: string;
+  overtimeIn?: string;
+  overtimeOut?: string;
   notes?: string;
   deviceId?: string; // Track which device
 }

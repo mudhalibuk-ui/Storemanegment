@@ -18,23 +18,7 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({ items, branches }) => {
 
   if (!selectedBranch) return <div className="p-10 text-center">Fadlan dooro Branch.</div>;
 
-  // Calculate shelves that contain matching items if search is active
-  const matchingItems = mapSearch 
-    ? branchItems.filter(i => 
-        i.name.toLowerCase().includes(mapSearch.toLowerCase()) || 
-        i.sku.toLowerCase().includes(mapSearch.toLowerCase())
-      )
-    : [];
-
-  const matchingShelves = new Set(matchingItems.map(i => i.shelves));
-
-  let totalSlots = 0;
-  for (let s = 1; s <= selectedBranch.totalShelves; s++) {
-    totalSlots += selectedBranch.customSections?.[s] || selectedBranch.totalSections;
-  }
-  
-  const occupiedSlotsCount = new Set(branchItems.map(i => `${i.shelves}-${i.sections}`)).size;
-  const occupancyRate = totalSlots > 0 ? ((occupiedSlotsCount / totalSlots) * 100).toFixed(1) : "0";
+  const q = mapSearch.toLowerCase().trim();
 
   const handleSlotClick = (shelf: number, section: number) => {
     const itemsInSlot = branchItems.filter(i => i.shelves === shelf && i.sections === section);
@@ -58,7 +42,7 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({ items, branches }) => {
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300">🔍</span>
               <input 
                 type="text"
-                placeholder="Raadi alaab ku jirta map-ka..."
+                placeholder="Magaca alaabta ama SKU..."
                 className="w-full pl-12 pr-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-sm outline-none focus:border-indigo-500 transition-all"
                 value={mapSearch}
                 onChange={(e) => setMapSearch(e.target.value)}
@@ -75,38 +59,16 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({ items, branches }) => {
         </div>
       </div>
 
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-         <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Total Godadka (Slots)</p>
-            <h4 className="text-4xl font-black text-slate-900">{totalSlots}</h4>
-         </div>
-         <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Slots Buuxa (Occupied)</p>
-            <h4 className="text-4xl font-black text-rose-600">{occupiedSlotsCount}</h4>
-         </div>
-         <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Storage Usage</p>
-            <h4 className="text-4xl font-black text-indigo-600">{occupancyRate}%</h4>
-         </div>
-      </div>
-
-      {/* Visual Grid */}
+      {/* Visual Grid - ALL SLOTS VISIBLE */}
       <div className="bg-white p-6 md:p-10 rounded-[3rem] shadow-xl border border-slate-100 overflow-x-auto no-scrollbar min-h-[400px]">
          <div className="flex flex-col gap-8 min-w-[800px]">
             {Array.from({ length: selectedBranch.totalShelves }).map((_, sIdx) => {
               const shelfNum = sIdx + 1;
-              
-              // If search is active, hide shelves that don't contain matching items
-              if (mapSearch.trim() && !matchingShelves.has(shelfNum)) {
-                return null;
-              }
-
               const shelfLetter = numberToLetter(shelfNum);
               const shelfSectionCount = selectedBranch.customSections?.[shelfNum] || selectedBranch.totalSections;
               
               return (
-                <div key={shelfNum} className="flex items-start gap-4 animate-in fade-in slide-in-from-left-4 duration-300">
+                <div key={shelfNum} className="flex items-start gap-4">
                    <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg shrink-0">
                       {shelfLetter}
                    </div>
@@ -115,11 +77,14 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({ items, branches }) => {
                       {Array.from({ length: shelfSectionCount }).map((_, secIdx) => {
                         const secNum = secIdx + 1;
                         const itemsInSlot = branchItems.filter(i => i.shelves === shelfNum && i.sections === secNum);
-                        const isOccupied = itemsInSlot.length > 0;
-                        const isHighlighted = mapSearch.trim() && itemsInSlot.some(i => 
-                          i.name.toLowerCase().includes(mapSearch.toLowerCase()) || 
-                          i.sku.toLowerCase().includes(mapSearch.toLowerCase())
+                        
+                        // HIGHLIGHT LOGIC - Indigo color if it matches search
+                        const isHighlighted = q && itemsInSlot.some(i => 
+                          (i.name || '').toLowerCase().includes(q) || 
+                          (i.sku || '').toLowerCase().includes(q)
                         );
+
+                        const isOccupied = itemsInSlot.length > 0;
 
                         return (
                           <button 
@@ -127,13 +92,13 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({ items, branches }) => {
                             onClick={() => handleSlotClick(shelfNum, secNum)}
                             className={`relative h-20 rounded-2xl border-2 transition-all flex flex-col items-center justify-center hover:scale-105 active:scale-95 ${
                               isHighlighted
-                                ? 'bg-indigo-600 border-indigo-400 shadow-indigo-200 ring-4 ring-indigo-500/20 z-10' 
+                                ? 'bg-indigo-600 border-indigo-400 shadow-xl shadow-indigo-200 ring-4 ring-indigo-500/20 z-10' 
                                 : isOccupied 
                                     ? 'bg-rose-50 border-rose-200' 
                                     : 'bg-emerald-50 border-emerald-100'
                             }`}
                           >
-                            <span className={`text-[10px] font-black ${isHighlighted ? 'text-indigo-200' : isOccupied ? 'text-rose-300' : 'text-emerald-300'} mb-1`}>
+                            <span className={`text-[10px] font-black ${isHighlighted ? 'text-indigo-100' : isOccupied ? 'text-rose-300' : 'text-emerald-300'} mb-1`}>
                               {secNum.toString().padStart(2, '0')}
                             </span>
                             
@@ -141,7 +106,7 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({ items, branches }) => {
                               <>
                                 <div className="text-xl">📦</div>
                                 {itemsInSlot.length > 1 && (
-                                  <span className="absolute top-1 right-1 bg-rose-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full">
+                                  <span className={`absolute top-1 right-1 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full ${isHighlighted ? 'bg-indigo-800' : 'bg-rose-600'}`}>
                                     x{itemsInSlot.length}
                                   </span>
                                 )}
@@ -156,15 +121,6 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({ items, branches }) => {
                 </div>
               );
             })}
-            
-            {/* Message if search yields no results */}
-            {mapSearch.trim() && matchingShelves.size === 0 && (
-              <div className="py-20 text-center flex flex-col items-center justify-center animate-in zoom-in">
-                 <div className="text-6xl mb-6 opacity-20">🔍</div>
-                 <h4 className="text-xl font-black text-slate-400 uppercase tracking-widest">Alaabta lama helin</h4>
-                 <p className="text-sm text-slate-300 font-bold mt-2 uppercase">Iska hubi magaca ama SKU-ga aad qortay</p>
-              </div>
-            )}
          </div>
       </div>
 
