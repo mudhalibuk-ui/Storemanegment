@@ -31,8 +31,40 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
     e.employeeIdCode.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const getAbsentCount = (employeeId: string) => {
+    // Get current month absences
+    const now = new Date();
+    return attendance.filter(a => {
+        const d = new Date(a.date);
+        return a.employeeId === employeeId && 
+               a.status === 'ABSENT' && 
+               d.getMonth() === now.getMonth() &&
+               d.getFullYear() === now.getFullYear();
+    }).length;
+  };
+
+  const sendWarningMessage = (employee: Employee, absentCount: number) => {
+      if (!employee.phone) {
+          alert("Shaqaalahan lagama hayo Lambar Telefoon (Phone Number). Fadlan ku dar Edit-ka.");
+          return;
+      }
+
+      // Format phone number (Assume +252 if missing)
+      let phone = employee.phone.replace(/\D/g, ''); // Remove non-digits
+      if (phone.startsWith('061') || phone.startsWith('61')) phone = '252' + phone.replace(/^0+/, '');
+      if (phone.length < 10) {
+          alert("Lambarka telefoonka sax ma aha.");
+          return;
+      }
+
+      const message = `Asc ${employee.name}, \n\nWaxaan ku ogeysiinaynaa in maqnaanshahaaga bishan uu gaaray ${absentCount} maalmood. \n\nFadlan degdeg ula xiriir xafiiska HR-ka si aad u sharaxdo sababta. \n\nMahadsanid,\n${settings.systemName || 'Maamulka'}`;
+      
+      // Open WhatsApp
+      const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+      window.open(url, '_blank');
+  };
+
   const syncUsersFromDevice = async () => {
-    // 1. U DIR CODSIGA PYTHON
     const ip = settings.zkDeviceIp || '192.168.100.201';
     const port = settings.zkDevicePort || 4370;
 
@@ -40,7 +72,6 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
 
     setIsSyncing(true);
     let success = false;
-    let lastError = "";
 
     const urlsToTry = [
         hardwareUrl || 'http://localhost:5050',
@@ -52,9 +83,6 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
 
     for (const url of uniqueUrls) {
         try {
-            console.log(`Sending Full Sync Command to: ${url}`);
-            
-            // Tani waxay amraysaa Python inuu shaqada qabto (Users + Attendance)
             const response = await fetch(`${url}/sync-users`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -66,26 +94,20 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
             });
 
             const result = await response.json();
-            
             if (!response.ok) throw new Error(result.error || "Server Error");
 
             alert(`✅ GUUL: Xogta (Users & Logs) waa la keydiyey Database-ka!\n\n${result.message}`);
             success = true;
-            
-            // 3. STEP MUHIIM AH: WEB-KU DATA-DA HA KASOO AQRISTO DATABASE-KA
-            // Reload page triggers App.tsx to fetch fresh data from Supabase
             window.location.reload();
             break; 
         } catch (err: any) {
             console.warn(`Failed to connect to ${url}:`, err);
-            lastError = err.message;
         }
     }
 
     if (!success) {
       alert(`⚠️ CILAD: Ma awoodin inaan la xiriiro Python Service-ka.\nHubi in 'advanced_monitor.py' uu shaqaynayo.`);
     }
-    
     setIsSyncing(false);
   };
 
@@ -151,7 +173,6 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
           <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Diiwaangali, Bedel, ama Tirtir Shaqaalaha.</p>
         </div>
         <div className="flex gap-4">
-           {/* STEP 1: BUTTON TRIGGERS PYTHON */}
            <button 
              onClick={syncUsersFromDevice}
              disabled={isSyncing}
@@ -181,53 +202,82 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* STEP 3: DATA IS READ FROM DATABASE VIA APP.TSX PROPS */}
-        {filtered.map(emp => (
-          <div key={emp.id} className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 hover:shadow-xl hover:border-indigo-100 transition-all group relative">
-            
-            {/* ACTION BUTTONS (Edit / Delete / Print / View) */}
-            <div className="absolute top-6 right-6 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-               <button onClick={() => setSelectedProfile(emp)} className="p-3 bg-white text-emerald-600 rounded-xl shadow-sm border border-slate-100 hover:bg-emerald-600 hover:text-white transition-all" title="View Profile">👁️</button>
-               <button onClick={() => printIDBadge(emp)} className="p-3 bg-white text-indigo-600 rounded-xl shadow-sm border border-slate-100 hover:bg-indigo-600 hover:text-white transition-all" title="Print ID Card">🖨️</button>
-               <button onClick={() => onEdit(emp)} className="p-3 bg-white text-amber-500 rounded-xl shadow-sm border border-slate-100 hover:bg-amber-500 hover:text-white transition-all" title="Edit Employee">⚙️</button>
-               <button 
-                 onClick={() => {
-                   if(confirm(`Ma hubtaa inaad tirtirto shaqaalaha: ${emp.name}?`)) {
-                     onDelete(emp.id);
-                   }
-                 }} 
-                 className="p-3 bg-white text-rose-500 rounded-xl shadow-sm border border-slate-100 hover:bg-rose-600 hover:text-white transition-all" 
-                 title="Delete Employee"
-               >
-                 🗑️
-               </button>
-            </div>
+        {filtered.map(emp => {
+          const absentCount = getAbsentCount(emp.id);
+          const isHighRisk = absentCount >= 3; // Warning Threshold
 
-            <div className="flex flex-col items-center text-center">
-              <div className="relative mb-6">
-                 <img src={emp.avatar} className="w-24 h-24 rounded-[2rem] border-4 border-slate-50 shadow-xl object-cover" alt="" />
-                 <span className={`absolute -bottom-2 -right-2 px-3 py-1 rounded-full text-[8px] font-black border-2 border-white text-white ${emp.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
-                    {emp.status}
-                 </span>
+          return (
+            <div key={emp.id} className={`bg-white p-8 rounded-[3rem] shadow-sm border transition-all group relative ${isHighRisk ? 'border-rose-200 shadow-rose-100' : 'border-slate-100 hover:shadow-xl hover:border-indigo-100'}`}>
+              
+              {/* ACTION BUTTONS */}
+              <div className="absolute top-6 right-6 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                 <button onClick={() => setSelectedProfile(emp)} className="p-3 bg-white text-emerald-600 rounded-xl shadow-sm border border-slate-100 hover:bg-emerald-600 hover:text-white transition-all" title="View Profile">👁️</button>
+                 <button onClick={() => printIDBadge(emp)} className="p-3 bg-white text-indigo-600 rounded-xl shadow-sm border border-slate-100 hover:bg-indigo-600 hover:text-white transition-all" title="Print ID Card">🖨️</button>
+                 <button onClick={() => onEdit(emp)} className="p-3 bg-white text-amber-500 rounded-xl shadow-sm border border-slate-100 hover:bg-amber-500 hover:text-white transition-all" title="Edit Employee">⚙️</button>
+                 <button 
+                   onClick={() => {
+                     if(confirm(`Ma hubtaa inaad tirtirto shaqaalaha: ${emp.name}?`)) {
+                       onDelete(emp.id);
+                     }
+                   }} 
+                   className="p-3 bg-white text-rose-500 rounded-xl shadow-sm border border-slate-100 hover:bg-rose-600 hover:text-white transition-all" 
+                   title="Delete Employee"
+                 >
+                   🗑️
+                 </button>
               </div>
-              
-              <h3 className="text-xl font-black text-slate-800 tracking-tight">{emp.name}</h3>
-              <p className="text-sm font-black text-indigo-500 uppercase tracking-widest mt-1">{emp.position}</p>
-              
-              <div className="mt-6 w-full space-y-3 pt-6 border-t border-slate-50">
-                 <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ID Code</span>
-                    <span className="font-mono text-xs font-bold text-slate-700">{emp.employeeIdCode}</span>
-                 </div>
-                 <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bakhaarka</span>
-                    <span className="text-xs font-bold text-slate-600">🏢 {branches.find(b => b.id === emp.branchId)?.name || 'N/A'}</span>
-                 </div>
-                 <button onClick={() => setSelectedProfile(emp)} className="w-full mt-2 py-3 bg-slate-50 text-slate-500 text-[9px] font-black uppercase tracking-widest rounded-xl hover:bg-indigo-600 hover:text-white transition-all">View Full Profile</button>
+
+              <div className="flex flex-col items-center text-center">
+                <div className="relative mb-6">
+                   <img src={emp.avatar} className="w-24 h-24 rounded-[2rem] border-4 border-slate-50 shadow-xl object-cover" alt="" />
+                   <span className={`absolute -bottom-2 -right-2 px-3 py-1 rounded-full text-[8px] font-black border-2 border-white text-white ${emp.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
+                      {emp.status}
+                   </span>
+                </div>
+                
+                <h3 className="text-xl font-black text-slate-800 tracking-tight">{emp.name}</h3>
+                <p className="text-sm font-black text-indigo-500 uppercase tracking-widest mt-1">{emp.position}</p>
+                
+                {/* ABSENT ALERT */}
+                <div className="mt-4 flex flex-col w-full px-4">
+                    <div className="flex justify-between text-[10px] font-black uppercase text-slate-400 mb-1">
+                        <span>Bishan Maqnaanshaha</span>
+                        <span className={isHighRisk ? 'text-rose-600' : 'text-slate-600'}>{absentCount} Days</span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${isHighRisk ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`} style={{width: `${Math.min(100, (absentCount/5)*100)}%`}}></div>
+                    </div>
+                    {isHighRisk && (
+                        <p className="text-[9px] font-bold text-rose-500 mt-1 uppercase text-center animate-pulse">⚠️ Warning Level Reached</p>
+                    )}
+                </div>
+
+                <div className="mt-4 w-full space-y-3 pt-4 border-t border-slate-50">
+                   <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ID Code</span>
+                      <span className="font-mono text-xs font-bold text-slate-700">{emp.employeeIdCode}</span>
+                   </div>
+                   <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bakhaarka</span>
+                      <span className="text-xs font-bold text-slate-600">🏢 {branches.find(b => b.id === emp.branchId)?.name || 'N/A'}</span>
+                   </div>
+                   
+                   {/* WARNING BUTTON */}
+                   {isHighRisk ? (
+                       <button 
+                         onClick={() => sendWarningMessage(emp, absentCount)} 
+                         className="w-full mt-2 py-3 bg-rose-600 text-white text-[9px] font-black uppercase tracking-widest rounded-xl hover:bg-rose-700 transition-all shadow-lg shadow-rose-100 flex items-center justify-center gap-2"
+                       >
+                         <span>📩</span> DIRA DIGNIIN (WHATSAPP)
+                       </button>
+                   ) : (
+                       <button onClick={() => setSelectedProfile(emp)} className="w-full mt-2 py-3 bg-slate-50 text-slate-500 text-[9px] font-black uppercase tracking-widest rounded-xl hover:bg-indigo-600 hover:text-white transition-all">View Full Profile</button>
+                   )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {selectedProfile && (
