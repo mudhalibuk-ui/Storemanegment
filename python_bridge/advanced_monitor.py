@@ -15,10 +15,13 @@ from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
-# --- CONFIGURATION ---
-LOG_FILE = "monitor_service.log"
+# --- PATH SETUP ---
+# Ensure we use absolute paths relative to this script
+base_dir = Path(__file__).resolve().parent
+log_file_path = base_dir / "monitor_service.log"
+env_path = base_dir / '.env'
 
-# --- LOGGING SETUP (Robust for Windows/Docker) ---
+# --- LOGGING SETUP (Robust for Windows/Docker/Background) ---
 # In-memory log buffer for API access
 log_buffer = deque(maxlen=50)
 
@@ -26,51 +29,62 @@ class ListHandler(logging.Handler):
     def emit(self, record):
         try:
             log_entry = self.format(record)
-            log_buffer.appendleft(log_entry) # Add to start (newest first)
+            log_buffer.appendleft(log_entry)
         except:
             pass
 
+# Default to file logging + memory logging
 handlers = [
-    logging.FileHandler(LOG_FILE, encoding='utf-8'),
-    ListHandler() # Add our custom memory handler
+    logging.FileHandler(str(log_file_path), encoding='utf-8', mode='a'),
+    ListHandler()
 ]
 
-try:
-    if sys.platform.startswith('win'):
-        import io
-        console_stream = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-        handlers.append(logging.StreamHandler(console_stream))
-        try:
-            sys.stdout.reconfigure(encoding='utf-8')
-            sys.stderr.reconfigure(encoding='utf-8')
-        except AttributeError:
-            sys.stdout = console_stream
-            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-    else:
+# Only add console handler if stdout is available (avoids crashes in .pyw/.vbs)
+if sys.stdout:
+    try:
+        if sys.platform.startswith('win'):
+            # Attempt to fix Windows console encoding if attached
+            try:
+                import io
+                if hasattr(sys.stdout, 'buffer'):
+                    sys.stdout.reconfigure(encoding='utf-8')
+                else:
+                    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+            except:
+                pass 
         handlers.append(logging.StreamHandler(sys.stdout))
-except Exception as e:
-    print(f"Warning: Could not configure UTF-8 logging: {e}")
-    handlers.append(logging.StreamHandler(sys.stdout))
+    except Exception:
+        pass # Silently ignore console setup errors in background mode
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(message)s', # Simplified format
+    format='%(asctime)s - %(message)s',
     handlers=handlers
 )
 
-base_dir = Path(__file__).resolve().parent
-env_path = base_dir / '.env'
-load_dotenv(dotenv_path=env_path)
+logging.info(f"🚀 Service Initializing... Dir: {base_dir}")
+
+# Load Env
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path)
+    logging.info("✅ Loaded .env file")
+else:
+    logging.error("❌ .env file NOT found!")
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 
 if not SUPABASE_URL or not SUPABASE_KEY:
-    logging.error("❌ Error: .env file missing or incomplete.")
-    sys.exit(1)
-
+    logging.error("❌ Error: SUPABASE credentials missing.")
+    # We don't exit immediately to keep the flask server alive for logs
+    
 # Initialize Supabase
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+try:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    logging.info("✅ Supabase Client Initialized")
+except Exception as e:
+    logging.error(f"❌ Supabase Init Error: {e}")
+    supabase = None
 
 # Global Cache & Locks
 employee_cache = {}
@@ -103,23 +117,9 @@ def manual_absent_check():
     threading.Thread(target=run_auto_absent_check).start()
     return jsonify({"message": "Absent check started in background.", "status": "running"})
 
-def ensure_valid_xarun(target_id):
-    try:
-        if target_id:
-            res = supabase.table('xarumo').select('id').eq('id', target_id).execute()
-            if res.data: return target_id
-        
-        res = supabase.table('xarumo').select('id').limit(1).execute()
-        if res.data: return res.data[0]['id']
-            
-        supabase.table('xarumo').insert({"id": "x1", "name": "Main HQ", "location": "Default"}).execute()
-        return "x1"
-    except Exception as e:
-        logging.error(f"Xarun Validation Error: {e}")
-        return None
-
 # --- AUTO ABSENT CHECK (9:00 AM) ---
 def run_auto_absent_check():
+    if not supabase: return
     logging.info("⏰ Running Auto-Absent Check Logic...")
     try:
         # 1. Get all active employees
@@ -142,7 +142,7 @@ def run_auto_absent_check():
                     "employee_id": emp['id'],
                     "date": today_str,
                     "status": "ABSENT",
-                    "clock_in": None, # IMPORTANT: Null indicates they haven't arrived yet
+                    "clock_in": None,
                     "notes": "Auto-Absent: No show by cutoff time"
                 })
         
@@ -157,12 +157,8 @@ def run_auto_absent_check():
 
 # --- ATTENDANCE MONITOR (REAL TIME) ---
 def push_attendance(user_id, timestamp, device_info):
-    """
-    Real-time Logic:
-    1. Checks if record exists for TODAY.
-    2. If NO: Creates 'Check In' with Status Logic (Present/Late/Absent).
-    3. If YES: Updates 'Check Out', 'Overtime In', or 'Overtime Out' sequentially.
-    """
+    if not supabase: return
+    
     zk_id = str(user_id)
     if zk_id not in employee_cache:
         refresh_employee_cache()
@@ -197,8 +193,6 @@ def push_attendance(user_id, timestamp, device_info):
         
         if not existing.data:
             # === SCENARIO 1: CHECK IN (First Scan) ===
-            
-            # Logic: 7-8am (Present), 8-9am (Late), >9am (Absent)
             check_in_hour = timestamp.hour
             status = 'PRESENT'
             notes = 'On Time'
@@ -210,7 +204,7 @@ def push_attendance(user_id, timestamp, device_info):
                 status = 'LATE'
                 notes = 'Late Arrival (8am-9am)'
             elif check_in_hour >= 9:
-                status = 'ABSENT' # As requested: Absent without excuse if > 9am
+                status = 'ABSENT' 
                 notes = 'Auto-Absent (Arrived after 9am)'
             elif check_in_hour < 7:
                 status = 'PRESENT'
@@ -233,32 +227,21 @@ def push_attendance(user_id, timestamp, device_info):
             record = existing.data[0]
             record_id = record['id']
             
-            # Debounce: Prevent double scanning within 1 minute
-            last_action_time = None
-            if record.get('overtime_out'): last_action_time = record['overtime_out']
-            elif record.get('overtime_in'): last_action_time = record['overtime_in']
-            elif record.get('clock_out'): last_action_time = record['clock_out']
-            elif record.get('clock_in'): last_action_time = record['clock_in']
+            # Debounce logic
+            last_action_time = record.get('overtime_out') or record.get('overtime_in') or record.get('clock_out') or record.get('clock_in')
 
             if last_action_time:
-                last_dt = datetime.fromisoformat(last_action_time.replace('Z', '+00:00'))
                 try:
+                    last_dt = datetime.fromisoformat(last_action_time.replace('Z', '+00:00'))
                     time_diff = (timestamp - last_dt.replace(tzinfo=None)).total_seconds()
-                except:
-                    time_diff = 60 
+                    if time_diff < 60: 
+                        return
+                except: pass
 
-                if time_diff < 60: 
-                    logging.info(f"⏳ Ignored rapid scan for {emp['name']}")
-                    return
-
-            # Determine which field to update
             update_payload = {}
             action_type = ""
 
-            # Case: Auto-Absent Record (Clock In is missing)
             if record.get('clock_in') is None:
-                # They arrived late (after 9am auto-check)
-                # We update clock_in but KEEP status as ABSENT (as per rule)
                 update_payload = {
                     "clock_in": iso_time,
                     "device_id": f"{dev_name} ({ip_addr})",
@@ -267,19 +250,15 @@ def push_attendance(user_id, timestamp, device_info):
                 action_type = "LATE ARRIVAL (Status: ABSENT)"
                 
             elif not record.get('clock_out'):
-                # First exit -> Check Out
                 update_payload = {"clock_out": iso_time}
                 action_type = "CHECK OUT"
             elif not record.get('overtime_in'):
-                # Second entry -> Overtime In
                 update_payload = {"overtime_in": iso_time}
                 action_type = "OVERTIME IN"
             elif not record.get('overtime_out'):
-                # Second exit -> Overtime Out
                 update_payload = {"overtime_out": iso_time}
                 action_type = "OVERTIME OUT"
             else:
-                logging.info(f"ℹ️ {emp['name']} has completed all cycle steps for today.")
                 return
 
             if update_payload:
@@ -290,6 +269,7 @@ def push_attendance(user_id, timestamp, device_info):
         logging.error(f"DB Error processing attendance: {e}")
 
 def refresh_employee_cache():
+    if not supabase: return
     global employee_cache
     try:
         response = supabase.table('employee_shift_view').select("*").execute()
@@ -323,21 +303,18 @@ def monitor_single_device(device):
             conn = zk.connect()
             active_zk_connections[ip] = conn
             
-            # --- CATCH UP LOGIC (OFFLINE SYNC) ---
-            logging.info(f"📥 Checking offline logs for today from {dev_name}...")
+            logging.info(f"📥 Syncing offline logs for {dev_name}...")
             try:
                 logs = conn.get_attendance()
                 today_str = datetime.now().strftime("%Y-%m-%d")
                 sync_count = 0
                 for log in logs:
                     if log.timestamp.strftime("%Y-%m-%d") == today_str:
-                        # Process sequentially to ensure IN -> OUT -> OT logic holds
                         push_attendance(log.user_id, log.timestamp, device)
                         sync_count += 1
-                logging.info(f"✅ Offline Sync Checked. Processed {sync_count} logs for today.")
+                logging.info(f"✅ Sync complete. {sync_count} logs processed.")
             except Exception as e:
                 logging.error(f"⚠️ Offline Sync Warning: {e}")
-            # -------------------------------------
 
             logging.info(f"✅ MONITOR ACTIVE: {dev_name} - Waiting for live scans...")
             
@@ -357,6 +334,7 @@ def monitor_single_device(device):
         time.sleep(2)
 
 def start_monitors():
+    if not supabase: return
     try:
         res = supabase.table('devices').select("*").eq('is_active', True).execute()
         devices = res.data or []
@@ -378,23 +356,17 @@ def main():
     print("------------------------------------------------")
     print("   SMARTSTOCK PRO - UNIFIED SERVICE")
     print("   [1] Flask API: http://localhost:5050")
-    print("   [2] Real-time Monitors: Active (With Offline Sync)")
-    print("   [3] Auto-Absent Scheduler: Active")
     print("------------------------------------------------")
-    logging.info("Service Started. Waiting for events...")
+    logging.info("Service Started.")
     
     refresh_employee_cache()
     
-    # Schedule Tasks
     schedule.every(30).minutes.do(refresh_employee_cache)
-    schedule.every().day.at("09:00").do(run_auto_absent_check) # Run absent check at 9am
+    schedule.every().day.at("09:00").do(run_auto_absent_check)
     
-    # --- IMMEDIATE CHECK ON STARTUP ---
-    # If service restarts after 9am, we don't want to miss today's check
     if datetime.now().hour >= 9:
         logging.info("Startup Check: It's past 9:00 AM. Running immediate Auto-Absent check...")
         threading.Thread(target=run_auto_absent_check).start()
-    # ----------------------------------
 
     threading.Thread(target=run_flask_api, daemon=True, name="FlaskAPI").start()
     start_monitors()
@@ -407,7 +379,10 @@ def main():
         sys.exit(0)
 
 def run_flask_api():
-    app.run(host='0.0.0.0', port=5050, debug=False, use_reloader=False)
+    try:
+        app.run(host='0.0.0.0', port=5050, debug=False, use_reloader=False)
+    except Exception as e:
+        logging.critical(f"🔥 Flask API FAILED to start: {e}")
 
 if __name__ == "__main__":
     main()
