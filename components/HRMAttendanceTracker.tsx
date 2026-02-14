@@ -23,6 +23,12 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
   const [serviceLogs, setServiceLogs] = useState<string[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
 
+  // Edit Modal State
+  const [editingRecord, setEditingRecord] = useState<{empId: string, record: Attendance | null} | null>(null);
+  const [editForm, setEditForm] = useState<{status: string, clockIn: string, clockOut: string, notes: string}>({
+      status: 'PRESENT', clockIn: '', clockOut: '', notes: ''
+  });
+
   useEffect(() => {
     loadAttendance();
     const interval = setInterval(loadAttendance, 10000);
@@ -50,6 +56,11 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
     const timer = setInterval(checkService, 5000); // Check every 5s
     return () => clearInterval(timer);
   }, [hardwareUrl]);
+
+  const isFriday = (dateStr: string) => {
+      const d = new Date(dateStr);
+      return d.getDay() === 5; // 5 is Friday
+  };
 
   const fetchLogs = async () => {
     if (!hardwareUrl) return;
@@ -91,18 +102,43 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
     setLoading(false);
   };
 
-  const markAttendance = async (empId: string, status: 'PRESENT' | 'ABSENT' | 'LATE' | 'LEAVE') => {
-    const existing = attendanceData.find(a => a.employeeId === empId);
-    const newRecord: Partial<Attendance> = {
-      id: existing?.id,
-      employeeId: empId,
-      date: selectedDate,
-      status: status,
-      clockIn: status === 'PRESENT' && !existing?.clockIn ? new Date().toISOString() : existing?.clockIn,
-      notes: 'Manual Entry'
-    };
-    await API.attendance.save(newRecord);
-    loadAttendance();
+  const openEditModal = (empId: string, record: Attendance | undefined) => {
+      setEditingRecord({ empId, record: record || null });
+      if (record) {
+          setEditForm({
+              status: record.status,
+              clockIn: record.clockIn ? new Date(record.clockIn).toTimeString().slice(0,5) : '',
+              clockOut: record.clockOut ? new Date(record.clockOut).toTimeString().slice(0,5) : '',
+              notes: record.notes || ''
+          });
+      } else {
+          setEditForm({ status: 'PRESENT', clockIn: '08:00', clockOut: '17:00', notes: '' });
+      }
+  };
+
+  const handleSaveEdit = async () => {
+      if (!editingRecord) return;
+      
+      // Combine Date + Time
+      const formatDateTime = (timeStr: string) => {
+          if (!timeStr) return undefined;
+          return `${selectedDate}T${timeStr}:00`;
+      };
+
+      const newRecord: Partial<Attendance> = {
+          id: editingRecord.record?.id,
+          employeeId: editingRecord.empId,
+          date: selectedDate,
+          status: editForm.status as any,
+          clockIn: formatDateTime(editForm.clockIn),
+          clockOut: formatDateTime(editForm.clockOut),
+          notes: editForm.notes,
+          deviceId: editingRecord.record?.deviceId || 'MANUAL-EDIT'
+      };
+
+      await API.attendance.save(newRecord);
+      setEditingRecord(null);
+      loadAttendance();
   };
 
   const filteredEmployees = employees.filter(emp => 
@@ -111,33 +147,32 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
 
   const presentCount = attendanceData.filter(a => filteredEmployees.some(e => e.id === a.employeeId) && a.status === 'PRESENT').length;
   const absentCount = attendanceData.filter(a => filteredEmployees.some(e => e.id === a.employeeId) && a.status === 'ABSENT').length;
-  const lateCount = attendanceData.filter(a => filteredEmployees.some(e => e.id === a.employeeId) && a.status === 'LATE').length;
-  const pendingCount = filteredEmployees.length - (presentCount + absentCount + lateCount);
-
+  const leaveCount = attendanceData.filter(a => filteredEmployees.some(e => e.id === a.employeeId) && a.status === 'LEAVE').length;
+  
   const formatTime = (isoString?: string) => {
     if (!isoString) return '--:--';
     return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const isFri = isFriday(selectedDate);
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500 pb-20">
       <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col xl:flex-row justify-between items-center gap-6">
         <div className="flex items-center gap-6">
           <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center text-2xl">📝</div>
           <div>
-            <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Manual Attendance</h2>
+            <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Attendance Tracker</h2>
             
-            {/* Status Indicator with Click Handler */}
+            {/* Status Indicator */}
             <div 
                 className="flex items-center gap-2 mt-1 cursor-pointer hover:opacity-80 transition-opacity"
                 onClick={() => { setShowLogsModal(true); fetchLogs(); }}
-                title="Click to view logs"
             >
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Service Status:</p>
                 <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border ${serviceStatus === 'ONLINE' ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
                     <span className={`w-2 h-2 rounded-full ${serviceStatus === 'ONLINE' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
                     <span className={`text-[9px] font-black uppercase ${serviceStatus === 'ONLINE' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {serviceStatus === 'ONLINE' ? 'ONLINE (CLICK FOR LOGS)' : 'OFFLINE (CHECK SCRIPT)'}
+                        {serviceStatus === 'ONLINE' ? 'DEVICE ONLINE' : 'DEVICE OFFLINE'}
                     </span>
                 </div>
             </div>
@@ -145,28 +180,12 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
         </div>
         
         <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
-          <button 
-            onClick={() => loadAttendance()}
-            className="px-6 py-3 bg-slate-900 text-white rounded-2xl shadow-lg hover:bg-slate-700 active:scale-95 transition-all flex items-center gap-2"
-            title="Refresh Data"
-          >
-            <span className={`text-lg ${loading ? 'animate-spin' : ''}`}>🔄</span>
-          </button>
+          {isFri && (
+              <div className="px-4 py-2 bg-emerald-100 text-emerald-800 rounded-xl border border-emerald-200 text-xs font-black uppercase flex items-center gap-2 animate-pulse">
+                  🕌 Maanta waa Jimco (Holiday)
+              </div>
+          )}
 
-          <div className="flex flex-col gap-1 flex-1 min-w-[150px]">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Xarunta (Center)</label>
-            <select 
-              className="px-6 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 font-bold text-sm cursor-pointer"
-              value={selectedXarunId}
-              onChange={e => setSelectedXarunId(e.target.value)}
-            >
-              <option value="all">Dhammaan Xarumaha</option>
-              {xarumo.map(x => (
-                <option key={x.id} value={x.id}>{x.name}</option>
-              ))}
-            </select>
-          </div>
-          
           <div className="flex flex-col gap-1 flex-1 min-w-[150px]">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Taariikhda (Date)</label>
             <input 
@@ -220,11 +239,7 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-center">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Shaqaalaha</p>
-            <p className="text-2xl font-black text-slate-600">{filteredEmployees.length}</p>
-        </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-center">
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Jooga (Present)</p>
             <p className="text-2xl font-black text-emerald-600">{presentCount}</p>
@@ -234,16 +249,16 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
             <p className="text-2xl font-black text-rose-600">{absentCount}</p>
         </div>
         <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-center">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Dahahay (Late)</p>
-            <p className="text-2xl font-black text-amber-600">{lateCount}</p>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Fasax (Leave)</p>
+            <p className="text-2xl font-black text-indigo-600">{leaveCount}</p>
         </div>
-        <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-center relative overflow-hidden">
-            {pendingCount > 0 && <div className="absolute top-0 right-0 w-3 h-3 bg-indigo-500 rounded-full animate-ping"></div>}
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Lama Calaamadin</p>
-            <p className="text-2xl font-black text-slate-300">{pendingCount}</p>
+        <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-center">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total</p>
+            <p className="text-2xl font-black text-slate-600">{filteredEmployees.length}</p>
         </div>
       </div>
 
+      {/* Main Table */}
       <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto no-scrollbar">
           <table className="w-full text-left border-collapse">
@@ -289,7 +304,8 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
                       {record ? (
                         <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
                           record.status === 'PRESENT' ? 'bg-emerald-50 text-emerald-600' :
-                          record.status === 'ABSENT' ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-600'
+                          record.status === 'ABSENT' ? 'bg-rose-50 text-rose-600' : 
+                          record.status === 'LEAVE' ? 'bg-indigo-50 text-indigo-600' : 'bg-amber-50 text-amber-600'
                         }`}>
                           {record.status}
                         </span>
@@ -298,29 +314,12 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
                       )}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-1">
-                        <button 
-                          onClick={() => markAttendance(emp.id, 'PRESENT')} 
-                          className={`w-8 h-8 rounded-lg flex items-center justify-center shadow-sm transition-all active:scale-95 ${record?.status === 'PRESENT' ? 'bg-emerald-600 text-white ring-2 ring-emerald-100' : 'bg-white border border-slate-100 text-emerald-600 hover:bg-emerald-50'}`}
-                          title="Present"
-                        >
-                          ✅
-                        </button>
-                        <button 
-                          onClick={() => markAttendance(emp.id, 'ABSENT')} 
-                          className={`w-8 h-8 rounded-lg flex items-center justify-center shadow-sm transition-all active:scale-95 ${record?.status === 'ABSENT' ? 'bg-rose-600 text-white ring-2 ring-rose-100' : 'bg-white border border-slate-100 text-rose-600 hover:bg-rose-50'}`}
-                          title="Absent"
-                        >
-                          ❌
-                        </button>
-                        <button 
-                          onClick={() => markAttendance(emp.id, 'LATE')} 
-                          className={`w-8 h-8 rounded-lg flex items-center justify-center shadow-sm transition-all active:scale-95 ${record?.status === 'LATE' ? 'bg-amber-600 text-white ring-2 ring-amber-100' : 'bg-white border border-slate-100 text-amber-600 hover:bg-amber-50'}`}
-                          title="Late"
-                        >
-                          ⏰
-                        </button>
-                      </div>
+                      <button 
+                        onClick={() => openEditModal(emp.id, record)}
+                        className="bg-slate-100 text-slate-500 hover:bg-indigo-600 hover:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all shadow-sm active:scale-95 flex items-center gap-2 ml-auto"
+                      >
+                        ✏️ Edit / Change
+                      </button>
                     </td>
                   </tr>
                 );
@@ -329,6 +328,63 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
           </table>
         </div>
       </div>
+
+      {/* EDIT MODAL */}
+      {editingRecord && (
+          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[60000] flex items-center justify-center p-4">
+              <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
+                  <div className="p-8 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                      <div>
+                          <h3 className="text-xl font-black text-slate-800">Sax Iimaanshaha</h3>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Manual Edit / Correction</p>
+                      </div>
+                      <button onClick={() => setEditingRecord(null)} className="w-8 h-8 rounded-full bg-white text-slate-400 hover:text-rose-500 flex items-center justify-center font-bold">✕</button>
+                  </div>
+                  
+                  <div className="p-8 space-y-6">
+                      <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Xaaladda (Status)</label>
+                          <select 
+                            className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-indigo-500 transition-all"
+                            value={editForm.status}
+                            onChange={e => setEditForm({...editForm, status: e.target.value})}
+                          >
+                              <option value="PRESENT">✅ PRESENT (Jooga)</option>
+                              <option value="ABSENT">❌ ABSENT (Maqan)</option>
+                              <option value="LATE">⏰ LATE (Dahay)</option>
+                              <option value="LEAVE">🏖️ LEAVE (Fasax)</option>
+                          </select>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Soo Galay (Time In)</label>
+                              <input type="time" className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-indigo-500" value={editForm.clockIn} onChange={e => setEditForm({...editForm, clockIn: e.target.value})} />
+                          </div>
+                          <div className="space-y-1">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Baxay (Time Out)</label>
+                              <input type="time" className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-indigo-500" value={editForm.clockOut} onChange={e => setEditForm({...editForm, clockOut: e.target.value})} />
+                          </div>
+                      </div>
+
+                      <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Sababta / Notes</label>
+                          <textarea 
+                            className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-indigo-500 resize-none h-24"
+                            placeholder="Qor sababta wax looga bedelay..."
+                            value={editForm.notes}
+                            onChange={e => setEditForm({...editForm, notes: e.target.value})}
+                          />
+                      </div>
+
+                      <div className="pt-4 flex gap-4">
+                          <button onClick={() => setEditingRecord(null)} className="flex-1 py-4 bg-slate-100 text-slate-500 font-black rounded-2xl uppercase text-[10px] tracking-widest">Cancel</button>
+                          <button onClick={handleSaveEdit} className="flex-[2] py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl uppercase text-[10px] tracking-widest hover:bg-indigo-700">Update Record</button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 };
