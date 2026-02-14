@@ -187,6 +187,18 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
           )}
 
           <div className="flex flex-col gap-1 flex-1 min-w-[150px]">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Xarunta (Center)</label>
+            <select
+              className="px-6 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 font-bold text-sm cursor-pointer"
+              value={selectedXarunId}
+              onChange={e => setSelectedXarunId(e.target.value)}
+            >
+              <option value="all">Dhamaan Xarumaha</option>
+              {xarumo.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1 flex-1 min-w-[150px]">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Taariikhda (Date)</label>
             <input 
               type="date" 
