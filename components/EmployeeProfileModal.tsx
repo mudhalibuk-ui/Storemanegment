@@ -29,14 +29,70 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
   const empAttendance = attendance.filter(a => a.employeeId === employee.id).sort((a, b) => b.date.localeCompare(a.date));
   const empPayrolls = payrolls.filter(p => p.employeeId === employee.id).sort((a, b) => b.year - a.year || b.month.localeCompare(a.month));
   const branch = branches.find(b => b.id === employee.branchId)?.name || 'N/A';
-  const xarun = xarumo.find(x => x.id === employee.xarunId)?.name || 'N/A';
+  
+  // --- STATS CALCULATIONS --- //
+  
+  // 1. Attendance Analysis
+  const totalRecorded = empAttendance.length;
+  const presentRecs = empAttendance.filter(a => a.status === 'PRESENT').length;
+  const attendanceRate = totalRecorded ? (presentRecs / totalRecorded) * 100 : 0;
+  
+  let attStatusMsg = "Xog Ma Jirto (No Data)";
+  let attStatusColor = "bg-slate-100 text-slate-500 border-slate-200";
+  let attEmoji = "⚪";
 
-  // Performance Score Calculation
+  if (totalRecorded > 0) {
+      if (attendanceRate >= 90) { 
+          attStatusMsg = "Aad u Wanaagsan (Excellent)"; 
+          attStatusColor = "bg-emerald-50 text-emerald-700 border-emerald-100";
+          attEmoji = "🌟";
+      } else if (attendanceRate >= 75) { 
+          attStatusMsg = "Wanaagsan (Good)"; 
+          attStatusColor = "bg-indigo-50 text-indigo-700 border-indigo-100";
+          attEmoji = "👍";
+      } else { 
+          attStatusMsg = "Liita / Wuxuu u baahan yahay sixid"; 
+          attStatusColor = "bg-rose-50 text-rose-700 border-rose-100";
+          attEmoji = "⚠️";
+      }
+  }
+
+  // 2. Payroll & Time Logic
+  const now = new Date();
+  
+  // Helper: Count Fridays in current month
+  const getFridaysCount = (year: number, month: number) => {
+      let count = 0;
+      const date = new Date(year, month, 1);
+      while (date.getMonth() === month) {
+          if (date.getDay() === 5) count++; // 5 is Friday
+          date.setDate(date.getDate() + 1);
+      }
+      return count;
+  };
+  const currentFridays = getFridaysCount(now.getFullYear(), now.getMonth());
+
+  // Count paid months
+  const paidMonthsCount = empPayrolls.filter(p => p.status === 'PAID').length;
+
+  // Calculate approved leaves days in current month
+  const leavesThisMonth = leaves.filter(l => {
+      const d = new Date(l.startDate);
+      return l.status === 'APPROVED' && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  });
+  
+  const leaveDaysThisMonth = leavesThisMonth.reduce((acc, curr) => {
+      const start = new Date(curr.startDate);
+      const end = new Date(curr.endDate);
+      // Difference in days + 1
+      const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      return acc + (isNaN(diff) ? 0 : diff);
+  }, 0);
+
+
+  // Performance Score (Punctuality)
   const calculateScore = () => {
-    const present = empAttendance.filter(a => a.status === 'PRESENT').length;
-    const total = empAttendance.length || 1;
-    const punctuality = Math.round((present / total) * 100);
-    return punctuality;
+    return Math.round(attendanceRate);
   };
 
   const handleAddDocument = async () => {
@@ -60,7 +116,7 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
         startDate: newLeave.startDate,
         endDate: newLeave.endDate,
         reason: newLeave.reason,
-        status: 'APPROVED' // Auto approve for admin
+        status: 'APPROVED' // Auto approve for admin context
     });
     setLeaves([...leaves, leave]);
     setNewLeave({ type: 'ANNUAL', startDate: '', endDate: '', reason: '' });
@@ -135,32 +191,49 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
             )}
 
             {activeTab === 'ATTENDANCE' && (
-                <div className="space-y-4">
-                    {empAttendance.map(a => (
-                        <div key={a.id} className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-100">
-                            <div>
-                                <p className="font-black text-slate-700">{new Date(a.date).toLocaleDateString()}</p>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase">IN: {a.clockIn ? new Date(a.clockIn).toLocaleTimeString() : '--'} • OUT: {a.clockOut ? new Date(a.clockOut).toLocaleTimeString() : '--'}</p>
+                <div className="space-y-6">
+                    {/* ATTENDANCE STATUS CARD */}
+                    <div className={`p-6 rounded-[2.5rem] border text-center relative overflow-hidden ${attStatusColor}`}>
+                        <div className="absolute top-0 right-0 p-4 opacity-10 text-6xl grayscale">{attEmoji}</div>
+                        <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Warbixinta Iimaanshaha</p>
+                        <h3 className="text-2xl font-black mt-2">{attStatusMsg}</h3>
+                        <p className="text-xs font-bold mt-1 opacity-75">Heerka Joogitaanka: {Math.round(attendanceRate)}%</p>
+                    </div>
+
+                    <div className="space-y-3">
+                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest px-2">Diiwaanka Maalmihii Hore</h3>
+                        {empAttendance.map(a => (
+                            <div key={a.id} className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-100 hover:border-indigo-100 transition-all">
+                                <div>
+                                    <p className="font-black text-slate-700">{new Date(a.date).toLocaleDateString()}</p>
+                                    <div className="flex gap-3 text-[10px] font-bold text-slate-400 uppercase mt-1">
+                                        <span>IN: <span className="text-emerald-600">{a.clockIn ? new Date(a.clockIn).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--:--'}</span></span>
+                                        <span>OUT: <span className="text-rose-600">{a.clockOut ? new Date(a.clockOut).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--:--'}</span></span>
+                                    </div>
+                                </div>
+                                <span className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ${a.status==='PRESENT'?'bg-emerald-50 text-emerald-600':a.status==='ABSENT'?'bg-rose-50 text-rose-600':'bg-amber-50 text-amber-600'}`}>
+                                    {a.status}
+                                </span>
                             </div>
-                            <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase ${a.status==='PRESENT'?'bg-emerald-50 text-emerald-600':a.status==='ABSENT'?'bg-rose-50 text-rose-600':'bg-amber-50 text-amber-600'}`}>{a.status}</span>
-                        </div>
-                    ))}
+                        ))}
+                        {empAttendance.length === 0 && <p className="text-center text-slate-400 italic py-10">Lama hayo xog hore.</p>}
+                    </div>
                 </div>
             )}
 
             {activeTab === 'LEAVE' && (
                 <div className="space-y-6">
-                    <div className="bg-white p-6 rounded-[2rem] border border-slate-100">
+                    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
                         <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Diiwaangali Fasax (Record Leave)</h3>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <select className="p-3 bg-slate-50 rounded-xl font-bold text-sm" value={newLeave.type} onChange={e => setNewLeave({...newLeave, type: e.target.value})}>
+                            <select className="p-3 bg-slate-50 rounded-xl font-bold text-sm outline-none" value={newLeave.type} onChange={e => setNewLeave({...newLeave, type: e.target.value})}>
                                 <option value="ANNUAL">Annual Leave</option>
                                 <option value="SICK">Sick Leave</option>
                                 <option value="EMERGENCY">Emergency</option>
                             </select>
-                            <input type="date" className="p-3 bg-slate-50 rounded-xl font-bold text-sm" value={newLeave.startDate} onChange={e => setNewLeave({...newLeave, startDate: e.target.value})} />
-                            <input type="date" className="p-3 bg-slate-50 rounded-xl font-bold text-sm" value={newLeave.endDate} onChange={e => setNewLeave({...newLeave, endDate: e.target.value})} />
-                            <button onClick={handleRequestLeave} className="bg-indigo-600 text-white rounded-xl font-black text-xs uppercase shadow-lg">Submit</button>
+                            <input type="date" className="p-3 bg-slate-50 rounded-xl font-bold text-sm outline-none" value={newLeave.startDate} onChange={e => setNewLeave({...newLeave, startDate: e.target.value})} />
+                            <input type="date" className="p-3 bg-slate-50 rounded-xl font-bold text-sm outline-none" value={newLeave.endDate} onChange={e => setNewLeave({...newLeave, endDate: e.target.value})} />
+                            <button onClick={handleRequestLeave} className="bg-indigo-600 text-white rounded-xl font-black text-xs uppercase shadow-lg hover:bg-indigo-700 transition-all">Submit</button>
                         </div>
                     </div>
                     <div className="space-y-3">
@@ -202,16 +275,42 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
             )}
 
             {activeTab === 'PAYROLL' && (
-                <div className="space-y-3">
-                    {empPayrolls.map(p => (
-                        <div key={p.id} className="flex justify-between items-center bg-white p-5 rounded-2xl border border-slate-100">
-                            <div>
-                                <p className="font-black text-slate-800">{p.month} {p.year}</p>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase">Hours: {p.totalHours}</p>
-                            </div>
-                            <span className="text-lg font-black text-emerald-600">${p.netPay}</span>
+                <div className="space-y-6">
+                    {/* PAYROLL SUMMARY DASHBOARD */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-indigo-50 p-6 rounded-[2.5rem] border border-indigo-100 text-center">
+                            <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">Mushaharka La Qaatay</p>
+                            <p className="text-3xl font-black text-indigo-700">{paidMonthsCount} <span className="text-sm text-indigo-400">Bilood</span></p>
                         </div>
-                    ))}
+                        <div className="bg-emerald-50 p-6 rounded-[2.5rem] border border-emerald-100 text-center">
+                            <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-1">Jimcaha Bisha (Off Days)</p>
+                            <p className="text-3xl font-black text-emerald-700">{currentFridays} <span className="text-sm text-emerald-400">Maalmood</span></p>
+                        </div>
+                        <div className="bg-amber-50 p-6 rounded-[2.5rem] border border-amber-100 text-center">
+                            <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest mb-1">Fasaxa Bisha (This Month)</p>
+                            <p className="text-3xl font-black text-amber-700">{leaveDaysThisMonth} <span className="text-sm text-amber-400">Maalmood</span></p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-3">
+                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest px-2 mt-4">History-ga Mushaharka</h3>
+                        {empPayrolls.length > 0 ? empPayrolls.map(p => (
+                            <div key={p.id} className="flex justify-between items-center bg-white p-5 rounded-2xl border border-slate-100 hover:shadow-sm transition-all">
+                                <div>
+                                    <p className="font-black text-slate-800">{p.month} {p.year}</p>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Hours: {p.totalHours} • {p.status}</p>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-lg font-black text-emerald-600 block">${p.netPay}</span>
+                                    {p.paymentDate && <span className="text-[8px] font-bold text-slate-300 uppercase">Paid: {new Date(p.paymentDate).toLocaleDateString()}</span>}
+                                </div>
+                            </div>
+                        )) : (
+                            <div className="py-10 text-center bg-slate-50 rounded-[2rem] border border-slate-100 border-dashed">
+                                <p className="text-xs font-black text-slate-400 uppercase">Weli mushahar lama siin</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 

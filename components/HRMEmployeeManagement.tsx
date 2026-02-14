@@ -49,19 +49,16 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
           return;
       }
 
-      // Format phone number (Assume +252 if missing)
+      // Format phone number
       let phone = employee.phone.replace(/\D/g, ''); // Remove non-digits
-      if (phone.startsWith('061') || phone.startsWith('61')) phone = '252' + phone.replace(/^0+/, '');
-      if (phone.length < 10) {
-          alert("Lambarka telefoonka sax ma aha.");
-          return;
-      }
-
+      // Ensure local format works for SMS apps (Optional: remove country code if needed, but usually fine)
+      
       const message = `Asc ${employee.name}, \n\nWaxaan ku ogeysiinaynaa in maqnaanshahaaga bishan uu gaaray ${absentCount} maalmood. \n\nFadlan degdeg ula xiriir xafiiska HR-ka si aad u sharaxdo sababta. \n\nMahadsanid,\n${settings.systemName || 'Maamulka'}`;
       
-      // Open WhatsApp
-      const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-      window.open(url, '_blank');
+      // Open Standard SMS App
+      // Using window.location.href ensures it triggers the native app handler on mobile
+      const url = `sms:${phone}?body=${encodeURIComponent(message)}`;
+      window.location.href = url;
   };
 
   const syncUsersFromDevice = async () => {
@@ -262,13 +259,13 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
                       <span className="text-xs font-bold text-slate-600">🏢 {branches.find(b => b.id === emp.branchId)?.name || 'N/A'}</span>
                    </div>
                    
-                   {/* WARNING BUTTON */}
+                   {/* WARNING BUTTON - SMS */}
                    {isHighRisk ? (
                        <button 
                          onClick={() => sendWarningMessage(emp, absentCount)} 
                          className="w-full mt-2 py-3 bg-rose-600 text-white text-[9px] font-black uppercase tracking-widest rounded-xl hover:bg-rose-700 transition-all shadow-lg shadow-rose-100 flex items-center justify-center gap-2"
                        >
-                         <span>📩</span> DIRA DIGNIIN (WHATSAPP)
+                         <span>💬</span> DIRA DIGNIIN (SMS)
                        </button>
                    ) : (
                        <button onClick={() => setSelectedProfile(emp)} className="w-full mt-2 py-3 bg-slate-50 text-slate-500 text-[9px] font-black uppercase tracking-widest rounded-xl hover:bg-indigo-600 hover:text-white transition-all">View Full Profile</button>
