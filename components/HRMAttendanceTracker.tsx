@@ -157,18 +157,42 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
     selectedXarunId === 'all' || emp.xarunId === selectedXarunId
   );
 
-  // FIX: Status Count Calculation logic
-  // If ClockIn exists, count as Present even if status says Absent (Database Sync Lag)
-  const presentCount = attendanceData.filter(a => 
-      filteredEmployees.some(e => e.id === a.employeeId) && 
-      (a.status === 'PRESENT' || a.status === 'LATE' || (a.status === 'ABSENT' && a.clockIn))
-  ).length;
+  // --- HELPER TO COMPUTE STATUS BASED ON TIME RULES ---
+  // Rules:
+  // < 8:00 AM  --> PRESENT
+  // 8:00 - 9:00 --> LATE
+  // >= 9:00 AM --> ABSENT
+  const getComputedStatus = (record: Attendance) => {
+      // If manually set to LEAVE, keep it
+      if (record.status === 'LEAVE') return 'LEAVE';
+      
+      if (record.clockIn) {
+          try {
+              const dateObj = new Date(record.clockIn);
+              const hour = dateObj.getUTCHours(); // Assumes UTC storage of wall clock time
+              
+              if (hour >= 9) return 'ABSENT';
+              if (hour === 8) return 'LATE';
+              return 'PRESENT';
+          } catch (e) {
+              return record.status;
+          }
+      }
+      return record.status;
+  };
 
-  const absentCount = attendanceData.filter(a => 
-      filteredEmployees.some(e => e.id === a.employeeId) && 
-      a.status === 'ABSENT' && 
-      !a.clockIn // Only count as absent if NO clock in time
-  ).length;
+  // --- STATS CALCULATION USING COMPUTED STATUS ---
+  const presentCount = attendanceData.filter(a => {
+      if (!filteredEmployees.some(e => e.id === a.employeeId)) return false;
+      const status = getComputedStatus(a);
+      return status === 'PRESENT' || status === 'LATE';
+  }).length;
+
+  const absentCount = attendanceData.filter(a => {
+      if (!filteredEmployees.some(e => e.id === a.employeeId)) return false;
+      const status = getComputedStatus(a);
+      return status === 'ABSENT';
+  }).length;
 
   const leaveCount = attendanceData.filter(a => filteredEmployees.some(e => e.id === a.employeeId) && a.status === 'LEAVE').length;
   
@@ -325,29 +349,8 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
                 const record = attendanceData.find(a => a.employeeId === emp.id);
                 const empXarun = xarumo.find(x => x.id === emp.xarunId)?.name || 'N/A';
                 
-                // DATA CORRECTION LOGIC
-                // If there is a Clock In time, force status to PRESENT (or LATE) visually
-                // regardless of what database 'status' column says.
-                let displayStatus = record?.status;
-                
-                if (record?.clockIn) {
-                    // Logic 1: If marked ABSENT but has time, consider PRESENT first
-                    if (displayStatus === 'ABSENT') {
-                        displayStatus = 'PRESENT';
-                    }
-
-                    // Logic 2: Check for LATE (8:00 AM - 9:00 AM)
-                    try {
-                        const dateObj = new Date(record.clockIn);
-                        const hour = dateObj.getUTCHours(); // Using UTC as we treat DB time as wall clock
-                        
-                        if (hour === 8) {
-                            displayStatus = 'LATE';
-                        }
-                    } catch (e) {
-                        // ignore parsing error
-                    }
-                }
+                // USE COMPUTED STATUS
+                let displayStatus = record ? getComputedStatus(record) : null;
 
                 return (
                   <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
