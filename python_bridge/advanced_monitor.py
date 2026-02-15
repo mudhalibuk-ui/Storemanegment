@@ -289,6 +289,7 @@ def refresh_employee_cache():
 def sync_device_users(conn, device_info):
     """
     Fetches all users from the ZK device and ensures they exist in Supabase.
+    Updates names if the device has a better name than the database.
     """
     if not supabase: return
     try:
@@ -303,44 +304,63 @@ def sync_device_users(conn, device_info):
             logging.info("Device has no users.")
             return
 
-        # Fetch existing IDs to avoid duplicates
-        res = supabase.table('employees').select("employee_id_code").execute()
-        existing_ids = {str(e['employee_id_code']) for e in res.data}
+        # Fetch existing employees (ID, Code, Name)
+        res = supabase.table('employees').select("id, employee_id_code, name").execute()
+        existing_map = {str(e['employee_id_code']): e for e in res.data}
         
         new_employees = []
-        xarun_id = device_info.get('xarun_id') 
+        updates_count = 0
         
-        # Fallback Xarun if None
+        xarun_id = device_info.get('xarun_id') 
         if not xarun_id:
              xr = supabase.table('xarumo').select('id').limit(1).execute()
              if xr.data: xarun_id = xr.data[0]['id']
 
         for user in device_users:
             uid = str(user.user_id)
-            if uid not in existing_ids:
-                raw_name = user.name.strip() if user.name else ""
-                raw_name = raw_name.replace('\x00', '') # Clean null bytes
-                name = raw_name if raw_name else f"Device User {uid}"
+            raw_name = user.name.strip() if user.name else ""
+            raw_name = raw_name.replace('\x00', '') # Clean null bytes
+            
+            # CASE 1: UPDATE EXISTING
+            if uid in existing_map:
+                db_emp = existing_map[uid]
+                current_db_name = db_emp.get('name', '')
                 
-                new_employees.append({
-                    "id": str(uuid.uuid4()),
-                    "name": name,
-                    "employee_id_code": uid,
-                    "position": "STAFF",
-                    "status": "ACTIVE",
-                    "joined_date": datetime.now().strftime("%Y-%m-%d"),
-                    "xarun_id": xarun_id,
-                    "salary": 0,
-                    "avatar": f"https://api.dicebear.com/7.x/avataaars/svg?seed={uid}"
-                })
+                # Update if DB has placeholder name but Device has real name
+                is_placeholder = "Device User" in current_db_name or "Auto User" in current_db_name or not current_db_name
+                if is_placeholder and raw_name:
+                    try:
+                        supabase.table('employees').update({"name": raw_name}).eq("id", db_emp['id']).execute()
+                        logging.info(f"🔄 Updated Name for ID {uid}: {current_db_name} -> {raw_name}")
+                        updates_count += 1
+                    except Exception as e:
+                        logging.error(f"Failed to update name for {uid}: {e}")
+                continue
+
+            # CASE 2: INSERT NEW
+            name = raw_name if raw_name else f"Device User {uid}"
+            new_employees.append({
+                "id": str(uuid.uuid4()),
+                "name": name,
+                "employee_id_code": uid,
+                "position": "STAFF",
+                "status": "ACTIVE",
+                "joined_date": datetime.now().strftime("%Y-%m-%d"),
+                "xarun_id": xarun_id,
+                "salary": 0,
+                "avatar": f"https://api.dicebear.com/7.x/avataaars/svg?seed={uid}"
+            })
         
         if new_employees:
-            # Batch insert
             supabase.table('employees').insert(new_employees).execute()
-            logging.info(f"✅ Auto-Imported {len(new_employees)} new users from device.")
+            logging.info(f"✅ Auto-Imported {len(new_employees)} new users.")
             refresh_employee_cache()
-        else:
-            logging.info("👤 User list sync: No new users found.")
+        
+        if updates_count > 0:
+            refresh_employee_cache()
+            
+        if not new_employees and updates_count == 0:
+            logging.info("👤 User sync: No changes needed.")
 
     except Exception as e:
         logging.error(f"⚠️ Failed to sync users from device: {e}")
