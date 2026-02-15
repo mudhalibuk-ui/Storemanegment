@@ -227,7 +227,7 @@ def push_attendance(user_id, timestamp, device_info):
             record = existing.data[0]
             record_id = record['id']
             
-            # Debounce logic
+            # Debounce logic (prevent double scans within 1 minute)
             last_action_time = record.get('overtime_out') or record.get('overtime_in') or record.get('clock_out') or record.get('clock_in')
 
             if last_action_time:
@@ -286,10 +286,70 @@ def refresh_employee_cache():
     except Exception as e:
         logging.error(f"Cache Error: {e}")
 
+def sync_device_users(conn, device_info):
+    """
+    Fetches all users from the ZK device and ensures they exist in Supabase.
+    """
+    if not supabase: return
+    try:
+        logging.info(f"👤 Fetching user list from {device_info.get('name')}...")
+        try:
+            device_users = conn.get_users()
+        except Exception as e:
+            logging.error(f"Failed to get_users from device: {e}")
+            return
+
+        if not device_users: 
+            logging.info("Device has no users.")
+            return
+
+        # Fetch existing IDs to avoid duplicates
+        res = supabase.table('employees').select("employee_id_code").execute()
+        existing_ids = {str(e['employee_id_code']) for e in res.data}
+        
+        new_employees = []
+        xarun_id = device_info.get('xarun_id') 
+        
+        # Fallback Xarun if None
+        if not xarun_id:
+             xr = supabase.table('xarumo').select('id').limit(1).execute()
+             if xr.data: xarun_id = xr.data[0]['id']
+
+        for user in device_users:
+            uid = str(user.user_id)
+            if uid not in existing_ids:
+                raw_name = user.name.strip() if user.name else ""
+                raw_name = raw_name.replace('\x00', '') # Clean null bytes
+                name = raw_name if raw_name else f"Device User {uid}"
+                
+                new_employees.append({
+                    "id": str(uuid.uuid4()),
+                    "name": name,
+                    "employee_id_code": uid,
+                    "position": "STAFF",
+                    "status": "ACTIVE",
+                    "joined_date": datetime.now().strftime("%Y-%m-%d"),
+                    "xarun_id": xarun_id,
+                    "salary": 0,
+                    "avatar": f"https://api.dicebear.com/7.x/avataaars/svg?seed={uid}"
+                })
+        
+        if new_employees:
+            # Batch insert
+            supabase.table('employees').insert(new_employees).execute()
+            logging.info(f"✅ Auto-Imported {len(new_employees)} new users from device.")
+            refresh_employee_cache()
+        else:
+            logging.info("👤 User list sync: No new users found.")
+
+    except Exception as e:
+        logging.error(f"⚠️ Failed to sync users from device: {e}")
+
 def monitor_single_device(device):
     ip = device['ip_address']
     port = device.get('port', 4370)
-    zk = ZK(ip, port=port, timeout=10, force_udp=False, ommit_ping=False)
+    # Increased timeout and disabled ping for robustness
+    zk = ZK(ip, port=port, timeout=30, force_udp=False, ommit_ping=True)
     dev_name = device.get('name', 'Unknown')
 
     while True:
@@ -303,16 +363,22 @@ def monitor_single_device(device):
             conn = zk.connect()
             active_zk_connections[ip] = conn
             
-            logging.info(f"📥 Syncing offline logs for {dev_name}...")
+            # 1. Sync Users first (New Fingerprint Check)
+            sync_device_users(conn, device)
+
+            # 2. Sync Logs
+            logging.info(f"📥 Syncing offline logs for {dev_name} (Last 7 Days)...")
             try:
                 logs = conn.get_attendance()
-                today_str = datetime.now().strftime("%Y-%m-%d")
+                # Sync logic extended to 7 days to capture missed data
+                cutoff_date = datetime.now() - timedelta(days=7)
                 sync_count = 0
                 for log in logs:
-                    if log.timestamp.strftime("%Y-%m-%d") == today_str:
-                        push_attendance(log.user_id, log.timestamp, device)
+                    if log.timestamp >= cutoff_date:
+                        # Use threading to speed up sync
+                        threading.Thread(target=push_attendance, args=(log.user_id, log.timestamp, device)).start()
                         sync_count += 1
-                logging.info(f"✅ Sync complete. {sync_count} logs processed.")
+                logging.info(f"✅ Sync complete. {sync_count} logs processed from device.")
             except Exception as e:
                 logging.error(f"⚠️ Offline Sync Warning: {e}")
 
@@ -321,6 +387,8 @@ def monitor_single_device(device):
             for event in conn.live_capture():
                 if device_locks.get(ip, False): break
                 if event and event.user_id:
+                    # Log to console for debugging
+                    logging.info(f"📡 Real-time Event: User {event.user_id}")
                     threading.Thread(target=push_attendance, args=(event.user_id, event.timestamp, device)).start()
         except Exception as e:
             if not device_locks.get(ip, False):
@@ -331,7 +399,7 @@ def monitor_single_device(device):
             if conn: 
                 try: conn.disconnect()
                 except: pass
-        time.sleep(2)
+        time.sleep(5)
 
 def start_monitors():
     if not supabase: return
