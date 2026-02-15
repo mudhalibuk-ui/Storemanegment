@@ -340,10 +340,14 @@ def start_monitors():
         devices = res.data or []
         if not devices:
              logging.info("No devices found in DB. Defaulting to local config.")
-             devices = [{'name': 'Default', 'ip_address': '192.168.100.201', 'port': 4370, 'id': None, 'xarun_id': None}]
+             # Only default if no active devices cache exists either
+             if not active_devices:
+                 devices = [{'name': 'Default', 'ip_address': '192.168.100.201', 'port': 4370, 'id': None, 'xarun_id': None}]
 
         for dev in devices:
             if dev['ip_address'] in active_devices: continue
+            
+            logging.info(f"🆕 DETECTED NEW DEVICE: {dev.get('name')} ({dev['ip_address']}) - Starting monitor...")
             t = threading.Thread(target=monitor_single_device, args=(dev,), name=f"Thread-{dev['name']}")
             t.daemon = True
             t.start()
@@ -363,6 +367,9 @@ def main():
     
     schedule.every(30).minutes.do(refresh_employee_cache)
     schedule.every().day.at("09:00").do(run_auto_absent_check)
+    
+    # Check for new devices every 30 seconds
+    schedule.every(30).seconds.do(start_monitors)
     
     if datetime.now().hour >= 9:
         logging.info("Startup Check: It's past 9:00 AM. Running immediate Auto-Absent check...")
