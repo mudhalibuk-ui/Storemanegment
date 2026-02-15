@@ -157,8 +157,19 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
     selectedXarunId === 'all' || emp.xarunId === selectedXarunId
   );
 
-  const presentCount = attendanceData.filter(a => filteredEmployees.some(e => e.id === a.employeeId) && a.status === 'PRESENT').length;
-  const absentCount = attendanceData.filter(a => filteredEmployees.some(e => e.id === a.employeeId) && a.status === 'ABSENT').length;
+  // FIX: Status Count Calculation logic
+  // If ClockIn exists, count as Present even if status says Absent (Database Sync Lag)
+  const presentCount = attendanceData.filter(a => 
+      filteredEmployees.some(e => e.id === a.employeeId) && 
+      (a.status === 'PRESENT' || a.status === 'LATE' || (a.status === 'ABSENT' && a.clockIn))
+  ).length;
+
+  const absentCount = attendanceData.filter(a => 
+      filteredEmployees.some(e => e.id === a.employeeId) && 
+      a.status === 'ABSENT' && 
+      !a.clockIn // Only count as absent if NO clock in time
+  ).length;
+
   const leaveCount = attendanceData.filter(a => filteredEmployees.some(e => e.id === a.employeeId) && a.status === 'LEAVE').length;
   
   // Format Time to display accurately regardless of Browser Timezone
@@ -313,6 +324,31 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
               {filteredEmployees.map(emp => {
                 const record = attendanceData.find(a => a.employeeId === emp.id);
                 const empXarun = xarumo.find(x => x.id === emp.xarunId)?.name || 'N/A';
+                
+                // DATA CORRECTION LOGIC
+                // If there is a Clock In time, force status to PRESENT (or LATE) visually
+                // regardless of what database 'status' column says.
+                let displayStatus = record?.status;
+                
+                if (record?.clockIn) {
+                    // Logic 1: If marked ABSENT but has time, consider PRESENT first
+                    if (displayStatus === 'ABSENT') {
+                        displayStatus = 'PRESENT';
+                    }
+
+                    // Logic 2: Check for LATE (8:00 AM - 9:00 AM)
+                    try {
+                        const dateObj = new Date(record.clockIn);
+                        const hour = dateObj.getUTCHours(); // Using UTC as we treat DB time as wall clock
+                        
+                        if (hour === 8) {
+                            displayStatus = 'LATE';
+                        }
+                    } catch (e) {
+                        // ignore parsing error
+                    }
+                }
+
                 return (
                   <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4">
@@ -339,11 +375,12 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
                     <td className="px-6 py-4 text-center">
                       {record ? (
                         <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                          record.status === 'PRESENT' ? 'bg-emerald-50 text-emerald-600' :
-                          record.status === 'ABSENT' ? 'bg-rose-50 text-rose-600' : 
-                          record.status === 'LEAVE' ? 'bg-indigo-50 text-indigo-600' : 'bg-amber-50 text-amber-600'
+                          displayStatus === 'PRESENT' ? 'bg-emerald-50 text-emerald-600' :
+                          displayStatus === 'ABSENT' ? 'bg-rose-50 text-rose-600' : 
+                          displayStatus === 'LEAVE' ? 'bg-indigo-50 text-indigo-600' : 
+                          displayStatus === 'LATE' ? 'bg-amber-50 text-amber-600' : 'bg-slate-50 text-slate-500'
                         }`}>
-                          {record.status}
+                          {displayStatus}
                         </span>
                       ) : (
                         <span className="text-[9px] font-black text-slate-300 uppercase italic">--</span>
