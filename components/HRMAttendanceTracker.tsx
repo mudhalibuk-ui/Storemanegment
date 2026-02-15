@@ -105,10 +105,19 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
   const openEditModal = (empId: string, record: Attendance | undefined) => {
       setEditingRecord({ empId, record: record || null });
       if (record) {
+          // Use UTC substring to get the raw time stored in DB (HH:MM)
+          // This avoids the browser converting it to local time and shifting hours
+          const getRawTime = (iso: string) => {
+             if (!iso) return '';
+             try {
+               return new Date(iso).toISOString().substring(11, 16);
+             } catch(e) { return ''; }
+          };
+
           setEditForm({
               status: record.status,
-              clockIn: record.clockIn ? new Date(record.clockIn).toTimeString().slice(0,5) : '',
-              clockOut: record.clockOut ? new Date(record.clockOut).toTimeString().slice(0,5) : '',
+              clockIn: record.clockIn ? getRawTime(record.clockIn) : '',
+              clockOut: record.clockOut ? getRawTime(record.clockOut) : '',
               notes: record.notes || ''
           });
       } else {
@@ -120,6 +129,9 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
       if (!editingRecord) return;
       
       // Combine Date + Time
+      // We assume the input time is "Wall Clock" time. 
+      // Combining it with date creates a naive ISO string "YYYY-MM-DDTHH:MM:00"
+      // Supabase will treat this as UTC, preserving the "Wall Clock" value.
       const formatDateTime = (timeStr: string) => {
           if (!timeStr) return undefined;
           return `${selectedDate}T${timeStr}:00`;
@@ -149,9 +161,21 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
   const absentCount = attendanceData.filter(a => filteredEmployees.some(e => e.id === a.employeeId) && a.status === 'ABSENT').length;
   const leaveCount = attendanceData.filter(a => filteredEmployees.some(e => e.id === a.employeeId) && a.status === 'LEAVE').length;
   
+  // Format Time to display accurately regardless of Browser Timezone
   const formatTime = (isoString?: string) => {
     if (!isoString) return '--:--';
-    return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    try {
+        // Using timeZone: 'UTC' ensures we see the raw time stored in the DB
+        // without the browser adding its local offset (e.g. +3h).
+        return new Date(isoString).toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: true,
+            timeZone: 'UTC'
+        });
+    } catch(e) {
+        return '--:--';
+    }
   };
 
   const isFri = isFriday(selectedDate);
