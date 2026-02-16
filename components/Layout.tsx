@@ -188,7 +188,7 @@ const Layout: React.FC<LayoutProps> = ({
 
         {/* MOBILE FULL SCREEN MENU (DRAWER) */}
         {isMobileMenuOpen && (
-          <div className="fixed inset-0 z-50 md:hidden bg-slate-900/95 backdrop-blur-md animate-in fade-in slide-in-from-bottom-10 flex flex-col pb-24">
+          <div className="fixed inset-0 z-50 md:hidden bg-slate-900/95 backdrop-blur-md animate-in fade-in slide-in-from-bottom-10 flex flex-col pb-40">
              <div className="p-6 border-b border-white/10 flex justify-between items-center">
                 <div className="flex items-center gap-3">
                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-xl font-black shadow-lg">S</div>

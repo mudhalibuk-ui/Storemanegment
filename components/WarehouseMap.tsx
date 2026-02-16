@@ -12,6 +12,7 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({ items, branches }) => {
   const [selectedBranchId, setSelectedBranchId] = useState(branches[0]?.id || '');
   const [selectedSlot, setSelectedSlot] = useState<{items: InventoryItem[], shelf: number, section: number} | null>(null);
   const [mapSearch, setMapSearch] = useState('');
+  const [viewMode, setViewMode] = useState<'MAP' | 'LIST'>('MAP'); // Mobile Toggle State
   
   const selectedBranch = branches.find(b => b.id === selectedBranchId);
   const branchItems = items.filter(i => i.branchId === selectedBranchId);
@@ -29,28 +30,41 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({ items, branches }) => {
     });
   };
 
+  const getShelfStats = (shelfNum: number) => {
+    const totalSections = selectedBranch.customSections?.[shelfNum] || selectedBranch.totalSections;
+    const occupiedSections = new Set(branchItems.filter(i => i.shelves === shelfNum).map(i => i.sections)).size;
+    return { total: totalSections, occupied: occupiedSections };
+  };
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+    <div className="space-y-6 animate-in fade-in duration-500 pb-28">
       {/* Header & Controls */}
-      <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-200 flex flex-col xl:flex-row justify-between items-center gap-6">
-        <div className="w-full xl:w-auto">
-           <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">Khariidadda Iskafalada</h2>
+      <div className="bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] shadow-sm border border-slate-200 flex flex-col xl:flex-row justify-between items-center gap-6">
+        <div className="w-full xl:w-auto text-center xl:text-left">
+           <h2 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tighter uppercase">Khariidadda Bakhaarka</h2>
+           <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mt-1 hidden md:block">Visual Warehouse Management</p>
         </div>
         
-        <div className="flex flex-col md:flex-row items-center gap-4 w-full xl:w-auto">
-           <div className="relative w-full md:w-80">
+        <div className="flex flex-col md:flex-row items-center gap-3 w-full xl:w-auto">
+           {/* Mobile View Toggle */}
+           <div className="flex bg-slate-100 p-1 rounded-xl w-full md:w-auto lg:hidden">
+              <button onClick={() => setViewMode('MAP')} className={`flex-1 py-2 px-4 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'MAP' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}>🗺️ Map</button>
+              <button onClick={() => setViewMode('LIST')} className={`flex-1 py-2 px-4 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'LIST' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}>📋 List</button>
+           </div>
+
+           <div className="relative w-full md:w-64">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300">🔍</span>
               <input 
                 type="text"
-                placeholder="Magaca alaabta ama SKU..."
-                className="w-full pl-12 pr-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-sm outline-none focus:border-indigo-500 transition-all"
+                placeholder="Raadi..."
+                className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold text-xs outline-none focus:border-indigo-500 transition-all"
                 value={mapSearch}
                 onChange={(e) => setMapSearch(e.target.value)}
               />
            </div>
 
            <select 
-             className="w-full md:w-auto px-6 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-slate-700 outline-none cursor-pointer"
+             className="w-full md:w-auto px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-black text-xs text-slate-700 outline-none cursor-pointer"
              value={selectedBranchId}
              onChange={(e) => setSelectedBranchId(e.target.value)}
            >
@@ -59,69 +73,104 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({ items, branches }) => {
         </div>
       </div>
 
-      {/* Visual Grid - ALL SLOTS VISIBLE */}
-      <div className="bg-white p-6 md:p-10 rounded-[3rem] shadow-xl border border-slate-100 overflow-x-auto no-scrollbar min-h-[400px]">
-         <div className="flex flex-col gap-8 min-w-[800px]">
-            {Array.from({ length: selectedBranch.totalShelves }).map((_, sIdx) => {
-              const shelfNum = sIdx + 1;
-              const shelfLetter = numberToLetter(shelfNum);
-              const shelfSectionCount = selectedBranch.customSections?.[shelfNum] || selectedBranch.totalSections;
-              
-              return (
-                <div key={shelfNum} className="flex items-start gap-4">
-                   <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg shrink-0">
-                      {shelfLetter}
-                   </div>
-                   
-                   <div className="flex-1 grid grid-cols-10 gap-3">
-                      {Array.from({ length: shelfSectionCount }).map((_, secIdx) => {
-                        const secNum = secIdx + 1;
-                        const itemsInSlot = branchItems.filter(i => i.shelves === shelfNum && i.sections === secNum);
-                        
-                        // HIGHLIGHT LOGIC - Indigo color if it matches search
-                        const isHighlighted = q && itemsInSlot.some(i => 
-                          (i.name || '').toLowerCase().includes(q) || 
-                          (i.sku || '').toLowerCase().includes(q)
-                        );
+      {/* VIEW: MAP (GRID) */}
+      <div className={`bg-white p-4 md:p-10 rounded-[2rem] md:rounded-[3rem] shadow-xl border border-slate-100 overflow-hidden ${viewMode === 'LIST' ? 'hidden lg:block' : 'block'}`}>
+         <div className="overflow-x-auto no-scrollbar pb-4">
+             <div className="flex flex-col gap-6 md:gap-8 min-w-[600px] md:min-w-[800px]">
+                {Array.from({ length: selectedBranch.totalShelves }).map((_, sIdx) => {
+                  const shelfNum = sIdx + 1;
+                  const shelfLetter = numberToLetter(shelfNum);
+                  const shelfSectionCount = selectedBranch.customSections?.[shelfNum] || selectedBranch.totalSections;
+                  
+                  return (
+                    <div key={shelfNum} className="flex items-start gap-3 md:gap-4">
+                       <div className="w-12 h-12 md:w-16 md:h-16 bg-slate-900 rounded-2xl flex items-center justify-center text-white font-black text-lg md:text-xl shadow-lg shrink-0">
+                          {shelfLetter}
+                       </div>
+                       
+                       <div className="flex-1 grid grid-cols-10 gap-2 md:gap-3">
+                          {Array.from({ length: shelfSectionCount }).map((_, secIdx) => {
+                            const secNum = secIdx + 1;
+                            const itemsInSlot = branchItems.filter(i => i.shelves === shelfNum && i.sections === secNum);
+                            const isHighlighted = q && itemsInSlot.some(i => 
+                              (i.name || '').toLowerCase().includes(q) || 
+                              (i.sku || '').toLowerCase().includes(q)
+                            );
+                            const isOccupied = itemsInSlot.length > 0;
 
-                        const isOccupied = itemsInSlot.length > 0;
-
-                        return (
-                          <button 
-                            key={secNum}
-                            onClick={() => handleSlotClick(shelfNum, secNum)}
-                            className={`relative h-20 rounded-2xl border-2 transition-all flex flex-col items-center justify-center hover:scale-105 active:scale-95 ${
-                              isHighlighted
-                                ? 'bg-indigo-600 border-indigo-400 shadow-xl shadow-indigo-200 ring-4 ring-indigo-500/20 z-10' 
-                                : isOccupied 
-                                    ? 'bg-rose-50 border-rose-200' 
-                                    : 'bg-emerald-50 border-emerald-100'
-                            }`}
-                          >
-                            <span className={`text-[10px] font-black ${isHighlighted ? 'text-indigo-100' : isOccupied ? 'text-rose-300' : 'text-emerald-300'} mb-1`}>
-                              {secNum.toString().padStart(2, '0')}
-                            </span>
-                            
-                            {isOccupied ? (
-                              <>
-                                <div className="text-xl">📦</div>
-                                {itemsInSlot.length > 1 && (
-                                  <span className={`absolute top-1 right-1 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full ${isHighlighted ? 'bg-indigo-800' : 'bg-rose-600'}`}>
-                                    x{itemsInSlot.length}
-                                  </span>
+                            return (
+                              <button 
+                                key={secNum}
+                                onClick={() => handleSlotClick(shelfNum, secNum)}
+                                className={`relative h-14 md:h-20 rounded-xl md:rounded-2xl border-2 transition-all flex flex-col items-center justify-center hover:scale-105 active:scale-95 ${
+                                  isHighlighted ? 'bg-indigo-600 border-indigo-400 shadow-lg ring-2 ring-indigo-500/20 z-10' : 
+                                  isOccupied ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-100'
+                                }`}
+                              >
+                                <span className={`text-[8px] md:text-[10px] font-black ${isHighlighted ? 'text-indigo-100' : isOccupied ? 'text-rose-300' : 'text-emerald-300'} mb-0.5`}>
+                                  {secNum.toString().padStart(2, '0')}
+                                </span>
+                                {isOccupied ? (
+                                  <span className="text-sm md:text-xl">📦</span>
+                                ) : (
+                                  <span className="hidden md:inline text-[8px] font-black text-emerald-400 opacity-40 uppercase tracking-tighter">Free</span>
                                 )}
-                              </>
-                            ) : (
-                              <div className="text-[10px] font-black text-emerald-400 opacity-40 uppercase tracking-tighter">Faruq</div>
-                            )}
-                          </button>
-                        );
-                      })}
-                   </div>
-                </div>
-              );
-            })}
+                              </button>
+                            );
+                          })}
+                       </div>
+                    </div>
+                  );
+                })}
+             </div>
          </div>
+         <p className="text-center text-[9px] font-bold text-slate-300 uppercase mt-4 md:hidden">← Jiid si aad u aragto qaybaha kale (Scroll) →</p>
+      </div>
+
+      {/* VIEW: LIST (MOBILE ONLY OPTIMIZED) */}
+      <div className={`space-y-4 lg:hidden ${viewMode === 'LIST' ? 'block' : 'hidden'}`}>
+         {Array.from({ length: selectedBranch.totalShelves }).map((_, sIdx) => {
+            const shelfNum = sIdx + 1;
+            const stats = getShelfStats(shelfNum);
+            const shelfItems = branchItems.filter(i => i.shelves === shelfNum);
+            
+            return (
+               <div key={shelfNum} className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm">
+                  <div className="flex justify-between items-center mb-4">
+                     <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center font-black text-sm">{numberToLetter(shelfNum)}</div>
+                        <div>
+                           <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Iskafalo {numberToLetter(shelfNum)}</h3>
+                           <p className="text-[9px] font-bold text-slate-400 uppercase">{stats.occupied} / {stats.total} Occupied</p>
+                        </div>
+                     </div>
+                     <div className="w-20 h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-indigo-500 rounded-full" style={{width: `${(stats.occupied/stats.total)*100}%`}}></div>
+                     </div>
+                  </div>
+                  
+                  {/* Mini Grid for Shelf */}
+                  <div className="grid grid-cols-5 gap-2">
+                     {Array.from({ length: stats.total }).map((_, secIdx) => {
+                        const secNum = secIdx + 1;
+                        const itemsInSlot = shelfItems.filter(i => i.sections === secNum);
+                        const isOccupied = itemsInSlot.length > 0;
+                        return (
+                           <button 
+                              key={secNum}
+                              onClick={() => handleSlotClick(shelfNum, secNum)}
+                              className={`h-10 rounded-lg flex items-center justify-center text-[10px] font-black border ${
+                                 isOccupied ? 'bg-rose-50 border-rose-200 text-rose-500' : 'bg-slate-50 border-slate-100 text-slate-300'
+                              }`}
+                           >
+                              {secNum}
+                           </button>
+                        );
+                     })}
+                  </div>
+               </div>
+            );
+         })}
       </div>
 
       {selectedSlot && (

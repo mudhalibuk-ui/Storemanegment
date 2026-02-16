@@ -112,14 +112,15 @@ const App: React.FC = () => {
     const xarunIdFilter = user.role === UserRole.SUPER_ADMIN ? undefined : user.xarunId;
     
     try {
-      const [fXarumo, fItems, fBranches, fTransactions, fUsers, fEmployees, fPayrolls] = await Promise.all([
+      const [fXarumo, fItems, fBranches, fTransactions, fUsers, fEmployees, fPayrolls, fAttendance] = await Promise.all([
         API.xarumo.getAll(),
         API.items.getAll(xarunIdFilter),
         API.branches.getAll(xarunIdFilter),
         API.transactions.getAll(xarunIdFilter),
         API.users.getAll(),
         API.employees.getAll(xarunIdFilter),
-        API.payroll.getAll()
+        API.payroll.getAll(),
+        API.attendance.getAll()
       ]);
 
       setXarumo(fXarumo || []);
@@ -129,6 +130,7 @@ const App: React.FC = () => {
       setUsers(fUsers || []);
       setEmployees(fEmployees || []);
       setPayrolls(fPayrolls || []);
+      setAttendance(fAttendance || []);
 
       if (fItems && fItems.length > 0 && !isBackground && activeTab === 'dashboard') {
         getInventoryInsights(fItems, fTransactions || [])

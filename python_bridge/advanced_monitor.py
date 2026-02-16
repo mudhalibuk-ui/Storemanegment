@@ -15,8 +15,14 @@ from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
-# --- PATH SETUP ---
-base_dir = Path(__file__).resolve().parent
+# --- PATH SETUP (CRITICAL FIX FOR EXE) ---
+# When running as EXE, sys.executable is the path to the exe file.
+# We must look for .env next to the EXE, not inside the temp _MEI folder.
+if getattr(sys, 'frozen', False):
+    base_dir = Path(sys.executable).parent
+else:
+    base_dir = Path(__file__).resolve().parent
+
 log_file_path = base_dir / "monitor_service.log"
 env_path = base_dir / '.env'
 
@@ -48,23 +54,33 @@ if sys.stdout:
     except Exception: pass
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s', handlers=handlers)
-logging.info(f"🚀 Service Initializing... Dir: {base_dir}")
 
-# Load Env
-if env_path.exists():
-    load_dotenv(dotenv_path=env_path)
-else:
-    logging.error("❌ .env file NOT found!")
+# --- FLASK API ---
+app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
-SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_KEY = os.getenv('SUPABASE_KEY')
+supabase = None
 
-try:
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    logging.info("✅ Supabase Connected")
-except Exception as e:
-    logging.error(f"❌ Supabase Init Error: {e}")
-    supabase = None
+def init_supabase():
+    global supabase
+    logging.info(f"📂 Loading config from: {env_path}")
+    
+    if env_path.exists():
+        load_dotenv(dotenv_path=env_path)
+        url = os.getenv('SUPABASE_URL')
+        key = os.getenv('SUPABASE_KEY')
+        if url and key:
+            try:
+                supabase = create_client(url, key)
+                logging.info("✅ Supabase Connected Successfully")
+                return True
+            except Exception as e:
+                logging.error(f"❌ Supabase Connection Error: {e}")
+        else:
+            logging.error("❌ SUPABASE_URL or KEY missing in .env")
+    else:
+        logging.error(f"❌ .env file NOT found at {env_path}")
+    return False
 
 # Global Cache & Locks
 employee_cache = {}
@@ -72,13 +88,15 @@ active_devices = {}
 active_zk_connections = {} 
 device_locks = {}
 
-# --- FLASK API ---
-app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
-
 @app.route('/')
 def status_check():
-    return jsonify({"status": "online", "message": "SmartStock Service Running", "timestamp": datetime.now().isoformat()})
+    status = "online" if supabase else "database_error"
+    return jsonify({
+        "status": status, 
+        "message": "SmartStock Service Running", 
+        "env_path": str(env_path),
+        "timestamp": datetime.now().isoformat()
+    })
 
 @app.route('/logs')
 def get_logs():
@@ -133,12 +151,11 @@ def push_attendance(user_id, timestamp, device_info):
             status = 'PRESENT'
             notes = 'On Time'
 
-            # Simple Lateness Logic
             if 8 <= check_in_hour < 9: 
                 status = 'LATE'
                 notes = 'Late Arrival'
             elif check_in_hour >= 9: 
-                status = 'LATE' # Still mark late, but present. 
+                status = 'LATE' 
                 notes = 'Very Late'
 
             data = {
@@ -158,17 +175,15 @@ def push_attendance(user_id, timestamp, device_info):
             record = existing.data[0]
             record_id = record['id']
             
-            # Debounce: Ignore duplicate scans within 2 minutes to prevent spam
             last_action_time = record.get('clock_out') or record.get('clock_in')
             if last_action_time:
                 try:
                     last_dt = datetime.fromisoformat(last_action_time.replace('Z', '+00:00'))
                     time_diff = (timestamp - last_dt.replace(tzinfo=None)).total_seconds()
-                    if time_diff < 120: # 2 minutes debounce
+                    if time_diff < 120: 
                         return 
                 except: pass
 
-            # Always update 'clock_out' to the latest time scanned
             update_payload = {
                 "clock_out": iso_time
             }
@@ -194,16 +209,12 @@ def refresh_employee_cache():
         logging.error(f"Cache Error: {e}")
 
 def sync_device_users(conn, device_info):
-    """
-    Syncs users. MERGES duplicate IDs (treats them as the same person).
-    """
     if not supabase: return
     try:
         logging.info(f"👤 Syncing users from {device_info.get('name')}...")
         device_users = conn.get_users()
         if not device_users: return
 
-        # Get all existing IDs from DB
         res = supabase.table('employees').select("id, employee_id_code, name").execute()
         existing_map = {str(e['employee_id_code']): e for e in res.data}
         
@@ -219,16 +230,12 @@ def sync_device_users(conn, device_info):
             raw_id = str(user.user_id)
             raw_name = user.name.strip().replace('\x00', '') if user.name else ""
             
-            # MERGE LOGIC: If ID exists, assume it's the same person.
             if raw_id in existing_map:
                 db_emp = existing_map[raw_id]
-                
-                # If Device has a real name and DB has a placeholder, update DB
                 if raw_name and ("Staff" in db_emp['name'] or "Worker" in db_emp['name'] or not db_emp['name']):
                     supabase.table('employees').update({"name": raw_name}).eq("id", db_emp['id']).execute()
                     updates_count += 1
             else:
-                # Insert New
                 display_name = raw_name if raw_name else f"Staff {raw_id}"
                 supabase.table('employees').insert({
                     "id": str(uuid.uuid4()),
@@ -251,12 +258,10 @@ def sync_device_users(conn, device_info):
         logging.error(f"⚠️ User Sync Failed: {e}")
 
 def run_auto_absent_check():
-    """ Runs at 9:30 AM to mark ABSENT """
     if not supabase: return
     try:
         today_str = datetime.now().strftime("%Y-%m-%d")
-        # Logic to mark absent (Same as before)
-        # ... (Simplified for brevity, assumes standard logic)
+        # Logic to mark absent would go here
     except: pass
 
 def monitor_single_device(device):
@@ -281,7 +286,7 @@ def monitor_single_device(device):
             logging.info(f"📥 Syncing offline logs for {dev_name}...")
             try:
                 logs = conn.get_attendance()
-                cutoff_date = datetime.now() - timedelta(days=7) # Look back 7 days
+                cutoff_date = datetime.now() - timedelta(days=7)
                 for log in logs:
                     if log.timestamp >= cutoff_date:
                         push_attendance(log.user_id, log.timestamp, device)
@@ -305,10 +310,14 @@ def monitor_single_device(device):
         time.sleep(5)
 
 def start_monitors():
-    if not supabase: return
+    if not supabase: 
+        if not init_supabase(): return 
+
     try:
         res = supabase.table('devices').select("*").eq('is_active', True).execute()
         devices = res.data or []
+        
+        # If no devices in DB, default to config
         if not devices and not active_devices:
              devices = [{'name': 'Default', 'ip_address': '192.168.100.201', 'port': 4370, 'id': None, 'xarun_id': None}]
 
@@ -318,21 +327,37 @@ def start_monitors():
             t.daemon = True
             t.start()
             active_devices[dev['ip_address']] = t
-    except: pass
+    except Exception as e:
+        logging.error(f"Start Monitor Error: {e}")
 
 def main():
     print("--- SMARTSTOCK SERVICE ---")
-    refresh_employee_cache()
+    
+    # 1. DELAY FOR NETWORK (Important for Startup)
+    logging.info("⏳ Starting Up... Waiting 20s for Network/Wi-Fi...")
+    time.sleep(20)
+    
+    # 2. Init DB
+    if init_supabase():
+        refresh_employee_cache()
+        start_monitors()
+    else:
+        logging.error("❌ Critical: Failed to connect to Database. Monitor will retry.")
+
     schedule.every(30).minutes.do(refresh_employee_cache)
     schedule.every().day.at("09:30").do(run_auto_absent_check)
     schedule.every(30).seconds.do(start_monitors)
     
+    # Run API
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5050, debug=False, use_reloader=False), daemon=True).start()
-    start_monitors()
 
     while True: 
         schedule.run_pending()
-        time.sleep(1)
+        # Retry connection if failed initially
+        if not supabase:
+            init_supabase()
+            if supabase: start_monitors()
+        time.sleep(5)
 
 if __name__ == "__main__":
     main()

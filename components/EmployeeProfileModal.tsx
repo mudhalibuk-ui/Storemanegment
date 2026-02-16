@@ -26,52 +26,101 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
     API.leaves.getAll().then(data => setLeaves(data.filter(l => l.employeeId === employee.id)));
   }, [employee.id]);
 
-  const empAttendance = attendance.filter(a => a.employeeId === employee.id).sort((a, b) => b.date.localeCompare(a.date));
-  const empPayrolls = payrolls.filter(p => p.employeeId === employee.id).sort((a, b) => b.year - a.year || b.month.localeCompare(a.month));
+  // Month mapping for sorting
+  const monthMap: { [key: string]: number } = {
+    'January': 1, 'February': 2, 'March': 3, 'April': 4, 'May': 5, 'June': 6,
+    'July': 7, 'August': 8, 'September': 9, 'October': 10, 'November': 11, 'December': 12
+  };
+
+  // --- 1. PROCESS ATTENDANCE (Deduplicate & Sort) ---
+  // We group raw logs by DATE to ensure one row per day with best status and correct IN/OUT times.
+  const processedAttendanceMap = new Map<string, any>();
+  const rawEmpAttendance = attendance.filter(a => a.employeeId === employee.id);
+
+  rawEmpAttendance.forEach(record => {
+      const dateKey = record.date; // YYYY-MM-DD
+      const existing = processedAttendanceMap.get(dateKey);
+
+      if (!existing) {
+          processedAttendanceMap.set(dateKey, { ...record });
+      } else {
+          // Merge Logic:
+          // Priority Status: PRESENT > LATE > ABSENT
+          let status = existing.status;
+          if (record.status === 'PRESENT') status = 'PRESENT';
+          else if (record.status === 'LATE' && status !== 'PRESENT') status = 'LATE';
+          
+          // Time Logic: Earliest Clock In, Latest Clock Out
+          const earliestIn = (record.clockIn && existing.clockIn) 
+              ? (new Date(record.clockIn) < new Date(existing.clockIn) ? record.clockIn : existing.clockIn)
+              : (record.clockIn || existing.clockIn);
+              
+          const latestOut = (record.clockOut && existing.clockOut)
+              ? (new Date(record.clockOut) > new Date(existing.clockOut) ? record.clockOut : existing.clockOut)
+              : (record.clockOut || existing.clockOut);
+
+          processedAttendanceMap.set(dateKey, {
+              ...existing,
+              status,
+              clockIn: earliestIn,
+              clockOut: latestOut
+          });
+      }
+  });
+
+  // Convert map to array and sort descending by date
+  const empAttendance = Array.from(processedAttendanceMap.values())
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  
+  // PAYROLL HISTORY - Fixed Sorting
+  const empPayrolls = payrolls
+    .filter(p => p.employeeId === employee.id)
+    .sort((a, b) => {
+        const yearDiff = b.year - a.year;
+        if (yearDiff !== 0) return yearDiff;
+        return (monthMap[b.month] || 0) - (monthMap[a.month] || 0);
+    });
+
   const branch = branches.find(b => b.id === employee.branchId)?.name || 'N/A';
   
-  // --- STATS CALCULATIONS --- //
-  
-  // 1. Attendance Analysis
-  const totalRecorded = empAttendance.length;
-  const presentRecs = empAttendance.filter(a => a.status === 'PRESENT').length;
-  const attendanceRate = totalRecorded ? (presentRecs / totalRecorded) * 100 : 0;
-  
-  let attStatusMsg = "Xog Ma Jirto (No Data)";
-  let attStatusColor = "bg-slate-100 text-slate-500 border-slate-200";
-  let attEmoji = "⚪";
-
-  if (totalRecorded > 0) {
-      if (attendanceRate >= 90) { 
-          attStatusMsg = "Aad u Wanaagsan (Excellent)"; 
-          attStatusColor = "bg-emerald-50 text-emerald-700 border-emerald-100";
-          attEmoji = "🌟";
-      } else if (attendanceRate >= 75) { 
-          attStatusMsg = "Wanaagsan (Good)"; 
-          attStatusColor = "bg-indigo-50 text-indigo-700 border-indigo-100";
-          attEmoji = "👍";
-      } else { 
-          attStatusMsg = "Liita / Wuxuu u baahan yahay sixid"; 
-          attStatusColor = "bg-rose-50 text-rose-700 border-rose-100";
-          attEmoji = "⚠️";
-      }
-  }
-
-  // 2. Payroll & Time Logic
+  // --- CALCULATIONS (CURRENT MONTH) --- //
   const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  const monthName = now.toLocaleString('default', { month: 'long' });
   
-  // Helper: Count Fridays in current month
-  const getFridaysCount = (year: number, month: number) => {
-      let count = 0;
-      const date = new Date(year, month, 1);
-      while (date.getMonth() === month) {
-          if (date.getDay() === 5) count++; // 5 is Friday
-          date.setDate(date.getDate() + 1);
-      }
-      return count;
-  };
-  const currentFridays = getFridaysCount(now.getFullYear(), now.getMonth());
+  let hoursWorkedThisMonth = 0;
+  let totalScore = 0;
+  let countableDays = 0;
 
+  empAttendance.forEach(a => {
+      const d = new Date(a.date);
+      // Only process current month records
+      if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
+          // Scoring
+          if (a.status === 'PRESENT') { totalScore += 100; countableDays++; }
+          else if (a.status === 'LATE') { totalScore += 50; countableDays++; }
+          else if (a.status === 'ABSENT') { totalScore += 0; countableDays++; }
+
+          // Hours Calculation
+          if (a.clockIn && a.clockOut) {
+              const start = new Date(a.clockIn).getTime();
+              const end = new Date(a.clockOut).getTime();
+              const hours = (end - start) / (1000 * 60 * 60);
+              if (hours > 0 && hours < 24) {
+                  hoursWorkedThisMonth += hours;
+              }
+          }
+      }
+  });
+
+  const performanceScore = countableDays > 0 ? Math.round(totalScore / countableDays) : 100;
+  
+  // Payroll Estimation (Based on 300h/month standard)
+  const standardHours = 300; 
+  const hourlyRate = (employee.salary || 0) / standardHours;
+  const accruedSalary = Math.floor(hoursWorkedThisMonth * hourlyRate);
+  
   // Count paid months
   const paidMonthsCount = empPayrolls.filter(p => p.status === 'PAID').length;
 
@@ -84,15 +133,39 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
   const leaveDaysThisMonth = leavesThisMonth.reduce((acc, curr) => {
       const start = new Date(curr.startDate);
       const end = new Date(curr.endDate);
-      // Difference in days + 1
       const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       return acc + (isNaN(diff) ? 0 : diff);
   }, 0);
 
+  let attStatusMsg = "Xog Ma Jirto (No Data)";
+  let attStatusColor = "bg-slate-100 text-slate-500 border-slate-200";
+  let attEmoji = "⚪";
 
-  // Performance Score (Punctuality)
-  const calculateScore = () => {
-    return Math.round(attendanceRate);
+  if (countableDays > 0) {
+      if (performanceScore >= 90) { 
+          attStatusMsg = "Aad u Wanaagsan (Excellent)"; 
+          attStatusColor = "bg-emerald-50 text-emerald-700 border-emerald-100";
+          attEmoji = "🌟";
+      } else if (performanceScore >= 70) { 
+          attStatusMsg = "Wanaagsan (Good)"; 
+          attStatusColor = "bg-indigo-50 text-indigo-700 border-indigo-100";
+          attEmoji = "👍";
+      } else { 
+          attStatusMsg = "Liita / Wuxuu u baahan yahay sixid"; 
+          attStatusColor = "bg-rose-50 text-rose-700 border-rose-100";
+          attEmoji = "⚠️";
+      }
+  } else {
+      attStatusMsg = "Bishan Cusub (No Records Yet)";
+      attStatusColor = "bg-slate-50 text-slate-500 border-slate-200";
+      attEmoji = "📅";
+  }
+
+  // Safe Date Formatting to avoid timezone shifts
+  const formatListDate = (dateStr: string) => {
+      try {
+          return new Date(dateStr).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' });
+      } catch { return dateStr; }
   };
 
   const handleAddDocument = async () => {
@@ -147,9 +220,9 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
           </div>
 
           <div className="bg-white/5 p-4 rounded-2xl border border-white/10 text-center min-w-[120px]">
-             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Performance</p>
-             <div className="text-3xl font-black text-emerald-400">{calculateScore()}%</div>
-             <p className="text-[8px] text-slate-500">Punctuality Score</p>
+             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Performance ({monthName})</p>
+             <div className={`text-3xl font-black ${performanceScore >= 70 ? 'text-emerald-400' : 'text-amber-400'}`}>{performanceScore}%</div>
+             <p className="text-[8px] text-slate-500">Monthly Score</p>
           </div>
         </div>
 
@@ -192,31 +265,57 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
 
             {activeTab === 'ATTENDANCE' && (
                 <div className="space-y-6">
-                    {/* ATTENDANCE STATUS CARD */}
+                    {/* ATTENDANCE STATUS CARD (THIS MONTH) */}
                     <div className={`p-6 rounded-[2.5rem] border text-center relative overflow-hidden ${attStatusColor}`}>
                         <div className="absolute top-0 right-0 p-4 opacity-10 text-6xl grayscale">{attEmoji}</div>
-                        <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Warbixinta Iimaanshaha</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Warbixinta Bisha ({monthName})</p>
                         <h3 className="text-2xl font-black mt-2">{attStatusMsg}</h3>
-                        <p className="text-xs font-bold mt-1 opacity-75">Heerka Joogitaanka: {Math.round(attendanceRate)}%</p>
+                        <p className="text-xs font-bold mt-1 opacity-75">Heerka Joogitaanka (Score): {performanceScore}%</p>
                     </div>
 
                     <div className="space-y-3">
-                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest px-2">Diiwaanka Maalmihii Hore</h3>
-                        {empAttendance.map(a => (
-                            <div key={a.id} className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-100 hover:border-indigo-100 transition-all">
-                                <div>
-                                    <p className="font-black text-slate-700">{new Date(a.date).toLocaleDateString()}</p>
-                                    <div className="flex gap-3 text-[10px] font-bold text-slate-400 uppercase mt-1">
-                                        <span>IN: <span className="text-emerald-600">{a.clockIn ? new Date(a.clockIn).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--:--'}</span></span>
-                                        <span>OUT: <span className="text-rose-600">{a.clockOut ? new Date(a.clockOut).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--:--'}</span></span>
-                                    </div>
-                                </div>
-                                <span className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ${a.status==='PRESENT'?'bg-emerald-50 text-emerald-600':a.status==='ABSENT'?'bg-rose-50 text-rose-600':'bg-amber-50 text-amber-600'}`}>
-                                    {a.status}
-                                </span>
-                            </div>
-                        ))}
-                        {empAttendance.length === 0 && <p className="text-center text-slate-400 italic py-10">Lama hayo xog hore.</p>}
+                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest px-2">Diiwaanka Maalmihii Hore (History)</h3>
+                        
+                        {empAttendance.length > 0 ? (
+                            empAttendance.map((a, index) => {
+                                const dateStr = formatListDate(a.date);
+                                // Simple header grouping logic
+                                const prev = empAttendance[index - 1];
+                                const showHeader = !prev || new Date(a.date).getMonth() !== new Date(prev.date).getMonth();
+                                const monthHeader = new Date(a.date).toLocaleString('default', { month: 'long', year: 'numeric' });
+
+                                return (
+                                    <React.Fragment key={a.id}>
+                                        {showHeader && (
+                                            <div className="pt-4 pb-2 px-2">
+                                                <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest border-b border-indigo-50 pb-1">
+                                                    {monthHeader}
+                                                </h4>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-100 hover:border-indigo-100 transition-all">
+                                            <div>
+                                                <p className="font-black text-slate-700">{dateStr}</p>
+                                                <div className="flex gap-3 text-[10px] font-bold text-slate-400 uppercase mt-1">
+                                                    <span>IN: <span className="text-emerald-600">{a.clockIn ? new Date(a.clockIn).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', timeZone: 'UTC'}) : '--:--'}</span></span>
+                                                    <span>OUT: <span className="text-rose-600">{a.clockOut ? new Date(a.clockOut).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', timeZone: 'UTC'}) : '--:--'}</span></span>
+                                                </div>
+                                            </div>
+                                            <span className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ${
+                                                a.status==='PRESENT'?'bg-emerald-50 text-emerald-600':
+                                                a.status==='ABSENT'?'bg-rose-50 text-rose-600':
+                                                a.status==='LATE'?'bg-amber-50 text-amber-600':
+                                                'bg-indigo-50 text-indigo-600' // Leave
+                                            }`}>
+                                                {a.status}
+                                            </span>
+                                        </div>
+                                    </React.Fragment>
+                                );
+                            })
+                        ) : (
+                            <p className="text-center text-slate-400 italic py-10">Lama hayo xog hore.</p>
+                        )}
                     </div>
                 </div>
             )}
@@ -276,19 +375,22 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
 
             {activeTab === 'PAYROLL' && (
                 <div className="space-y-6">
-                    {/* PAYROLL SUMMARY DASHBOARD */}
+                    {/* PAYROLL SUMMARY DASHBOARD (REAL-TIME UPDATED) */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="bg-indigo-50 p-6 rounded-[2.5rem] border border-indigo-100 text-center">
-                            <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">Mushaharka La Qaatay</p>
-                            <p className="text-3xl font-black text-indigo-700">{paidMonthsCount} <span className="text-sm text-indigo-400">Bilood</span></p>
+                            <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">Saacadaha La Shaqeeyay</p>
+                            <p className="text-3xl font-black text-indigo-700">{hoursWorkedThisMonth.toFixed(1)} <span className="text-sm text-indigo-400">Saacadood</span></p>
+                            <p className="text-[8px] text-indigo-300 mt-1">Bishan (Current Month)</p>
                         </div>
                         <div className="bg-emerald-50 p-6 rounded-[2.5rem] border border-emerald-100 text-center">
-                            <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-1">Jimcaha Bisha (Off Days)</p>
-                            <p className="text-3xl font-black text-emerald-700">{currentFridays} <span className="text-sm text-emerald-400">Maalmood</span></p>
+                            <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-1">Lacagta Kuu Soo Hoyatay</p>
+                            <p className="text-3xl font-black text-emerald-700">${accruedSalary.toLocaleString()}</p>
+                            <p className="text-[8px] text-emerald-300 mt-1">Saldhiga: ${employee.salary}</p>
                         </div>
                         <div className="bg-amber-50 p-6 rounded-[2.5rem] border border-amber-100 text-center">
-                            <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest mb-1">Fasaxa Bisha (This Month)</p>
-                            <p className="text-3xl font-black text-amber-700">{leaveDaysThisMonth} <span className="text-sm text-amber-400">Maalmood</span></p>
+                            <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest mb-1">Mushaharka La Qaatay</p>
+                            <p className="text-3xl font-black text-amber-700">{paidMonthsCount} <span className="text-sm text-amber-400">Bilood</span></p>
+                            <p className="text-[8px] text-amber-300 mt-1">History Total</p>
                         </div>
                     </div>
 
