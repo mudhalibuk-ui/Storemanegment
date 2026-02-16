@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { InventoryItem, Branch, User, UserRole } from '../types';
 import { formatPlacement } from '../services/mappingUtils';
@@ -30,11 +31,15 @@ const InventoryList: React.FC<InventoryListProps> = ({
     Array.from(new Set(items.map(item => item.category))).filter(Boolean) as string[]
   , [items]);
 
-  // NIDAAMKA RAADINTA - (STRICT FILTERING)
+  // NIDAAMKA RAADINTA - (STRICT FILTERING & DEDUPLICATION)
   const filteredItems = useMemo(() => {
     const q = searchTerm.toLowerCase().trim();
+    const seenIds = new Set<string>();
     
     return items.filter(item => {
+      // 1. DEDUPLICATION CHECK: If we've already included this ID, skip it.
+      if (seenIds.has(item.id)) return false;
+
       const name = (item.name || '').toLowerCase();
       const sku = (item.sku || '').toLowerCase();
 
@@ -42,7 +47,11 @@ const InventoryList: React.FC<InventoryListProps> = ({
       const matchesBranch = branchFilter === 'all' || item.branchId === branchFilter;
       const matchesCategory = categoryFilter === 'all' || item.category === categoryFilter;
       
-      return matchesSearch && matchesBranch && matchesCategory;
+      if (matchesSearch && matchesBranch && matchesCategory) {
+          seenIds.add(item.id);
+          return true;
+      }
+      return false;
     }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }, [items, searchTerm, branchFilter, categoryFilter]);
 

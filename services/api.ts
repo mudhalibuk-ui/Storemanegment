@@ -80,7 +80,8 @@ async function cloudSave(table: string, data: any, conflictColumn: string = 'id'
 }
 
 async function fetchAllPages(table: string, queryParams: string = '', orderBy: string = 'created_at'): Promise<any[]> {
-  let allData: any[] = [];
+  // Using a Map to ensure uniqueness by ID
+  const allDataMap = new Map<string, any>();
   let page = 0;
   const pageSize = 500;
   let hasMore = true;
@@ -101,14 +102,20 @@ async function fetchAllPages(table: string, queryParams: string = '', orderBy: s
     });
     
     if (!Array.isArray(data)) {
-      return allData.length > 0 ? allData : (getLocal(table) || []);
+      // Fallback: If partial data exists in Map, return it. Else try local.
+      return allDataMap.size > 0 ? Array.from(allDataMap.values()) : (getLocal(table) || []);
     }
     
-    allData = [...allData, ...data];
+    // Add to Map (deduplicates automatically)
+    for (const item of data) {
+      if (item.id) allDataMap.set(item.id, item);
+    }
+    
     if (data.length < pageSize) hasMore = false;
     else page++;
   }
   
+  const allData = Array.from(allDataMap.values());
   setLocal(table, allData);
   return allData;
 }

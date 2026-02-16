@@ -15,7 +15,7 @@ interface EmployeeProfileModalProps {
 const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({ 
   employee, attendance, payrolls, branches, xarumo, onClose 
 }) => {
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'ATTENDANCE' | 'PAYROLL' | 'DOCS' | 'LEAVE'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'ATTENDANCE' | 'PAYROLL' | 'DOCS' | 'LEAVE'>('ATTENDANCE');
   const [documents, setDocuments] = useState<EmployeeDocument[]>([]);
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [newDoc, setNewDoc] = useState({ title: '', notes: '' });
@@ -32,47 +32,52 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
     'July': 7, 'August': 8, 'September': 9, 'October': 10, 'November': 11, 'December': 12
   };
 
-  // --- 1. PROCESS ATTENDANCE (Deduplicate & Sort) ---
-  // We group raw logs by DATE to ensure one row per day with best status and correct IN/OUT times.
+  // --- 1. PROCESS ATTENDANCE (Strict Deduplication & Merging) ---
   const processedAttendanceMap = new Map<string, any>();
   const rawEmpAttendance = attendance.filter(a => a.employeeId === employee.id);
 
   rawEmpAttendance.forEach(record => {
-      const dateKey = record.date; // YYYY-MM-DD
+      // Use substring for safer, strictly string-based date grouping (YYYY-MM-DD)
+      const dateKey = record.date ? record.date.substring(0, 10) : '';
+      if (!dateKey) return;
+
       const existing = processedAttendanceMap.get(dateKey);
 
       if (!existing) {
-          processedAttendanceMap.set(dateKey, { ...record });
+          processedAttendanceMap.set(dateKey, { ...record, date: dateKey });
       } else {
-          // Merge Logic:
-          // Priority Status: PRESENT > LATE > ABSENT
+          // Merge Logic: Best Status & Widest Time Range
           let status = existing.status;
+          
+          // Priority: PRESENT > LATE > LEAVE > ABSENT
           if (record.status === 'PRESENT') status = 'PRESENT';
           else if (record.status === 'LATE' && status !== 'PRESENT') status = 'LATE';
+          else if (record.status === 'LEAVE' && status === 'ABSENT') status = 'LEAVE';
           
-          // Time Logic: Earliest Clock In, Latest Clock Out
-          const earliestIn = (record.clockIn && existing.clockIn) 
-              ? (new Date(record.clockIn) < new Date(existing.clockIn) ? record.clockIn : existing.clockIn)
-              : (record.clockIn || existing.clockIn);
-              
-          const latestOut = (record.clockOut && existing.clockOut)
-              ? (new Date(record.clockOut) > new Date(existing.clockOut) ? record.clockOut : existing.clockOut)
-              : (record.clockOut || existing.clockOut);
+          // Merge Times (Earliest IN, Latest OUT)
+          const getTs = (d: string | undefined) => d ? new Date(d).getTime() : null;
+          
+          const tIn = getTs(record.clockIn);
+          const eIn = getTs(existing.clockIn);
+          const bestIn = (tIn && eIn) ? Math.min(tIn, eIn) : (tIn || eIn);
+          
+          const tOut = getTs(record.clockOut);
+          const eOut = getTs(existing.clockOut);
+          const bestOut = (tOut && eOut) ? Math.max(tOut, eOut) : (tOut || eOut);
 
           processedAttendanceMap.set(dateKey, {
               ...existing,
               status,
-              clockIn: earliestIn,
-              clockOut: latestOut
+              clockIn: bestIn ? new Date(bestIn).toISOString() : null,
+              clockOut: bestOut ? new Date(bestOut).toISOString() : null
           });
       }
   });
 
-  // Convert map to array and sort descending by date
   const empAttendance = Array.from(processedAttendanceMap.values())
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   
-  // PAYROLL HISTORY - Fixed Sorting
+  // PAYROLL HISTORY
   const empPayrolls = payrolls
     .filter(p => p.employeeId === employee.id)
     .sort((a, b) => {
@@ -120,17 +125,27 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
   const standardHours = 300; 
   const hourlyRate = (employee.salary || 0) / standardHours;
   const accruedSalary = Math.floor(hoursWorkedThisMonth * hourlyRate);
-  
-  // Count paid months
   const paidMonthsCount = empPayrolls.filter(p => p.status === 'PAID').length;
+
+  // --- LEAVE & FRIDAY CALCULATION ---
+  const getFridaysCount = (year: number, month: number) => {
+      let count = 0;
+      const date = new Date(year, month, 1);
+      while (date.getMonth() === month) {
+          if (date.getDay() === 5) count++; // 5 is Friday
+          date.setDate(date.getDate() + 1);
+      }
+      return count;
+  };
+  const fridaysThisMonth = getFridaysCount(currentYear, currentMonth);
 
   // Calculate approved leaves days in current month
   const leavesThisMonth = leaves.filter(l => {
       const d = new Date(l.startDate);
-      return l.status === 'APPROVED' && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      return l.status === 'APPROVED' && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   });
   
-  const leaveDaysThisMonth = leavesThisMonth.reduce((acc, curr) => {
+  const leaveDaysCount = leavesThisMonth.reduce((acc, curr) => {
       const start = new Date(curr.startDate);
       const end = new Date(curr.endDate);
       const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
@@ -161,37 +176,50 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
       attEmoji = "📅";
   }
 
-  // Safe Date Formatting to avoid timezone shifts
+  // Safe Date Formatting
   const formatListDate = (dateStr: string) => {
       try {
           return new Date(dateStr).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' });
       } catch { return dateStr; }
   };
 
+  // Helper: Format Time Duration
+  const getDuration = (start?: string, end?: string) => {
+      if (!start || !end) return null;
+      const s = new Date(start).getTime();
+      const e = new Date(end).getTime();
+      const diffMs = e - s;
+      const hours = Math.floor(diffMs / (1000 * 60 * 60));
+      const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      return `${hours}h ${minutes}m`;
+  };
+
   const handleAddDocument = async () => {
     if (!newDoc.title) return;
-    const doc = await API.documents.save({ 
+    await API.documents.save({ 
         employeeId: employee.id, 
         title: newDoc.title, 
         type: 'NOTE', 
         notes: newDoc.notes,
         uploadDate: new Date().toISOString()
     });
-    setDocuments([...documents, doc]);
+    // refresh docs
+    API.documents.getAll(employee.id).then(setDocuments);
     setNewDoc({ title: '', notes: '' });
   };
 
   const handleRequestLeave = async () => {
     if (!newLeave.startDate || !newLeave.endDate) return;
-    const leave = await API.leaves.save({
+    await API.leaves.save({
         employeeId: employee.id,
         type: newLeave.type as any,
         startDate: newLeave.startDate,
         endDate: newLeave.endDate,
         reason: newLeave.reason,
-        status: 'APPROVED' // Auto approve for admin context
+        status: 'APPROVED'
     });
-    setLeaves([...leaves, leave]);
+    // refresh leaves
+    API.leaves.getAll().then(data => setLeaves(data.filter(l => l.employeeId === employee.id)));
     setNewLeave({ type: 'ANNUAL', startDate: '', endDate: '', reason: '' });
   };
 
@@ -273,12 +301,28 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                         <p className="text-xs font-bold mt-1 opacity-75">Heerka Joogitaanka (Score): {performanceScore}%</p>
                     </div>
 
+                    {/* Leave & Friday Summary in Attendance Tab */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-emerald-50 p-5 rounded-[2rem] border border-emerald-100 text-center">
+                            <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Jimcaha (Off Days)</p>
+                            <p className="text-2xl font-black text-emerald-800">{fridaysThisMonth} <span className="text-xs">Maalmood</span></p>
+                        </div>
+                        <div className="bg-amber-50 p-5 rounded-[2rem] border border-amber-100 text-center">
+                            <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest mb-1">Fasax la Qaatay (Leave)</p>
+                            <p className="text-2xl font-black text-amber-800">{leaveDaysCount} <span className="text-xs">Maalmood</span></p>
+                        </div>
+                    </div>
+
                     <div className="space-y-3">
                         <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest px-2">Diiwaanka Maalmihii Hore (History)</h3>
                         
                         {empAttendance.length > 0 ? (
                             empAttendance.map((a, index) => {
                                 const dateStr = formatListDate(a.date);
+                                // Calculate duration if clockOut exists
+                                const duration = getDuration(a.clockIn, a.clockOut);
+                                const isMissingOut = a.clockIn && !a.clockOut && a.status === 'PRESENT';
+
                                 // Simple header grouping logic
                                 const prev = empAttendance[index - 1];
                                 const showHeader = !prev || new Date(a.date).getMonth() !== new Date(prev.date).getMonth();
@@ -294,20 +338,30 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                                             </div>
                                         )}
                                         <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-100 hover:border-indigo-100 transition-all">
-                                            <div>
+                                            <div className="flex-1">
                                                 <p className="font-black text-slate-700">{dateStr}</p>
-                                                <div className="flex gap-3 text-[10px] font-bold text-slate-400 uppercase mt-1">
+                                                <div className="flex gap-4 text-[10px] font-bold text-slate-400 uppercase mt-1">
                                                     <span>IN: <span className="text-emerald-600">{a.clockIn ? new Date(a.clockIn).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', timeZone: 'UTC'}) : '--:--'}</span></span>
-                                                    <span>OUT: <span className="text-rose-600">{a.clockOut ? new Date(a.clockOut).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', timeZone: 'UTC'}) : '--:--'}</span></span>
+                                                    <span>OUT: <span className={a.clockOut ? "text-rose-600" : "text-amber-500"}>{a.clockOut ? new Date(a.clockOut).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', timeZone: 'UTC'}) : 'Pending'}</span></span>
                                                 </div>
                                             </div>
+                                            
+                                            {/* DURATION BADGE */}
+                                            {duration && (
+                                                <div className="mr-4 text-right">
+                                                    <span className="text-[9px] font-black text-slate-300 uppercase block tracking-widest">Duration</span>
+                                                    <span className="text-xs font-black text-indigo-600">{duration}</span>
+                                                </div>
+                                            )}
+
                                             <span className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ${
+                                                isMissingOut ? 'bg-amber-50 text-amber-600 animate-pulse' :
                                                 a.status==='PRESENT'?'bg-emerald-50 text-emerald-600':
                                                 a.status==='ABSENT'?'bg-rose-50 text-rose-600':
-                                                a.status==='LATE'?'bg-amber-50 text-amber-600':
-                                                'bg-indigo-50 text-indigo-600' // Leave
+                                                a.status==='LATE'?'bg-orange-50 text-orange-600':
+                                                'bg-indigo-50 text-indigo-600'
                                             }`}>
-                                                {a.status}
+                                                {isMissingOut ? 'No Clock-Out' : a.status}
                                             </span>
                                         </div>
                                     </React.Fragment>
