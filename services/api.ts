@@ -272,7 +272,16 @@ export const API = {
     async save(employee: Partial<Employee>): Promise<Employee> {
       const id = employee.id || crypto.randomUUID();
       const payload = { ...employee, id };
-      await cloudSave('employees', payload);
+      const result = await cloudSave('employees', payload);
+      
+      // Check for errors specifically for employee saving to handle duplicates
+      if (result && result.error) {
+        if (result.error === "Conflict/Duplicate Key" || (result.details && result.details.includes("duplicate key value"))) {
+           throw new Error("DUPLICATE_ID");
+        }
+        throw new Error(result.error);
+      }
+      
       return payload as Employee;
     },
     async delete(id: string): Promise<void> {

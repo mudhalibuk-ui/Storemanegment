@@ -83,7 +83,8 @@ def sync_users():
         device_users = conn.get_users()
         print(f"Found {len(device_users)} users on device.")
 
-        # 2. Get Existing Employees from Supabase
+        # 2. Get Existing Employees from Supabase (Fetch all for mapping)
+        # Note: Large tables might need pagination, but for < 1000 this works
         existing_emps_res = supabase.table('employees').select("id, employee_id_code, name").execute()
         existing_map = {e['employee_id_code']: e for e in existing_emps_res.data}
 
@@ -105,9 +106,15 @@ def sync_users():
                     "avatar": f"https://api.dicebear.com/7.x/avataaars/svg?seed={user_id_str}",
                     "salary": 0
                 }
-                supabase.table('employees').insert(new_emp).execute()
-                new_count += 1
-                print(f"Inserted: {device_name}")
+                try:
+                    supabase.table('employees').insert(new_emp).execute()
+                    new_count += 1
+                    print(f"Inserted: {device_name}")
+                except Exception as e:
+                    if "23505" in str(e) or "duplicate key" in str(e):
+                        print(f"Skipping duplicate ID {user_id_str} (Race Condition)")
+                    else:
+                        print(f"Insert Error for {user_id_str}: {e}")
             else:
                 # UPDATE EXISTING if name changed
                 current_db_emp = existing_map[user_id_str]

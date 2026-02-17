@@ -7,7 +7,7 @@ interface EmployeeFormProps {
   branches: Branch[];
   xarumo: Xarun[];
   editingEmployee: Employee | null;
-  onSave: (employee: Partial<Employee>) => void;
+  onSave: (employee: Partial<Employee>) => Promise<void>; // Updated signature to Promise
   onCancel: () => void;
 }
 
@@ -29,6 +29,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ branches, xarumo, editingEm
   });
 
   const [shifts, setShifts] = useState<Shift[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     API.shifts.getAll().then(setShifts);
@@ -46,13 +47,26 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ branches, xarumo, editingEm
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.employeeIdCode) {
       alert("Fadlan buuxi magaca iyo ID-ga shaqaalaha.");
       return;
     }
-    onSave(formData);
+    
+    setIsSaving(true);
+    try {
+      await onSave(formData);
+    } catch (err: any) {
+      console.error(err);
+      if (err.message === "DUPLICATE_ID") {
+        alert(`CILAD: ID-ga ${formData.employeeIdCode} horey ayuu u jiraa. Fadlan isticmaal ID kale.`);
+      } else {
+        alert("Cilad ayaa dhacday: " + err.message);
+      }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -158,8 +172,12 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ branches, xarumo, editingEm
 
           <div className="flex gap-4 pt-4 border-t border-slate-100">
              <button type="button" onClick={onCancel} className="flex-1 py-4 bg-white border-2 border-slate-100 text-slate-400 font-black rounded-2xl uppercase text-[10px] tracking-widest hover:bg-slate-50 transition-all">Jooji</button>
-             <button type="submit" className="flex-[2] py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl uppercase text-[10px] tracking-widest hover:bg-indigo-700 transition-all">
-               {editingEmployee ? 'Keydi Isbedelka' : 'Diiwaangali Shaqaalaha'}
+             <button 
+               type="submit" 
+               disabled={isSaving}
+               className="flex-[2] py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl uppercase text-[10px] tracking-widest hover:bg-indigo-700 transition-all disabled:opacity-50"
+             >
+               {isSaving ? 'Keydinaya...' : (editingEmployee ? 'Keydi Isbedelka' : 'Diiwaangali Shaqaalaha')}
              </button>
           </div>
         </form>
