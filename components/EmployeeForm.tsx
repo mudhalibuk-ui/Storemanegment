@@ -30,6 +30,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ branches, xarumo, editingEm
 
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [conflictUser, setConflictUser] = useState<Employee | null>(null);
 
   useEffect(() => {
     API.shifts.getAll().then(setShifts);
@@ -47,8 +48,33 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ branches, xarumo, editingEm
     }));
   };
 
+  const handleClaimId = async () => {
+    if (!conflictUser || !formData.employeeIdCode) return;
+    
+    if (!confirm(`Ma hubtaa inaad kala wareegto ID-ga ${formData.employeeIdCode}?\n\n- ${conflictUser.name} wuxuu qaadan doonaa ID cusub.\n- ${formData.name} wuxuu qaadan doonaa ID ${formData.employeeIdCode}.`)) return;
+
+    setIsSaving(true);
+    try {
+        // 1. Change Conflict User's ID to something else
+        const tempId = `${conflictUser.employeeIdCode}_OLD_${Math.floor(Math.random()*1000)}`;
+        await API.employees.save({ ...conflictUser, employeeIdCode: tempId });
+        
+        // 2. Save Current User with the Desired ID
+        await API.employees.save(formData);
+        
+        alert("✅ Guul: ID-ga waa la kala wareejiyay. Fadlan riix 'Sync Users' si aaladda loo saxo.");
+        onCancel(); // Close form
+    } catch (e: any) {
+        alert("Cilad: " + e.message);
+    } finally {
+        setIsSaving(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setConflictUser(null);
+
     if (!formData.name || !formData.employeeIdCode) {
       alert("Fadlan buuxi magaca iyo ID-ga shaqaalaha.");
       return;
@@ -60,7 +86,13 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ branches, xarumo, editingEm
     } catch (err: any) {
       console.error(err);
       if (err.message === "DUPLICATE_ID") {
-        alert(`CILAD: ID-ga ${formData.employeeIdCode} horey ayuu u jiraa. Fadlan isticmaal ID kale.`);
+        // Fetch the user who has this ID
+        const existing = await API.employees.getByCode(formData.employeeIdCode || '');
+        if (existing) {
+            setConflictUser(existing);
+        } else {
+            alert(`CILAD: ID-ga ${formData.employeeIdCode} horey ayuu u jiraa, laakiin ma helin xogta qofka heysta.`);
+        }
       } else {
         alert("Cilad ayaa dhacday: " + err.message);
       }
@@ -87,6 +119,45 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ branches, xarumo, editingEm
         
         <form onSubmit={handleSubmit} className="p-8 space-y-6 overflow-y-auto no-scrollbar">
           
+          {/* CONFLICT RESOLUTION ALERT */}
+          {conflictUser && (
+              <div className="bg-rose-50 border-2 border-rose-100 p-6 rounded-3xl animate-in slide-in-from-top-4">
+                  <div className="flex items-start gap-4">
+                      <span className="text-3xl">⚠️</span>
+                      <div>
+                          <h3 className="text-rose-700 font-black text-lg">Cilad: ID-gan waa la isticmaalay!</h3>
+                          <p className="text-rose-600 text-sm mt-1">
+                              ID-ga <strong>{formData.employeeIdCode}</strong> waxaa hadda heysta shaqaale kale oo la yiraahdo:
+                          </p>
+                          <div className="bg-white p-3 rounded-xl border border-rose-100 mt-3 flex items-center gap-3">
+                              <img src={conflictUser.avatar} className="w-10 h-10 rounded-full" alt="" />
+                              <div>
+                                  <p className="font-black text-slate-800">{conflictUser.name}</p>
+                                  <p className="text-xs text-slate-500">{conflictUser.position}</p>
+                              </div>
+                          </div>
+                          
+                          <div className="mt-4 flex gap-3">
+                              <button 
+                                type="button" 
+                                onClick={handleClaimId}
+                                className="bg-rose-600 text-white px-6 py-3 rounded-xl font-black text-xs uppercase hover:bg-rose-700 transition-all shadow-lg"
+                              >
+                                  Kala Wareeg ID-ga (Swap)
+                              </button>
+                              <button 
+                                type="button" 
+                                onClick={() => setConflictUser(null)}
+                                className="bg-white text-rose-600 border border-rose-200 px-6 py-3 rounded-xl font-black text-xs uppercase hover:bg-rose-50 transition-all"
+                              >
+                                  Iska Dhaaf
+                              </button>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+          )}
+
           <div className="flex flex-col md:flex-row gap-6 items-center bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
              <img src={formData.avatar} className="w-24 h-24 rounded-[2rem] bg-white shadow-sm border-4 border-white object-cover" alt="Preview" />
              <div className="flex-1">

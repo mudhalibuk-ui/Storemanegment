@@ -269,12 +269,25 @@ export const API = {
         department: e.department, phone: e.phone, email: e.email, shiftId: e.shift_id
       }));
     },
+    // New function to find employee by ZK Code
+    async getByCode(code: string): Promise<Employee | null> {
+        const data = await supabaseFetch(`employees?select=*&employee_id_code=eq.${code}`);
+        if (Array.isArray(data) && data.length > 0) {
+            const e = data[0];
+            return {
+                id: e.id, name: e.name, employeeIdCode: e.employee_id_code, position: e.position,
+                status: e.status, joinedDate: e.joined_date, xarunId: e.xarun_id, branchId: e.branch_id,
+                salary: Number(e.salary || 0), avatar: e.avatar, fingerprintHash: e.fingerprint_hash,
+                department: e.department, phone: e.phone, email: e.email, shiftId: e.shift_id
+            };
+        }
+        return null;
+    },
     async save(employee: Partial<Employee>): Promise<Employee> {
       const id = employee.id || crypto.randomUUID();
       const payload = { ...employee, id };
       const result = await cloudSave('employees', payload);
       
-      // Check for errors specifically for employee saving to handle duplicates
       if (result && result.error) {
         if (result.error === "Conflict/Duplicate Key" || (result.details && result.details.includes("duplicate key value"))) {
            throw new Error("DUPLICATE_ID");

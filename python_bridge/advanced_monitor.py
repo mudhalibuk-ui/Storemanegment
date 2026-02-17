@@ -16,8 +16,6 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 # --- PATH SETUP (CRITICAL FIX FOR EXE) ---
-# When running as EXE, sys.executable is the path to the exe file.
-# We must look for .env next to the EXE, not inside the temp _MEI folder.
 if getattr(sys, 'frozen', False):
     base_dir = Path(sys.executable).parent
 else:
@@ -107,9 +105,78 @@ def manual_absent_check():
     threading.Thread(target=run_auto_absent_check).start()
     return jsonify({"message": "Absent check started.", "status": "running"})
 
+# --- NEW: SYNC ENDPOINTS (Matches app.py for UI Compatibility) ---
+@app.route('/sync-users', methods=['POST'])
+def api_sync_users():
+    data = request.json or {}
+    ip = data.get('ip')
+    port = int(data.get('port', 4370))
+    xarun_id = data.get('default_xarun_id')
+    
+    if not ip: return jsonify({"error": "IP required"}), 400
+    
+    # Run in background to not block
+    threading.Thread(target=run_manual_user_sync, args=(ip, port, xarun_id)).start()
+    return jsonify({"success": True, "message": "User sync started in background."})
+
+@app.route('/sync-logs', methods=['POST'])
+def api_sync_logs():
+    data = request.json or {}
+    ip = data.get('ip')
+    port = int(data.get('port', 4370))
+    
+    if not ip: return jsonify({"error": "IP required"}), 400
+
+    # Run in background
+    threading.Thread(target=run_manual_log_sync, args=(ip, port)).start()
+    return jsonify({"success": True, "message": "Log sync started in background."})
+
+# --- MANUAL SYNC FUNCTIONS ---
+def run_manual_user_sync(ip, port, xarun_id):
+    logging.info(f"🔄 Manual User Sync Request for {ip}...")
+    device_locks[ip] = True # Pause monitoring
+    conn = None
+    try:
+        zk = ZK(ip, port=port, timeout=20, force_udp=False, ommit_ping=True)
+        conn = zk.connect()
+        conn.disable_device()
+        sync_device_users(conn, {'xarun_id': xarun_id, 'name': 'Manual Sync', 'ip_address': ip})
+        conn.enable_device()
+        logging.info("✅ Manual User Sync Completed.")
+    except Exception as e:
+        logging.error(f"Manual Sync Error: {e}")
+    finally:
+        if conn: conn.disconnect()
+        device_locks[ip] = False # Resume monitoring
+
+def run_manual_log_sync(ip, port):
+    logging.info(f"🔄 Manual Log Sync Request for {ip}...")
+    device_locks[ip] = True
+    conn = None
+    try:
+        zk = ZK(ip, port=port, timeout=20, force_udp=False, ommit_ping=True)
+        conn = zk.connect()
+        conn.disable_device()
+        
+        logs = conn.get_attendance()
+        logging.info(f"📥 Downloaded {len(logs)} logs from device.")
+        
+        count = 0
+        for log in logs:
+            if push_attendance(log.user_id, log.timestamp, {'name': 'Manual Sync', 'ip_address': ip}):
+                count += 1
+        
+        logging.info(f"✅ Manual Log Sync: Processed {len(logs)}, Inserted/Updated {count}.")
+        conn.enable_device()
+    except Exception as e:
+        logging.error(f"Manual Log Sync Error: {e}")
+    finally:
+        if conn: conn.disconnect()
+        device_locks[ip] = False
+
 # --- ATTENDANCE LOGIC (SMART IN/OUT) ---
 def push_attendance(user_id, timestamp, device_info):
-    if not supabase: return
+    if not supabase: return False
     
     zk_id = str(user_id)
     
@@ -131,10 +198,20 @@ def push_attendance(user_id, timestamp, device_info):
                 "salary": 0
             }).execute()
             refresh_employee_cache()
-        except: pass
+            logging.info(f"🆕 Auto-registered new user: {zk_id}")
+        except Exception as e:
+            # Handle Race Condition / Duplicate Key
+            if "23505" in str(e) or "duplicate key" in str(e):
+                logging.warning(f"⚠️ User {zk_id} exists in DB but not in cache. Refreshing cache.")
+                refresh_employee_cache()
+            else:
+                logging.error(f"❌ Failed to auto-register {zk_id}: {e}")
+                return False
 
     emp = employee_cache.get(zk_id)
-    if not emp: return
+    if not emp: 
+        logging.error(f"❌ Could not resolve employee {zk_id}")
+        return False
 
     date_str = timestamp.strftime("%Y-%m-%d")
     iso_time = timestamp.isoformat()
@@ -169,19 +246,25 @@ def push_attendance(user_id, timestamp, device_info):
             }
             supabase.table('attendance').insert(data).execute()
             logging.info(f"✅ CLOCK IN: {emp['name']} ({zk_id}) at {timestamp.strftime('%H:%M')}")
+            return True
 
         else:
             # === CLOCK OUT (Update Last Scan) ===
             record = existing.data[0]
             record_id = record['id']
             
+            # Prevent rapid duplicate scans (debounce 2 mins)
             last_action_time = record.get('clock_out') or record.get('clock_in')
             if last_action_time:
                 try:
                     last_dt = datetime.fromisoformat(last_action_time.replace('Z', '+00:00'))
-                    time_diff = (timestamp - last_dt.replace(tzinfo=None)).total_seconds()
+                    # make timestamp aware if needed, or naive
+                    ts_naive = timestamp.replace(tzinfo=None)
+                    last_naive = last_dt.replace(tzinfo=None)
+                    time_diff = (ts_naive - last_naive).total_seconds()
+                    
                     if time_diff < 120: 
-                        return 
+                        return False
                 except: pass
 
             update_payload = {
@@ -190,9 +273,11 @@ def push_attendance(user_id, timestamp, device_info):
             
             supabase.table('attendance').update(update_payload).eq('id', record_id).execute()
             logging.info(f"👋 CLOCK OUT Updated: {emp['name']} at {timestamp.strftime('%H:%M')}")
+            return True
 
     except Exception as e:
         logging.error(f"DB Error processing attendance: {e}")
+        return False
 
 def refresh_employee_cache():
     if not supabase: return
@@ -232,23 +317,35 @@ def sync_device_users(conn, device_info):
             
             if raw_id in existing_map:
                 db_emp = existing_map[raw_id]
+                # Update name if device has a name and DB has placeholder
                 if raw_name and ("Staff" in db_emp['name'] or "Worker" in db_emp['name'] or not db_emp['name']):
-                    supabase.table('employees').update({"name": raw_name}).eq("id", db_emp['id']).execute()
-                    updates_count += 1
+                    try:
+                        supabase.table('employees').update({"name": raw_name}).eq("id", db_emp['id']).execute()
+                        updates_count += 1
+                    except Exception as e:
+                        logging.error(f"Error updating user {raw_id}: {e}")
             else:
                 display_name = raw_name if raw_name else f"Staff {raw_id}"
-                supabase.table('employees').insert({
-                    "id": str(uuid.uuid4()),
-                    "name": display_name,
-                    "employee_id_code": raw_id,
-                    "position": "STAFF",
-                    "status": "ACTIVE",
-                    "joined_date": datetime.now().strftime("%Y-%m-%d"),
-                    "xarun_id": xarun_id,
-                    "salary": 0,
-                    "avatar": f"https://api.dicebear.com/7.x/avataaars/svg?seed={raw_id}"
-                }).execute()
-                new_count += 1
+                
+                try:
+                    supabase.table('employees').insert({
+                        "id": str(uuid.uuid4()),
+                        "name": display_name,
+                        "employee_id_code": raw_id,
+                        "position": "STAFF",
+                        "status": "ACTIVE",
+                        "joined_date": datetime.now().strftime("%Y-%m-%d"),
+                        "xarun_id": xarun_id,
+                        "salary": 0,
+                        "avatar": f"https://api.dicebear.com/7.x/avataaars/svg?seed={raw_id}"
+                    }).execute()
+                    new_count += 1
+                except Exception as e:
+                    # Handle duplicate key if race condition occurred
+                    if "23505" in str(e) or "duplicate key" in str(e):
+                        logging.warning(f"⚠️ Skipping duplicate user insert for {raw_id}")
+                    else:
+                        logging.error(f"❌ Failed to insert user {raw_id}: {e}")
         
         if new_count > 0 or updates_count > 0:
             logging.info(f"✅ Sync: {new_count} New Users, {updates_count} Names Updated.")
@@ -348,7 +445,7 @@ def main():
     schedule.every().day.at("09:30").do(run_auto_absent_check)
     schedule.every(30).seconds.do(start_monitors)
     
-    # Run API
+    # Run API on port 5050 to match React App config
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5050, debug=False, use_reloader=False), daemon=True).start()
 
     while True: 
