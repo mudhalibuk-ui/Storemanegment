@@ -1,19 +1,21 @@
 
 import React, { useState, useEffect } from 'react';
-import { InventoryItem, Branch, TransactionType } from '../types';
+import { InventoryItem, Branch, TransactionType, UserRole } from '../types';
 import { formatPlacement, numberToLetter } from '../services/mappingUtils';
 
 interface StockAdjustmentModalProps {
   item: InventoryItem;
   branches: Branch[];
   type: TransactionType.IN | TransactionType.OUT;
+  userRole: UserRole;
   onSave: (data: { qty: number; notes: string; personnel: string; source: string; placement: string; branchId: string; shelf?: number; section?: number }) => void;
   onCancel: () => void;
 }
 
-const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branches, type, onSave, onCancel }) => {
+const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branches, type, userRole, onSave, onCancel }) => {
   const isOut = type === TransactionType.OUT;
   const isIn = type === TransactionType.IN;
+  const isPrivileged = userRole === UserRole.SUPER_ADMIN || userRole === UserRole.MANAGER;
   
   const currentPlacement = formatPlacement(item.shelves, item.sections);
   
@@ -100,7 +102,7 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 space-y-6 overflow-y-auto no-scrollbar">
-          {isOut && (
+          {isOut && !isPrivileged && (
             <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start gap-3">
               <span className="text-xl">🛡️</span>
               <p className="text-[10px] font-bold text-amber-700 uppercase leading-relaxed">
@@ -193,7 +195,7 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
           <div className="pt-4 flex gap-4">
              <button type="button" onClick={onCancel} className="flex-1 py-5 bg-slate-100 text-slate-500 font-black rounded-3xl hover:bg-slate-200 transition-all active:scale-95 uppercase text-[10px] tracking-widest">Jooji</button>
              <button type="submit" className={`flex-[2] py-5 ${buttonBg} ${buttonHover} text-white font-black rounded-3xl shadow-2xl ${shadowColor} transition-all active:scale-95 uppercase text-[10px] tracking-widest`}>
-               {isOut ? 'DIR CODSIGA ➔' : 'HUBI STOCK IN'}
+               {isOut && !isPrivileged ? 'DIR CODSIGA ➔' : (isOut ? 'HUBI STOCK OUT' : 'HUBI STOCK IN')}
              </button>
           </div>
         </form>

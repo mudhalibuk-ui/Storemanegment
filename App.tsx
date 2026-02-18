@@ -326,16 +326,17 @@ const App: React.FC = () => {
         <StockAdjustmentModal 
           item={adjustmentModal.item} 
           branches={branches} 
-          type={adjustmentModal.type} 
+          type={adjustmentModal.type}
+          userRole={user.role} // Pass prop
           onSave={async (data) => { 
             const type = adjustmentModal.type;
             const item = adjustmentModal.item;
             
-            // IF OUT, must be PENDING for admin approval
-            const status = type === TransactionType.OUT ? TransactionStatus.PENDING : TransactionStatus.APPROVED;
+            // Logic for status: IF OUT and NOT privileged, must be PENDING. Otherwise APPROVED.
+            const isPrivileged = user.role === UserRole.SUPER_ADMIN || user.role === UserRole.MANAGER;
+            const status = (type === TransactionType.OUT && !isPrivileged) ? TransactionStatus.PENDING : TransactionStatus.APPROVED;
             
             // CRITICAL FIX: Ensure XarunID is retrieved from the BRANCH, not just the user.
-            // This ensures Admins see requests even if the Staff user profile has missing xarunId.
             const targetBranch = branches.find(b => b.id === data.branchId);
             const validXarunId = targetBranch?.xarunId || user.xarunId || '';
 
@@ -353,10 +354,23 @@ const App: React.FC = () => {
               xarunId: validXarunId // Uses Branch Xarun ID to ensure visibility
             });
 
-            // Only update stock immediately if it's an IN move
-            if (type === TransactionType.IN) {
-                await API.items.save({ ...item, quantity: item.quantity + data.qty, shelves: data.shelf || item.shelves, sections: data.section || item.sections });
-                setReceiptTransaction(trans);
+            // If Approved (IN always approved, OUT approved for Admin), update stock
+            if (status === TransactionStatus.APPROVED) {
+                let newQty = item.quantity;
+                if (type === TransactionType.IN) {
+                    newQty = item.quantity + data.qty;
+                } else if (type === TransactionType.OUT) {
+                    newQty = item.quantity - data.qty;
+                }
+
+                const updatePayload: any = { ...item, quantity: newQty };
+                if (type === TransactionType.IN) {
+                    updatePayload.shelves = data.shelf || item.shelves;
+                    updatePayload.sections = data.section || item.sections;
+                }
+                
+                await API.items.save(updatePayload);
+                setReceiptTransaction(trans); // Show receipt
             } else {
                 alert("Codsiga bixinta waa la diray. Sug ogolaanshaha Admin-ka.");
             }
@@ -417,20 +431,29 @@ const App: React.FC = () => {
           // FIX: Get correct xarunId from the selected branch for bulk ops
           const targetBranch = branches.find(b => b.id === data.branchId);
           const validXarunId = targetBranch?.xarunId || user.xarunId || '';
+          const isPrivileged = user.role === UserRole.SUPER_ADMIN || user.role === UserRole.MANAGER;
 
           for (const row of data.items) {
               const item = items.find(i => i.id === row.itemId);
               if (item) {
-                const status = type === TransactionType.OUT ? TransactionStatus.PENDING : TransactionStatus.APPROVED;
+                const status = (type === TransactionType.OUT && !isPrivileged) ? TransactionStatus.PENDING : TransactionStatus.APPROVED;
+                
                 await API.transactions.create({
                   itemId: item.id, itemName: item.name, type: type, quantity: row.qty, branchId: data.branchId, 
                   personnel: data.personnel, originOrSource: data.source, notes: data.notes, status: status, 
                   requestedBy: user.id, xarunId: validXarunId
                 });
-                if (type === TransactionType.IN) await API.items.save({ ...item, quantity: item.quantity + row.qty });
+                
+                if (status === TransactionStatus.APPROVED) {
+                    let newQty = item.quantity;
+                    if (type === TransactionType.IN) newQty += row.qty;
+                    else if (type === TransactionType.OUT) newQty -= row.qty;
+                    await API.items.save({ ...item, quantity: newQty });
+                }
               }
           }
-          setIsBulkModalOpen(false); refreshAllData(true); alert(type === TransactionType.OUT ? "Bulk OUT requests sent for approval!" : "Bulk IN Processed!");
+          setIsBulkModalOpen(false); refreshAllData(true); 
+          alert(type === TransactionType.OUT && !isPrivileged ? "Bulk OUT requests sent for approval!" : "Bulk Operation Processed!");
       }} onCancel={() => setIsBulkModalOpen(false)} />}
     </Layout>
   );
