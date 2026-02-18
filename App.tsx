@@ -92,8 +92,6 @@ const App: React.FC = () => {
   });
 
   // Calculate Hardware URL dynamically based on current browser location
-  // This allows mobiles to access the PC's Python service if on same WiFi
-  // Updated Port to 5050 to avoid conflicts
   const getHardwareUrl = () => {
     try {
       const hostname = window.location.hostname;
@@ -336,6 +334,11 @@ const App: React.FC = () => {
             // IF OUT, must be PENDING for admin approval
             const status = type === TransactionType.OUT ? TransactionStatus.PENDING : TransactionStatus.APPROVED;
             
+            // CRITICAL FIX: Ensure XarunID is retrieved from the BRANCH, not just the user.
+            // This ensures Admins see requests even if the Staff user profile has missing xarunId.
+            const targetBranch = branches.find(b => b.id === data.branchId);
+            const validXarunId = targetBranch?.xarunId || user.xarunId || '';
+
             const trans = await API.transactions.create({
               itemId: item.id,
               itemName: item.name,
@@ -347,7 +350,7 @@ const App: React.FC = () => {
               placementInfo: data.placement,
               status: status,
               requestedBy: user.id,
-              xarunId: user.xarunId || ''
+              xarunId: validXarunId // Uses Branch Xarun ID to ensure visibility
             });
 
             // Only update stock immediately if it's an IN move
@@ -359,7 +362,7 @@ const App: React.FC = () => {
             }
 
             setAdjustmentModal(null); 
-            refreshAllData(); 
+            refreshAllData(true); // Force update to show new request in queues if visible
           }} 
           onCancel={() => setAdjustmentModal(null)} 
         />
@@ -372,6 +375,10 @@ const App: React.FC = () => {
           onCancel={() => setTransferModalItem(null)} 
           onTransfer={async (data) => {
             const item = transferModalItem;
+            // FIX: Get correct xarunId from source branch
+            const sourceBranch = branches.find(b => b.id === item.branchId);
+            const validXarunId = sourceBranch?.xarunId || user.xarunId || '';
+
             const trans = await API.transactions.create({
               itemId: item.id,
               itemName: item.name,
@@ -385,10 +392,10 @@ const App: React.FC = () => {
               notes: data.notes,
               status: TransactionStatus.PENDING,
               requestedBy: user.id,
-              xarunId: user.xarunId || ''
+              xarunId: validXarunId
             });
             setTransferModalItem(null);
-            refreshAllData();
+            refreshAllData(true);
             alert("Transfer request sent for approval!");
           }}
         />
@@ -407,6 +414,10 @@ const App: React.FC = () => {
       {historyModalItem && <ItemMovementHistoryModal item={historyModalItem} transactions={transactions} branches={branches} onClose={() => setHistoryModalItem(null)} />}
       {isImportModalOpen && <ImportModal branches={branches} userXarunId={user.xarunId} onImport={async (newItems) => { const success = await API.items.bulkSave(newItems); if (success) { setIsImportModalOpen(false); refreshAllData(); } return success; }} onCancel={() => setIsImportModalOpen(false)} />}
       {isBulkModalOpen && <BulkTransactionModal items={items} branches={branches} onSave={async (type, data) => { 
+          // FIX: Get correct xarunId from the selected branch for bulk ops
+          const targetBranch = branches.find(b => b.id === data.branchId);
+          const validXarunId = targetBranch?.xarunId || user.xarunId || '';
+
           for (const row of data.items) {
               const item = items.find(i => i.id === row.itemId);
               if (item) {
@@ -414,12 +425,12 @@ const App: React.FC = () => {
                 await API.transactions.create({
                   itemId: item.id, itemName: item.name, type: type, quantity: row.qty, branchId: data.branchId, 
                   personnel: data.personnel, originOrSource: data.source, notes: data.notes, status: status, 
-                  requestedBy: user.id, xarunId: user.xarunId || ''
+                  requestedBy: user.id, xarunId: validXarunId
                 });
                 if (type === TransactionType.IN) await API.items.save({ ...item, quantity: item.quantity + row.qty });
               }
           }
-          setIsBulkModalOpen(false); refreshAllData(); alert(type === TransactionType.OUT ? "Bulk OUT requests sent for approval!" : "Bulk IN Processed!");
+          setIsBulkModalOpen(false); refreshAllData(true); alert(type === TransactionType.OUT ? "Bulk OUT requests sent for approval!" : "Bulk IN Processed!");
       }} onCancel={() => setIsBulkModalOpen(false)} />}
     </Layout>
   );
