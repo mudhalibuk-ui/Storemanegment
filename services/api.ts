@@ -1,5 +1,5 @@
 
-import { InventoryItem, Transaction, Branch, User, TransactionStatus, Xarun, UserRole, TransactionType, Employee, Attendance, Payroll, Device, Shift, LeaveRequest, EmployeeDocument } from '../types';
+import { InventoryItem, Transaction, Branch, User, TransactionStatus, Xarun, UserRole, TransactionType, Employee, Attendance, Payroll, Device, Shift, LeaveRequest, EmployeeDocument, XarunOrderRequest } from '../types';
 import { supabaseFetch, isDbConnected } from './supabaseClient';
 
 const FIELD_MAPPING: Record<string, string> = {
@@ -37,14 +37,13 @@ const FIELD_MAPPING: Record<string, string> = {
   endTime: 'end_time',
   lateThreshold: 'late_threshold',
   consecutiveAbsences: 'consecutive_absences',
-  isWarningDismissed: 'is_warning_dismissed',
-  sessionToken: 'session_token'
+  isWarningDismissed: 'is_warning_dismissed'
 };
 
-const toSnakeCase = (obj: any) => {
+const toSnakeCase = (obj: any): any => {
   if (Array.isArray(obj)) return obj.map(item => toSnakeCase(item));
   if (obj === null || typeof obj !== 'object') return obj;
-  const newObj: any = {};
+  const newObj: Record<string, any> = {};
   for (let key in obj) {
     const snakeKey = FIELD_MAPPING[key] || key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
     newObj[snakeKey] = obj[key];
@@ -400,6 +399,30 @@ export const API = {
       const payload = { ...doc, id };
       await cloudSave('employee_documents', payload);
       return payload as EmployeeDocument;
+    }
+  },
+
+  xarunOrders: {
+    async getAll(xarunId?: string): Promise<XarunOrderRequest[]> {
+      const query = xarunId ? `target_xarun_id=eq.${xarunId}|source_xarun_id=eq.${xarunId}` : '';
+      const data = await fetchAllPages('xarun_orders', query, 'created_at');
+      return data.map((o: any) => ({
+        id: o.id, sourceXarunId: o.source_xarun_id, targetXarunId: o.target_xarun_id,
+        requestedBy: o.requested_by, items: o.items, status: o.status, notes: o.notes,
+        createdAt: o.created_at, approvedBy: o.approved_by, targetBranchId: o.target_branch_id
+      }));
+    },
+    async create(order: Partial<XarunOrderRequest>): Promise<XarunOrderRequest> {
+      const id = crypto.randomUUID();
+      const payload = { ...order, id, createdAt: new Date().toISOString() };
+      await cloudSave('xarun_orders', payload);
+      return payload as XarunOrderRequest;
+    },
+    async update(id: string, updates: Partial<XarunOrderRequest>): Promise<void> {
+      await supabaseFetch(`xarun_orders?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(toSnakeCase(updates)) });
+    },
+    async delete(id: string): Promise<void> {
+      await supabaseFetch(`xarun_orders?id=eq.${id}`, { method: 'DELETE' });
     }
   }
 };

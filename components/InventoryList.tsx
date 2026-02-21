@@ -17,11 +17,10 @@ interface InventoryListProps {
   onRefresh?: () => void; 
   onDeleteAll?: () => void;
   onDelete?: (id: string) => void;
-  onCrossXarunOrder?: () => void;
 }
 
 const InventoryList: React.FC<InventoryListProps> = ({ 
-  user, items, branches, onAdd, onImport, onBulkAction, onEdit, onTransaction, onViewHistory, onRefresh, onDeleteAll, onDelete, onCrossXarunOrder
+  user, items, branches, onAdd, onImport, onBulkAction, onEdit, onTransaction, onViewHistory, onRefresh, onDeleteAll, onDelete
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [branchFilter, setBranchFilter] = useState('all');
@@ -138,14 +137,6 @@ const InventoryList: React.FC<InventoryListProps> = ({
               >
                 🚀 BULK ACTION
               </button>
-              {onCrossXarunOrder && (
-                <button 
-                  onClick={onCrossXarunOrder}
-                  className="bg-amber-500 text-white px-6 md:px-8 py-3 md:py-4 rounded-xl md:rounded-2xl font-black text-[9px] md:text-[11px] uppercase tracking-[0.1em] shadow-lg shadow-amber-100 flex items-center gap-3 active:scale-95 transition-all"
-                >
-                  🌍 ORDER FROM XARUN
-                </button>
-              )}
               <button 
                 onClick={onAdd}
                 className="bg-[#1e293b] text-white px-6 md:px-8 py-3 md:py-4 rounded-xl md:rounded-2xl font-black text-[9px] md:text-[11px] uppercase tracking-[0.1em] shadow-lg flex items-center gap-3 active:scale-95 transition-all"

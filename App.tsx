@@ -23,7 +23,7 @@ import BulkTransactionModal from './components/BulkTransactionModal';
 import ApprovalQueue from './components/ApprovalQueue';
 import TransactionReceipt from './components/TransactionReceipt';
 import BulkTransactionReceipt from './components/BulkTransactionReceipt';
-import CrossXarunOrderModal from './components/CrossXarunOrderModal';
+import CrossXarunOrderHub from './components/CrossXarunOrderHub';
 
 // HRM Imports
 import HRMEmployeeManagement from './components/HRMEmployeeManagement';
@@ -33,7 +33,7 @@ import HRMReports from './components/HRMReports';
 import EmployeeForm from './components/EmployeeForm';
 
 import { API } from './services/api';
-import { InventoryItem, Branch, Transaction, User, TransactionStatus, TransactionType, SystemSettings, UserRole, Xarun, Employee, Attendance, Payroll } from './types';
+import { InventoryItem, Branch, Transaction, User, TransactionStatus, TransactionType, SystemSettings, UserRole, Xarun, Employee, Attendance, Payroll, XarunOrderRequest, XarunOrderItem } from './types';
 import { getInventoryInsights } from './services/geminiService';
 import { formatPlacement } from './services/mappingUtils';
 
@@ -73,9 +73,9 @@ const App: React.FC = () => {
   const [historyModalItem, setHistoryModalItem] = useState<InventoryItem | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
-  const [isCrossXarunModalOpen, setIsCrossXarunModalOpen] = useState(false);
   const [receiptTransaction, setReceiptTransaction] = useState<Transaction | null>(null);
   const [bulkReceiptData, setBulkReceiptData] = useState<{ transactions: Transaction[], type: TransactionType, branch: Branch | undefined, personnel: string, date: string } | null>(null);
+  const [xarunOrders, setXarunOrders] = useState<XarunOrderRequest[]>([]);
 
   const [settings, setSettings] = useState<SystemSettings>(() => {
     const saved = localStorage.getItem('smartstock_settings');
@@ -114,7 +114,7 @@ const App: React.FC = () => {
     const xarunIdFilter = user.role === UserRole.SUPER_ADMIN ? undefined : user.xarunId;
     
     try {
-      const [fXarumo, fItems, fBranches, fTransactions, fUsers, fEmployees, fPayrolls, fAttendance] = await Promise.all([
+      const [fXarumo, fItems, fBranches, fTransactions, fUsers, fEmployees, fPayrolls, fAttendance, fXarunOrders] = await Promise.all([
         API.xarumo.getAll(),
         API.items.getAll(xarunIdFilter),
         API.branches.getAll(xarunIdFilter),
@@ -122,7 +122,8 @@ const App: React.FC = () => {
         API.users.getAll(),
         API.employees.getAll(xarunIdFilter),
         API.payroll.getAll(),
-        API.attendance.getAll()
+        API.attendance.getAll(),
+        API.xarunOrders.getAll(xarunIdFilter)
       ]);
 
       setXarumo(fXarumo || []);
@@ -133,6 +134,7 @@ const App: React.FC = () => {
       setEmployees(fEmployees || []);
       setPayrolls(fPayrolls || []);
       setAttendance(fAttendance || []);
+      setXarunOrders(fXarunOrders || []);
 
       if (fItems && fItems.length > 0 && !isBackground && activeTab === 'dashboard') {
         getInventoryInsights(fItems, fTransactions || [])
@@ -202,7 +204,6 @@ const App: React.FC = () => {
           onAdd={() => { setEditingItem(null); setIsItemFormOpen(true); }} 
           onImport={() => setIsImportModalOpen(true)} 
           onBulkAction={() => setIsBulkModalOpen(true)} 
-          onCrossXarunOrder={() => setIsCrossXarunModalOpen(true)}
           onEdit={(item) => { setEditingItem(item); setIsItemFormOpen(true); }} 
           onDelete={async (id) => { 
             const itemToDelete = items.find(i => i.id === id);
@@ -238,6 +239,18 @@ const App: React.FC = () => {
 
       {activeTab === 'transactions' && <TransactionHistory transactions={transactions} branches={branches} items={items} onRefresh={refreshAllData} />}
       {activeTab === 'map' && <WarehouseMap items={items} branches={branches} />}
+
+      {activeTab === 'xarun-orders' && (
+        <CrossXarunOrderHub 
+          user={user}
+          xarumo={xarumo}
+          myBranches={branches}
+          xarunOrders={xarunOrders}
+          onRefresh={() => refreshAllData(true)}
+          onUpdateOrder={async (orderId: string, updates: Partial<XarunOrderRequest>) => { await API.xarunOrders.update(orderId, updates); refreshAllData(true); }}
+          onDeleteOrder={async (orderId: string) => { await API.xarunOrders.delete(orderId); refreshAllData(true); }}
+        />
+      )}
 
       {activeTab === 'procurement' && (
         <LogisticsProcurement 
@@ -327,15 +340,7 @@ const App: React.FC = () => {
       {isItemFormOpen && <InventoryForm branches={branches} editingItem={editingItem} onSave={async (item) => { await API.items.save(item); setIsItemFormOpen(false); refreshAllData(); }} onCancel={() => setIsItemFormOpen(false)} />}
       {isEmployeeFormOpen && <EmployeeForm branches={branches} xarumo={xarumo} editingEmployee={editingEmployee} onSave={async (emp) => { await API.employees.save(emp); setIsEmployeeFormOpen(false); refreshAllData(); }} onCancel={() => setIsEmployeeFormOpen(false)} />}
       
-      {isCrossXarunModalOpen && (
-        <CrossXarunOrderModal 
-          user={user}
-          xarumo={xarumo}
-          myBranches={branches}
-          onClose={() => setIsCrossXarunModalOpen(false)}
-          onSuccess={() => refreshAllData(true)}
-        />
-      )}
+
 
       {adjustmentModal && (
         <StockAdjustmentModal 

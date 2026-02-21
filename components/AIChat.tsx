@@ -1,8 +1,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { chatWithInventory } from '../services/geminiService';
-import { InventoryItem, Transaction, TransactionType, TransactionStatus } from '../types';
+import { InventoryItem, Transaction, TransactionType, TransactionStatus, CreateInventoryItemArgs, AdjustStockArgs } from '../types';
 import { API } from '../services/api';
+import Markdown from 'react-markdown';
 
 interface AIChatProps {
   items: InventoryItem[];
@@ -11,7 +12,7 @@ interface AIChatProps {
 }
 
 const AIChat: React.FC<AIChatProps> = ({ items, transactions, onDataChange }) => {
-  const [messages, setMessages] = useState<{role: 'user' | 'ai', text: string}[]>([
+  const [messages, setMessages] = useState<{role: 'user' | 'ai', text: string | undefined}[]>([
     { role: 'ai', text: 'Asc! Waxaan ahay SmartStock AI. Sideen kuu caawin karaa? Waxaad i dhihi kartaa: "Ku dar 10 Solar Panels ah" ama "Abuur SKU cusub oo ah GEN-500".' }
   ]);
   const [input, setInput] = useState('');
@@ -36,13 +37,23 @@ const AIChat: React.FC<AIChatProps> = ({ items, transactions, onDataChange }) =>
       for (const fc of response.functionCalls) {
         try {
           if (fc.name === 'createInventoryItem') {
-            const newItem = await API.items.save(fc.args);
+            if (!fc.args) {
+              setMessages(prev => [...prev, { role: 'ai', text: `❌ CILAD: Waxaa ka maqan doodaha 'createInventoryItem'.` }]);
+              return;
+            }
+            const args = fc.args as unknown as CreateInventoryItemArgs;
+            const newItem = await API.items.save(args);
             setMessages(prev => [...prev, { role: 'ai', text: `✨ SI GUUL LEH: Waxaan database-ka Supabase ku daray alaabta cusub: **${newItem.name}** (SKU: ${newItem.sku}).` }]);
           } 
           else if (fc.name === 'adjustStock') {
-            const item = items.find(i => i.sku === fc.args.sku);
+            if (!fc.args) {
+              setMessages(prev => [...prev, { role: 'ai', text: `❌ CILAD: Waxaa ka maqan doodaha 'adjustStock'.` }]);
+              return;
+            }
+            const args = fc.args as unknown as AdjustStockArgs;
+            const item = items.find(i => i.sku === args.sku);
             if (item) {
-              const qty = fc.args.quantity;
+              const qty = args.quantity;
               const type = qty > 0 ? TransactionType.IN : TransactionType.OUT;
               
               await API.transactions.create({
@@ -51,8 +62,8 @@ const AIChat: React.FC<AIChatProps> = ({ items, transactions, onDataChange }) =>
                 type: type,
                 quantity: Math.abs(qty),
                 branchId: item.branchId,
-                personnel: fc.args.personnel,
-                notes: fc.args.notes || "AI Assisted Action",
+                personnel: args.personnel,
+                notes: args.notes || "AI Assisted Action",
                 status: TransactionStatus.APPROVED,
                 requestedBy: 'AI-ASSISTANT'
               });
@@ -62,7 +73,7 @@ const AIChat: React.FC<AIChatProps> = ({ items, transactions, onDataChange }) =>
               
               setMessages(prev => [...prev, { role: 'ai', text: `✅ XOGTA WAA LA CUSBOONAYSIYEY: ${item.name} hadda waa **${newQty}pcs**. Isbedelka: (${qty > 0 ? '+' : ''}${qty}). Supabase Cloud waa laga helayaa.` }]);
             } else {
-              setMessages(prev => [...prev, { role: 'ai', text: `❌ Waan ka xumahay, ma helin alaab leh SKU-gaas: ${fc.args.sku}.` }]);
+              setMessages(prev => [...prev, { role: 'ai', text: `❌ Waan ka xumahay, ma helin alaab leh SKU-gaas: ${args.sku}.` }]);
             }
           }
           onDataChange();
@@ -99,7 +110,9 @@ const AIChat: React.FC<AIChatProps> = ({ items, transactions, onDataChange }) =>
                 ? 'bg-indigo-600 text-white rounded-tr-none' 
                 : 'bg-white text-slate-800 rounded-tl-none border border-slate-100'
             }`}>
-              <p className="text-sm font-medium leading-relaxed">{m.text}</p>
+              <div className="text-sm font-medium leading-relaxed">
+                <Markdown>{m.text}</Markdown>
+              </div>
             </div>
           </div>
         ))}

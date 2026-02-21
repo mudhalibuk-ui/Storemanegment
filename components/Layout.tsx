@@ -36,6 +36,7 @@ const Layout: React.FC<LayoutProps> = ({
         { id: 'map', label: 'Warehouse Map', icon: '🗺️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF] },
         { id: 'xarumo', label: 'Xarumaha (Centers)', icon: '📍', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
         { id: 'bakhaarada', label: 'Bakhaarada', icon: '🏢', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
+        { id: 'xarun-orders', label: 'Xarun Orders', icon: '🌍', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
       ]
     },
     { 

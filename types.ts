@@ -37,6 +37,33 @@ export enum POStatus {
   COMPLETED = 'COMPLETED'
 }
 
+export enum XarunOrderStatus {
+  DRAFT = 'DRAFT',
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+  COMPLETED = 'COMPLETED' // When items are fully transferred and stock updated
+}
+
+export interface XarunOrderItem {
+  itemId: string;
+  itemName: string;
+  quantity: number;
+}
+
+export interface XarunOrderRequest {
+  id: string;
+  sourceXarunId: string; // The Xarun where the items are currently located
+  targetXarunId: string; // The Xarun requesting the items
+  requestedBy: string; // User ID who made the request
+  items: XarunOrderItem[];
+  status: XarunOrderStatus;
+  notes?: string;
+  createdAt: string;
+  approvedBy?: string; // User ID who approved the request
+  targetBranchId?: string; // Specific branch in target Xarun to receive items
+}
+
 export interface POTransfer {
   id: string;
   amount: number;
@@ -103,6 +130,7 @@ export interface User {
   role: UserRole;
   avatar?: string;
   xarunId?: string; 
+  sessionToken?: string;
 }
 
 export interface Branch {
@@ -262,4 +290,24 @@ export interface Supplier {
   contactName: string;
   phone: string;
   email: string;
+}
+
+export interface CreateInventoryItemArgs {
+  name: string;
+  category: string;
+  sku: string;
+  shelves: number;
+  sections: number;
+  quantity: number;
+  branchId: string;
+  minThreshold: number;
+  xarunId: string;
+  packType?: PackType;
+}
+
+export interface AdjustStockArgs {
+  sku: string;
+  quantity: number;
+  personnel?: string;
+  notes?: string;
 }
