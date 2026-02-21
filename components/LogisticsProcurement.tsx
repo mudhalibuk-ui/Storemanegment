@@ -18,7 +18,6 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
   const [activeTab, setActiveTab] = useState<'orders' | 'finance' | 'container' | 'customs' | 'arrivals'>('orders');
   
   const [isPOModalOpen, setIsPOModalOpen] = useState(false);
-  const [editingPO, setEditingPO] = useState<PurchaseOrder | null>(null); // New
   const [newPOTitle, setNewPOTitle] = useState('');
   const [selectedBuyerId, setSelectedBuyerId] = useState('');
   const [poItems, setPoItems] = useState<Partial<POItem>[]>([{ id: '1', name: '', requestedQty: 1, lastPurchasePrice: 0, packType: PackType.BOX }]);
@@ -126,56 +125,47 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
     return { totalReceived, totalSpent, balance: totalReceived - totalSpent };
   };
 
-  const handleSendOrder = (status: POStatus = POStatus.NEW) => {
+  const [showHistory, setShowHistory] = useState(false);
+
+  const handleSendOrder = (isDraft: boolean = false) => {
     if (!newPOTitle || !selectedBuyerId || poItems.length === 0) {
       alert("Fadlan buuxi xogta Order-ka.");
       return;
     }
-    
     const newPO: PurchaseOrder = {
-      id: editingPO ? editingPO.id : `PO-${Date.now()}`,
+      id: `PO-${Date.now()}`,
       creatorId: user.id,
       buyerId: selectedBuyerId,
       title: newPOTitle,
-      status: status,
-      totalFundsSent: editingPO ? editingPO.totalFundsSent : 0,
-      transfers: editingPO ? editingPO.transfers : [],
-      isReadByBuyer: false,
+      status: isDraft ? POStatus.DRAFT : POStatus.NEW,
+      totalFundsSent: 0,
+      transfers: [],
+      isReadByBuyer: !isDraft, // Drafts are not sent yet
       isReadByManager: true,
-      createdAt: editingPO ? editingPO.createdAt : new Date().toISOString(),
+      createdAt: new Date().toISOString(),
       items: poItems.map(i => ({
-        id: i.id || Math.random().toString(36).substr(2, 9),
+        id: Math.random().toString(36).substr(2, 9),
         name: i.name || 'Unknown Item',
         packType: i.packType || PackType.BOX,
         requestedQty: i.requestedQty || 0,
-        purchasedQty: i.purchasedQty || 0,
+        purchasedQty: 0,
         lastPurchasePrice: i.lastPurchasePrice || 0,
-        actualPrice: i.actualPrice || 0,
-        isPurchased: i.isPurchased || false
+        actualPrice: 0,
+        isPurchased: false
       }))
     };
-
-    if (editingPO) {
-        const updatedPOs = pos.map(p => p.id === editingPO.id ? newPO : p);
-        saveAll(updatedPOs, containers);
-    } else {
-        saveAll([...pos, newPO], containers);
-    }
-
+    saveAll([...pos, newPO], containers);
     setIsPOModalOpen(false);
     setNewPOTitle('');
     setSelectedBuyerId('');
     setPoItems([{ id: '1', name: '', requestedQty: 1, lastPurchasePrice: 0, packType: PackType.BOX }]);
-    setEditingPO(null);
-    alert(status === POStatus.DRAFT ? "Order-ka waa la keydiyey (Draft)!" : "Order-ka waa la diray!");
+    alert(isDraft ? "Order-ka waa la keydiyey (Draft)!" : "Order-ka waa la diray! Buyer-ka ayaa loo sheegi doonaa.");
   };
 
-  const openEditModal = (po: PurchaseOrder) => {
-      setNewPOTitle(po.title);
-      setSelectedBuyerId(po.buyerId);
-      setPoItems(po.items);
-      setEditingPO(po);
-      setIsPOModalOpen(true);
+  const handlePublishDraft = (poId: string) => {
+      const updatedPOs = pos.map(p => p.id === poId ? { ...p, status: POStatus.NEW, isReadByBuyer: false } : p);
+      saveAll(updatedPOs, containers);
+      alert("Draft-ka waa la diray hadda!");
   };
 
   const handleDeletePO = (poId: string) => {
@@ -436,35 +426,61 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                    {isBuyer ? 'U sameey qiimayn (Pricing) alaabta Manager-ku dalbaday.' : 'Diri dalab cusub, kadibna Ogolow (Confirm) markii lasoo qiimeeyo.'}
                 </p>
               </div>
-              {!isBuyer && (
-                <button onClick={() => setIsPOModalOpen(true)} className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black shadow-xl hover:scale-105 transition-all uppercase text-[11px] tracking-widest">
-                  + DIR DALAB CUSUB 🚀
-                </button>
-              )}
+              <div className="flex gap-4">
+                  <button 
+                    onClick={() => setShowHistory(!showHistory)} 
+                    className={`px-6 py-4 rounded-2xl font-black shadow-sm transition-all uppercase text-[10px] tracking-widest border ${showHistory ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200'}`}
+                  >
+                    {showHistory ? 'Hide History 📜' : 'Show History 📜'}
+                  </button>
+                  {!isBuyer && (
+                    <button onClick={() => setIsPOModalOpen(true)} className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black shadow-xl hover:scale-105 transition-all uppercase text-[11px] tracking-widest">
+                      + DIR DALAB CUSUB 🚀
+                    </button>
+                  )}
+              </div>
            </div>
 
+           {/* DRAFTS SECTION (Manager Only) */}
+           {!isBuyer && pos.some(p => p.status === POStatus.DRAFT) && !showHistory && (
+               <div className="bg-slate-50 p-6 rounded-[2.5rem] border-2 border-dashed border-slate-200">
+                   <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 ml-2">Draft Orders (Not Sent)</h3>
+                   <div className="grid grid-cols-1 gap-4">
+                       {pos.filter(p => p.status === POStatus.DRAFT).map(po => (
+                           <div key={po.id} className="bg-white p-6 rounded-3xl border border-slate-100 flex justify-between items-center shadow-sm">
+                               <div>
+                                   <h4 className="font-black text-slate-700">{po.title}</h4>
+                                   <p className="text-[10px] text-slate-400 uppercase">{po.items.length} Items • Created: {new Date(po.createdAt).toLocaleDateString()}</p>
+                               </div>
+                               <div className="flex gap-2">
+                                   <button onClick={() => handleDeletePO(po.id)} className="p-3 text-rose-500 hover:bg-rose-50 rounded-xl transition-all">🗑️</button>
+                                   <button onClick={() => handlePublishDraft(po.id)} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase shadow-lg hover:bg-indigo-700 transition-all">
+                                       PUBLISH & SEND 🚀
+                                   </button>
+                               </div>
+                           </div>
+                       ))}
+                   </div>
+               </div>
+           )}
+
            <div className="grid grid-cols-1 gap-6">
-              {pos.filter(p => !isBuyer || p.buyerId === user.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt)).map(po => {
+              {pos
+                .filter(p => (!isBuyer || p.buyerId === user.id))
+                .filter(p => p.status !== POStatus.DRAFT) // Hide drafts from main list
+                .filter(p => showHistory ? (p.status === POStatus.COMPLETED || p.status === POStatus.ARRIVED) : (p.status !== POStatus.COMPLETED && p.status !== POStatus.ARRIVED))
+                .sort((a,b) => b.createdAt.localeCompare(a.createdAt))
+                .map(po => {
                 const { estimatedTotal } = calculateFinance(po);
                 return (
-                  <div key={po.id} className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm relative group">
+                  <div key={po.id} className={`bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm relative group ${po.status === POStatus.COMPLETED ? 'opacity-75 grayscale' : ''}`}>
                     <div className="flex flex-col lg:flex-row justify-between gap-8 mb-8 border-b border-slate-50 pb-6">
                        <div className="flex-1">
                           <div className="flex items-center gap-3">
                              <span className="text-[9px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase">{po.id}</span>
-                             <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-lg ${po.status === POStatus.NEW ? 'bg-amber-50 text-amber-600' : po.status === POStatus.DRAFT ? 'bg-slate-100 text-slate-500' : 'bg-emerald-50 text-emerald-600'}`}>
+                             <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-lg ${po.status === POStatus.NEW ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
                                {po.status}
                              </span>
-                             {/* EDIT BUTTON FOR DRAFT */}
-                             {po.status === POStatus.DRAFT && (
-                                <button 
-                                  onClick={() => openEditModal(po)} 
-                                  className="ml-2 bg-indigo-50 text-indigo-600 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
-                                  title="Edit Draft"
-                                >
-                                  ✏️
-                                </button>
-                             )}
                              {/* DELETE BUTTON FOR MANAGERS */}
                              {!isBuyer && (
                                 <button 
@@ -528,6 +544,13 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                   </div>
                 );
               })}
+              
+              {/* Empty State */}
+              {pos.filter(p => !isBuyer || p.buyerId === user.id).filter(p => showHistory ? (p.status === POStatus.COMPLETED || p.status === POStatus.ARRIVED) : (p.status !== POStatus.COMPLETED && p.status !== POStatus.ARRIVED && p.status !== POStatus.DRAFT)).length === 0 && (
+                  <div className="py-32 text-center text-slate-300 font-black uppercase tracking-widest bg-white rounded-[3rem] border-2 border-dashed border-slate-100">
+                      {showHistory ? 'Ma jiro taariikh hore (No History).' : 'Ma jiraan dalabyo cusub.'}
+                  </div>
+              )}
            </div>
         </div>
       )}
@@ -539,9 +562,25 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
            <div className="bg-slate-900 p-8 rounded-[3rem] shadow-xl border border-slate-800 text-white relative overflow-hidden">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative z-10">
                  <div>
-                    <h2 className="text-3xl font-black tracking-tighter uppercase">Global Wallet & Funds</h2>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Lacagaha guud ee la diray iyo haraaga.</p>
+                    <h2 className="text-3xl font-black tracking-tighter uppercase">Financial Hub</h2>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Maamulka Lacagaha & Xisaabta Buyer-ka.</p>
                  </div>
+                 
+                 {/* BUYER SELECTOR (Manager Only) */}
+                 {!isBuyer && (
+                     <div className="flex items-center gap-2">
+                         <span className="text-[10px] font-black uppercase text-slate-400">Select Buyer Account:</span>
+                         <select 
+                            className="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold outline-none border border-slate-700"
+                            value={selectedBuyerId}
+                            onChange={(e) => setSelectedBuyerId(e.target.value)}
+                         >
+                             <option value="">-- All Buyers --</option>
+                             {buyers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                         </select>
+                     </div>
+                 )}
+
                  {!isBuyer && (
                    <button 
                      onClick={() => setIsTransferModalOpen(true)} 
@@ -555,23 +594,38 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-8">
                  {/* Calculate total aggregated wallet for the view context */}
                  {(() => {
-                    // If Manager, show Total of all Buyers or specific if filtered? Let's show All for now or User context
-                    const targetStats = isBuyer ? getGlobalWallet(user.id) : getGlobalWallet(selectedBuyerId || (pos[0]?.buyerId || ''));
-                    const isNegative = targetStats.balance < 0;
+                    // If Manager, show Total of all Buyers or specific if filtered
+                    const targetBuyerId = isBuyer ? user.id : (selectedBuyerId || '');
+                    // If no buyer selected (Manager view all), we sum everything? Or just show global.
+                    // Let's show Global if no buyer selected, or Specific if selected.
+                    
+                    let totalReceived = 0;
+                    let totalSpent = 0;
+
+                    const relevantPOs = pos.filter(p => targetBuyerId ? p.buyerId === targetBuyerId : true);
+                    
+                    relevantPOs.forEach(po => {
+                       const stats = calculateFinance(po);
+                       totalReceived += stats.received;
+                       totalSpent += stats.spent;
+                    });
+
+                    const balance = totalReceived - totalSpent;
+                    const isNegative = balance < 0;
                     
                     return (
                       <>
                         <div className="bg-white/10 p-5 rounded-2xl border border-white/10">
                            <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Total Received</p>
-                           <p className="text-2xl font-black">${targetStats.totalReceived.toLocaleString()}</p>
+                           <p className="text-2xl font-black">${totalReceived.toLocaleString()}</p>
                         </div>
                         <div className="bg-white/10 p-5 rounded-2xl border border-white/10">
                            <p className="text-[9px] font-black text-rose-400 uppercase tracking-widest">Total Spent (Purchases)</p>
-                           <p className="text-2xl font-black">${targetStats.totalSpent.toLocaleString()}</p>
+                           <p className="text-2xl font-black">${totalSpent.toLocaleString()}</p>
                         </div>
                         <div className={`p-5 rounded-2xl border ${isNegative ? 'bg-rose-600 border-rose-500' : 'bg-emerald-600 border-emerald-500'}`}>
                            <p className="text-[9px] font-black text-white/80 uppercase tracking-widest">Current Balance</p>
-                           <p className="text-3xl font-black">${targetStats.balance.toLocaleString()}</p>
+                           <p className="text-3xl font-black">${balance.toLocaleString()}</p>
                            {isNegative && <span className="text-[8px] font-bold bg-white/20 px-2 py-1 rounded uppercase">Credit / Deyn</span>}
                         </div>
                       </>
@@ -580,85 +634,40 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
               </div>
            </div>
 
-           <div className="grid grid-cols-1 gap-6">
-              {pos.filter(p => (!isBuyer || p.buyerId === user.id) && p.status !== POStatus.NEW).map(po => {
-                const { sent, spent, balance } = calculateFinance(po);
-                const isNegativeBalance = balance < 0;
-                
-                return (
-                  <div key={po.id} className="bg-white p-8 rounded-[3.5rem] border border-slate-100 shadow-sm relative overflow-hidden">
-                    <div className="flex flex-col xl:flex-row justify-between gap-10 mb-6">
-                       <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                             <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">{po.title}</h3>
-                             <span className="text-[9px] bg-slate-100 text-slate-500 px-2 py-1 rounded font-bold">{po.id}</span>
-                          </div>
-                          
-                          {/* Mini Stats for specific PO context */}
-                          <div className="flex gap-4 text-[10px] font-black text-slate-400 uppercase">
-                             <span>Sent: <span className="text-indigo-600">${sent.toLocaleString()}</span></span>
-                             <span>Spent: <span className="text-rose-600">${spent.toLocaleString()}</span></span>
-                             <span>Bal: <span className={`${isNegativeBalance ? 'text-rose-600' : 'text-emerald-600'}`}>${balance.toLocaleString()}</span></span>
-                          </div>
+           {/* Transaction History List */}
+           <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
+               <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-6">Transaction History</h3>
+               <div className="space-y-3">
+                   {(() => {
+                       const targetBuyerId = isBuyer ? user.id : (selectedBuyerId || '');
+                       const relevantPOs = pos.filter(p => targetBuyerId ? p.buyerId === targetBuyerId : true);
+                       
+                       // Flatten all transfers
+                       const allTransfers = relevantPOs.flatMap(p => (p.transfers || []).map(t => ({ ...t, poTitle: p.title, poId: p.id })));
+                       
+                       if (allTransfers.length === 0) {
+                           return <p className="text-center text-slate-400 font-bold uppercase text-xs py-10">No transactions found.</p>;
+                       }
 
-                          {/* Transaction History & Management - Simplified */}
-                          {(po.transfers || []).length > 0 && (
-                            <div className="mt-6 space-y-2">
-                               <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest px-1">Transactions Linked</p>
-                               {(po.transfers || []).map(t => (
-                                 <div key={t.id} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                    <div className="flex items-center gap-3">
-                                       <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] ${t.status === 'RECEIVED' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                                         {t.status === 'RECEIVED' ? '✓' : '⏳'}
-                                       </div>
-                                       <div>
-                                          <p className="text-xs font-black text-slate-700">${t.amount.toLocaleString()}</p>
-                                          <p className="text-[8px] font-bold text-slate-400 uppercase">{t.method} • {new Date(t.date).toLocaleDateString()}</p>
-                                       </div>
-                                    </div>
-                                    {!isBuyer && (
-                                      <button 
-                                        onClick={() => handleDeleteTransfer(po.id, t.id)} 
-                                        className="text-rose-400 hover:text-rose-600 p-2 hover:bg-rose-50 rounded-lg transition-all"
-                                        title="Delete Transaction"
-                                      >
-                                        🗑️
-                                      </button>
-                                    )}
-                                    {isBuyer && t.status === 'SENT' && (
-                                       <button onClick={() => handleReceiveMoney(po.id, t.id)} className="bg-emerald-600 text-white px-3 py-1 rounded-lg font-black text-[8px] uppercase">Confirm</button>
-                                    )}
-                                 </div>
-                               ))}
-                            </div>
-                          )}
-                       </div>
-                    </div>
-                    
-                    {/* Buyer Purchasing List */}
-                    {isBuyer && (
-                       <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 mt-4">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Purchasing (Checklist)</p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                             {(po.items || []).map(item => (
-                               <div key={item.id} className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${item.isPurchased ? 'bg-emerald-50 border-emerald-200 opacity-70' : 'bg-white border-slate-100 shadow-sm'}`}>
-                                  <div className="flex items-center gap-3">
-                                     <button onClick={() => handleMarkPurchased(po.id, item.id)} className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg shadow-sm ${item.isPurchased ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400 hover:bg-indigo-50'}`}>
-                                       {item.isPurchased ? '✓' : '🛒'}
-                                     </button>
-                                     <div>
-                                        <p className={`font-black uppercase text-xs ${item.isPurchased ? 'text-emerald-900 line-through' : 'text-slate-800'}`}>{item.name}</p>
-                                        <p className="text-[8px] font-bold text-slate-400 uppercase">Price: ${item.actualPrice}</p>
-                                     </div>
-                                  </div>
+                       return allTransfers.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(t => (
+                           <div key={t.id} className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100 hover:bg-slate-100 transition-all">
+                               <div className="flex items-center gap-4">
+                                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${t.status === 'RECEIVED' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                                       {t.status === 'RECEIVED' ? '✓' : '⏳'}
+                                   </div>
+                                   <div>
+                                       <p className="font-black text-slate-800 text-sm">${t.amount.toLocaleString()}</p>
+                                       <p className="text-[10px] font-bold text-slate-400 uppercase">{t.method} • {new Date(t.date).toLocaleDateString()}</p>
+                                   </div>
                                </div>
-                             ))}
-                          </div>
-                       </div>
-                    )}
-                  </div>
-                );
-              })}
+                               <div className="text-right">
+                                   <p className="text-[10px] font-black text-indigo-500 uppercase">{t.poTitle}</p>
+                                   <p className="text-[9px] font-bold text-slate-400 uppercase">Ref: {t.reference}</p>
+                               </div>
+                           </div>
+                       ));
+                   })()}
+               </div>
            </div>
         </div>
       )}
@@ -993,9 +1002,6 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                     {poItems.map((item, idx) => (
                       <div key={item.id} className="flex gap-4 bg-white p-4 rounded-3xl border border-slate-100 items-center">
                          <input className="flex-1 p-3 bg-slate-50 rounded-2xl font-bold" placeholder="Item Name" value={item.name} onChange={e => { const n = [...poItems]; n[idx].name = e.target.value; setPoItems(n); }} />
-                         <select className="w-24 p-3 bg-slate-50 rounded-2xl font-bold text-[10px] uppercase" value={item.packType} onChange={e => { const n = [...poItems]; n[idx].packType = e.target.value as PackType; setPoItems(n); }}>
-                            {Object.values(PackType).map(t => <option key={t} value={t}>{t}</option>)}
-                         </select>
                          <input type="number" className="w-24 p-3 bg-slate-50 rounded-2xl font-bold text-center" value={item.requestedQty} onChange={e => { const n = [...poItems]; n[idx].requestedQty = parseInt(e.target.value) || 0; setPoItems(n); }} />
                          <button onClick={() => setPoItems(poItems.filter(i => i.id !== item.id))} className="text-rose-500 font-bold p-2">✕</button>
                       </div>
@@ -1005,7 +1011,8 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
               </div>
               <div className="p-10 bg-slate-50 border-t border-slate-100 flex gap-4">
                  <button onClick={() => setIsPOModalOpen(false)} className="flex-1 py-5 bg-white text-slate-400 font-black rounded-[2.5rem] uppercase text-[11px]">JOOJI</button>
-                 <button onClick={handleSendOrder} className="flex-[2] py-5 bg-indigo-600 text-white font-black rounded-[2.5rem] shadow-2xl uppercase text-[11px]">DIIRAD DALABKA ➔</button>
+                 <button onClick={() => handleSendOrder(true)} className="flex-1 py-5 bg-slate-200 text-slate-600 font-black rounded-[2.5rem] uppercase text-[11px] hover:bg-slate-300">SAVE DRAFT 💾</button>
+                 <button onClick={() => handleSendOrder(false)} className="flex-[2] py-5 bg-indigo-600 text-white font-black rounded-[2.5rem] shadow-2xl uppercase text-[11px] hover:bg-indigo-700">DIR DALABKA ➔</button>
               </div>
            </div>
         </div>
@@ -1020,11 +1027,35 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                  <p className="text-[9px] font-bold uppercase opacity-80 mt-1">Fund Transfer (Global Wallet)</p>
               </div>
               <div className="p-10 space-y-6 bg-slate-50/50">
+                 {/* Buyer Selection for Money Transfer */}
+                 <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase px-2 text-slate-400">Dooro Buyer-ka (Account)</label>
+                    <select 
+                        className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-bold outline-none" 
+                        value={selectedBuyerId} 
+                        onChange={e => {
+                            setSelectedBuyerId(e.target.value);
+                            setTransferForm({...transferForm, poId: ''}); // Reset PO when buyer changes
+                        }}
+                    >
+                        <option value="">-- Select Buyer Account --</option>
+                        {buyers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                 </div>
+
                  <div className="space-y-1">
                     <label className="text-[10px] font-black uppercase px-2 text-slate-400">Dooro Order-ka (Reference)</label>
-                    <select className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-bold outline-none" value={transferForm.poId} onChange={e => setTransferForm({...transferForm, poId: e.target.value})}>
+                    <select 
+                        className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-bold outline-none" 
+                        value={transferForm.poId} 
+                        onChange={e => setTransferForm({...transferForm, poId: e.target.value})}
+                        disabled={!selectedBuyerId}
+                    >
                         <option value="">-- Select Order --</option>
-                        {pos.filter(p => !isBuyer || p.buyerId === user.id).map(p => (
+                        {pos
+                            .filter(p => !isBuyer) // Manager view
+                            .filter(p => selectedBuyerId ? p.buyerId === selectedBuyerId : true)
+                            .map(p => (
                             <option key={p.id} value={p.id}>{p.title} ({p.status})</option>
                         ))}
                     </select>

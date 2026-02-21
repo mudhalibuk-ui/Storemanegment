@@ -32,7 +32,7 @@ export enum POStatus {
   PRICED = 'PRICED', 
   AWAITING_FUNDS = 'AWAITING_FUNDS', 
   PURCHASING = 'PURCHASING', 
-  SHIPPED = 'SHIPPED',
+  SHIPPED = 'SHIPPED', 
   ARRIVED = 'ARRIVED',
   COMPLETED = 'COMPLETED'
 }
@@ -44,6 +44,8 @@ export interface POTransfer {
   reference: string;
   method: string;
   status: 'SENT' | 'RECEIVED';
+  senderId?: string; // ID of the person sending the money (usually Manager)
+  receiverId?: string; // ID of the person receiving (Buyer)
 }
 
 export interface POItem {
@@ -101,7 +103,6 @@ export interface User {
   role: UserRole;
   avatar?: string;
   xarunId?: string; 
-  sessionToken?: string;
 }
 
 export interface Branch {
