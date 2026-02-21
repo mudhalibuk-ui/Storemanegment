@@ -295,6 +295,7 @@ export const API = {
       const result = await cloudSave('employees', payload);
       
       if (result && result.error) {
+        console.error("API Error:", result.error, result.details); // Log details
         if (result.error === "Conflict/Duplicate Key" || (result.details && result.details.includes("duplicate key value"))) {
            throw new Error("DUPLICATE_ID");
         }
