@@ -356,10 +356,47 @@ def sync_device_users(conn, device_info):
 
 def run_auto_absent_check():
     if not supabase: return
+    logging.info("⏰ Running Auto-Absent Check...")
     try:
-        today_str = datetime.now().strftime("%Y-%m-%d")
-        # Logic to mark absent would go here
-    except: pass
+        now = datetime.now()
+        # 1. Check if today is Friday (4) - Skip if so
+        if now.weekday() == 4: # Python weekday: Mon=0, Fri=4
+             logging.info("📅 Today is Friday (Off Day). Skipping Absent Check.")
+             return
+
+        today_str = now.strftime("%Y-%m-%d")
+        
+        # 2. Get All Active Employees
+        emps_res = supabase.table('employees').select("id, name").eq('status', 'ACTIVE').execute()
+        all_emps = emps_res.data or []
+        if not all_emps: return
+
+        # 3. Get Today's Attendance
+        att_res = supabase.table('attendance').select("employee_id").eq('date', today_str).execute()
+        present_ids = {r['employee_id'] for r in att_res.data or []}
+        
+        # 4. Identify Missing
+        absent_list = []
+        for emp in all_emps:
+            if emp['id'] not in present_ids:
+                absent_list.append({
+                    "id": str(uuid.uuid4()),
+                    "employee_id": emp['id'],
+                    "date": today_str,
+                    "status": "ABSENT",
+                    "notes": "Auto-marked at 9:00 AM",
+                    "device_id": "SYSTEM-AUTO"
+                })
+        
+        # 5. Bulk Insert
+        if absent_list:
+            supabase.table('attendance').insert(absent_list).execute()
+            logging.info(f"✅ Marked {len(absent_list)} employees as ABSENT.")
+        else:
+            logging.info("✅ Everyone is present! No absences marked.")
+
+    except Exception as e:
+        logging.error(f"❌ Auto-Absent Check Failed: {e}")
 
 def monitor_single_device(device):
     ip = device['ip_address']
@@ -442,7 +479,7 @@ def main():
         logging.error("❌ Critical: Failed to connect to Database. Monitor will retry.")
 
     schedule.every(30).minutes.do(refresh_employee_cache)
-    schedule.every().day.at("09:30").do(run_auto_absent_check)
+    schedule.every().day.at("09:00").do(run_auto_absent_check)
     schedule.every(30).seconds.do(start_monitors)
     
     # Run API on port 5050 to match React App config

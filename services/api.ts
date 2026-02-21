@@ -35,7 +35,9 @@ const FIELD_MAPPING: Record<string, string> = {
   uploadDate: 'upload_date',
   startTime: 'start_time',
   endTime: 'end_time',
-  lateThreshold: 'late_threshold'
+  lateThreshold: 'late_threshold',
+  consecutiveAbsences: 'consecutive_absences',
+  isWarningDismissed: 'is_warning_dismissed'
 };
 
 const toSnakeCase = (obj: any) => {
@@ -266,7 +268,9 @@ export const API = {
         id: e.id, name: e.name, employeeIdCode: e.employee_id_code, position: e.position,
         status: e.status, joinedDate: e.joined_date, xarunId: e.xarun_id, branchId: e.branch_id,
         salary: Number(e.salary || 0), avatar: e.avatar, fingerprintHash: e.fingerprint_hash,
-        department: e.department, phone: e.phone, email: e.email, shiftId: e.shift_id
+        department: e.department, phone: e.phone, email: e.email, shiftId: e.shift_id,
+        warning: e.warning, consecutiveAbsences: e.consecutive_absences,
+        isWarningDismissed: e.is_warning_dismissed
       }));
     },
     // New function to find employee by ZK Code
@@ -278,7 +282,9 @@ export const API = {
                 id: e.id, name: e.name, employeeIdCode: e.employee_id_code, position: e.position,
                 status: e.status, joinedDate: e.joined_date, xarunId: e.xarun_id, branchId: e.branch_id,
                 salary: Number(e.salary || 0), avatar: e.avatar, fingerprintHash: e.fingerprint_hash,
-                department: e.department, phone: e.phone, email: e.email, shiftId: e.shift_id
+                department: e.department, phone: e.phone, email: e.email, shiftId: e.shift_id,
+                warning: e.warning, consecutiveAbsences: e.consecutive_absences,
+                isWarningDismissed: e.is_warning_dismissed
             };
         }
         return null;

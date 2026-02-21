@@ -219,6 +219,9 @@ export interface Employee {
   shiftId?: string; // New
   phone?: string; // New
   email?: string; // New
+  warning?: string; // New
+  consecutiveAbsences?: number; // New
+  isWarningDismissed?: boolean; // New
 }
 
 export interface Attendance {

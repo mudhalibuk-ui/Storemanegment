@@ -15,6 +15,7 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedXarunId, setSelectedXarunId] = useState<string>('all');
   const [attendanceData, setAttendanceData] = useState<Attendance[]>([]);
+  const [previousAttendanceData, setPreviousAttendanceData] = useState<Record<string, Attendance[]>>({});
   const [loading, setLoading] = useState(false);
   
   // Status State
@@ -33,7 +34,7 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
     loadAttendance();
     const interval = setInterval(loadAttendance, 10000);
     return () => clearInterval(interval);
-  }, [selectedDate]);
+  }, [selectedDate, employees]);
 
   // Status Polling
   useEffect(() => {
@@ -99,6 +100,55 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
     setLoading(true);
     const data = await API.attendance.getByDate(selectedDate);
     setAttendanceData(data);
+
+    // Fetch attendance for the last 3 days for warning logic
+    const today = new Date(selectedDate);
+    const prevDaysData: Record<string, Attendance[]> = {};
+    for (let i = 1; i <= 3; i++) {
+      const prevDate = new Date(today);
+      prevDate.setDate(today.getDate() - i);
+      const prevDateStr = prevDate.toISOString().split('T')[0];
+      prevDaysData[prevDateStr] = await API.attendance.getByDate(prevDateStr);
+    }
+    setPreviousAttendanceData(prevDaysData);
+
+    // Apply warning logic
+    for (const employee of employees) {
+      let consecutiveAbsences = 0;
+      let hasWarning = false;
+
+      for (let i = 0; i < 3; i++) {
+        const checkDate = new Date(today);
+        checkDate.setDate(today.getDate() - i);
+        const checkDateStr = checkDate.toISOString().split('T')[0];
+        const dailyAttendance = (i === 0 ? data : prevDaysData[checkDateStr]) || [];
+        const employeeRecord = dailyAttendance.find(a => a.employeeId === employee.id);
+
+        const isFriday = checkDate.getUTCDay() === 5;
+        
+        if (isFriday) {
+            if (employeeRecord?.status === 'PRESENT' || employeeRecord?.status === 'LATE') {
+                break; // Worked on Friday, streak broken
+            }
+            continue; // Skip Friday if absent/no-record
+        }
+
+        if (employeeRecord?.status === 'ABSENT') {
+          consecutiveAbsences++;
+        } else {
+          break; // Break if present on a working day
+        }
+      }
+
+      if (consecutiveAbsences >= 3 && !employee.warning) {
+        hasWarning = true;
+        await API.employees.save({ ...employee, warning: 'Digniin: Maqnaansho isku xigta 3 maalmood', consecutiveAbsences: 3 });
+      } else if (consecutiveAbsences < 3 && employee.warning) {
+        // Clear warning if employee is now present or less than 3 consecutive absences
+        await API.employees.save({ ...employee, warning: undefined, consecutiveAbsences: 0 });
+      }
+    }
+
     setLoading(false);
   };
 
@@ -360,6 +410,9 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
                         <div>
                           <span className="font-black text-slate-700 block text-xs">{emp.name}</span>
                           <span className="text-[9px] font-bold text-slate-400 uppercase">{empXarun}</span>
+                          {emp.warning && (
+                            <span className="ml-2 px-2 py-0.5 bg-amber-50 text-amber-600 rounded-full text-[8px] font-black uppercase">⚠️ {emp.warning}</span>
+                          )}
                         </div>
                       </div>
                     </td>

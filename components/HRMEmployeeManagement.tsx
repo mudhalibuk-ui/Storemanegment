@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Employee, Branch, Xarun, Attendance, Payroll, SystemSettings } from '../types';
+import { API } from '../services/api';
 import QRCode from 'qrcode';
 import EmployeeProfileModal from './EmployeeProfileModal';
 import BiometricScanModal from './BiometricScanModal';
@@ -38,6 +39,7 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
         const d = new Date(a.date);
         return a.employeeId === employeeId && 
                a.status === 'ABSENT' && 
+               d.getUTCDay() !== 5 && // Exclude Fridays (Off Days) - Use UTC to avoid timezone shifts
                d.getMonth() === now.getMonth() &&
                d.getFullYear() === now.getFullYear();
     }).length;
@@ -59,6 +61,16 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
       // Using window.location.href ensures it triggers the native app handler on mobile
       const url = `sms:${phone}?body=${encodeURIComponent(message)}`;
       window.location.href = url;
+  };
+
+  const handleDismissWarning = async (employee: Employee) => {
+      if (!confirm("Ma hubtaa inaad ka qaaddo digniinta shaqaalahan?")) return;
+      try {
+          await API.employees.save({ ...employee, isWarningDismissed: true });
+          window.location.reload(); // Simple reload to reflect changes since state is in parent
+      } catch (e) {
+          alert("Error dismissing warning");
+      }
   };
 
   const syncUsersFromDevice = async () => {
@@ -201,11 +213,18 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filtered.map(emp => {
           const absentCount = getAbsentCount(emp.id);
-          const isHighRisk = absentCount >= 3; // Warning Threshold
+          const isHighRisk = absentCount >= 3 && !emp.isWarningDismissed; // Warning Threshold
 
           return (
             <div key={emp.id} className={`bg-white p-8 rounded-[3rem] shadow-sm border transition-all group relative ${isHighRisk ? 'border-rose-200 shadow-rose-100' : 'border-slate-100 hover:shadow-xl hover:border-indigo-100'}`}>
               
+              {/* Dismissed Badge */}
+              {emp.isWarningDismissed && absentCount >= 3 && (
+                  <div className="absolute top-6 left-6 z-10">
+                      <span className="bg-slate-100 text-slate-400 px-2 py-1 rounded-lg text-[8px] font-black uppercase border border-slate-200">Warning Dismissed</span>
+                  </div>
+              )}
+
               {/* ACTION BUTTONS */}
               <div className="absolute top-6 right-6 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                  <button onClick={() => setSelectedProfile(emp)} className="p-3 bg-white text-emerald-600 rounded-xl shadow-sm border border-slate-100 hover:bg-emerald-600 hover:text-white transition-all" title="View Profile">👁️</button>
@@ -261,12 +280,21 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
                    
                    {/* WARNING BUTTON - SMS */}
                    {isHighRisk ? (
-                       <button 
-                         onClick={() => sendWarningMessage(emp, absentCount)} 
-                         className="w-full mt-2 py-3 bg-rose-600 text-white text-[9px] font-black uppercase tracking-widest rounded-xl hover:bg-rose-700 transition-all shadow-lg shadow-rose-100 flex items-center justify-center gap-2"
-                       >
-                         <span>💬</span> DIRA DIGNIIN (SMS)
-                       </button>
+                       <div className="flex gap-2 mt-2">
+                           <button 
+                             onClick={() => sendWarningMessage(emp, absentCount)} 
+                             className="flex-1 py-3 bg-rose-600 text-white text-[9px] font-black uppercase tracking-widest rounded-xl hover:bg-rose-700 transition-all shadow-lg shadow-rose-100 flex items-center justify-center gap-2"
+                           >
+                             <span>💬</span> SMS
+                           </button>
+                           <button 
+                             onClick={() => handleDismissWarning(emp)} 
+                             className="px-3 py-3 bg-slate-100 text-slate-500 text-[9px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-200 transition-all"
+                             title="Ka qaad digniinta (Dismiss Warning)"
+                           >
+                             ✕
+                           </button>
+                       </div>
                    ) : (
                        <button onClick={() => setSelectedProfile(emp)} className="w-full mt-2 py-3 bg-slate-50 text-slate-500 text-[9px] font-black uppercase tracking-widest rounded-xl hover:bg-indigo-600 hover:text-white transition-all">View Full Profile</button>
                    )}
