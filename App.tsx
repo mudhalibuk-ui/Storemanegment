@@ -23,6 +23,7 @@ import BulkTransactionModal from './components/BulkTransactionModal';
 import ApprovalQueue from './components/ApprovalQueue';
 import TransactionReceipt from './components/TransactionReceipt';
 import BulkTransactionReceipt from './components/BulkTransactionReceipt';
+import CrossXarunOrderModal from './components/CrossXarunOrderModal';
 
 // HRM Imports
 import HRMEmployeeManagement from './components/HRMEmployeeManagement';
@@ -72,6 +73,7 @@ const App: React.FC = () => {
   const [historyModalItem, setHistoryModalItem] = useState<InventoryItem | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [isCrossXarunModalOpen, setIsCrossXarunModalOpen] = useState(false);
   const [receiptTransaction, setReceiptTransaction] = useState<Transaction | null>(null);
   const [bulkReceiptData, setBulkReceiptData] = useState<{ transactions: Transaction[], type: TransactionType, branch: Branch | undefined, personnel: string, date: string } | null>(null);
 
@@ -200,6 +202,7 @@ const App: React.FC = () => {
           onAdd={() => { setEditingItem(null); setIsItemFormOpen(true); }} 
           onImport={() => setIsImportModalOpen(true)} 
           onBulkAction={() => setIsBulkModalOpen(true)} 
+          onCrossXarunOrder={() => setIsCrossXarunModalOpen(true)}
           onEdit={(item) => { setEditingItem(item); setIsItemFormOpen(true); }} 
           onDelete={async (id) => { 
             const itemToDelete = items.find(i => i.id === id);
@@ -323,6 +326,16 @@ const App: React.FC = () => {
       {isBranchFormOpen && <BranchForm xarumo={xarumo} editingBranch={editingBranch} onSave={async (b) => { await API.branches.save(b); setIsBranchFormOpen(false); refreshAllData(); }} onCancel={() => setIsBranchFormOpen(false)} />}
       {isItemFormOpen && <InventoryForm branches={branches} editingItem={editingItem} onSave={async (item) => { await API.items.save(item); setIsItemFormOpen(false); refreshAllData(); }} onCancel={() => setIsItemFormOpen(false)} />}
       {isEmployeeFormOpen && <EmployeeForm branches={branches} xarumo={xarumo} editingEmployee={editingEmployee} onSave={async (emp) => { await API.employees.save(emp); setIsEmployeeFormOpen(false); refreshAllData(); }} onCancel={() => setIsEmployeeFormOpen(false)} />}
+      
+      {isCrossXarunModalOpen && (
+        <CrossXarunOrderModal 
+          user={user}
+          xarumo={xarumo}
+          myBranches={branches}
+          onClose={() => setIsCrossXarunModalOpen(false)}
+          onSuccess={() => refreshAllData(true)}
+        />
+      )}
 
       {adjustmentModal && (
         <StockAdjustmentModal 
