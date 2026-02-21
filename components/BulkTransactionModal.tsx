@@ -75,6 +75,18 @@ const BulkTransactionModal: React.FC<BulkTransactionModalProps> = ({ items, bran
       alert("Fadlan dooro ugu yaraan hal alaab oo tiri leh!");
       return;
     }
+
+    // Check stock for OUT
+    if (type === TransactionType.OUT) {
+        for (const row of validRows) {
+            const item = items.find(i => i.id === row.itemId);
+            if (item && row.qty > item.quantity) {
+                alert(`Cilad: Alaabta "${item.name}" ma kugu filna. Haraaga waa: ${item.quantity}.`);
+                return;
+            }
+        }
+    }
+
     onSave(type, { 
       items: validRows, 
       notes, 

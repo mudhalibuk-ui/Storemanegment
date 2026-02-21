@@ -66,10 +66,12 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
   const handleDismissWarning = async (employee: Employee) => {
       if (!confirm("Ma hubtaa inaad ka qaaddo digniinta shaqaalahan?")) return;
       try {
+          console.log("Dismissing warning for:", employee);
           await API.employees.save({ ...employee, isWarningDismissed: true });
           window.location.reload(); // Simple reload to reflect changes since state is in parent
-      } catch (e) {
-          alert("Error dismissing warning");
+      } catch (e: any) {
+          console.error("Dismiss Warning Error:", e);
+          alert(`Error dismissing warning: ${e.message || e}`);
       }
   };
 

@@ -18,6 +18,7 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
   const [activeTab, setActiveTab] = useState<'orders' | 'finance' | 'container' | 'customs' | 'arrivals'>('orders');
   
   const [isPOModalOpen, setIsPOModalOpen] = useState(false);
+  const [editingPO, setEditingPO] = useState<PurchaseOrder | null>(null); // New
   const [newPOTitle, setNewPOTitle] = useState('');
   const [selectedBuyerId, setSelectedBuyerId] = useState('');
   const [poItems, setPoItems] = useState<Partial<POItem>[]>([{ id: '1', name: '', requestedQty: 1, lastPurchasePrice: 0, packType: PackType.BOX }]);
@@ -125,39 +126,56 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
     return { totalReceived, totalSpent, balance: totalReceived - totalSpent };
   };
 
-  const handleSendOrder = () => {
+  const handleSendOrder = (status: POStatus = POStatus.NEW) => {
     if (!newPOTitle || !selectedBuyerId || poItems.length === 0) {
       alert("Fadlan buuxi xogta Order-ka.");
       return;
     }
+    
     const newPO: PurchaseOrder = {
-      id: `PO-${Date.now()}`,
+      id: editingPO ? editingPO.id : `PO-${Date.now()}`,
       creatorId: user.id,
       buyerId: selectedBuyerId,
       title: newPOTitle,
-      status: POStatus.NEW,
-      totalFundsSent: 0,
-      transfers: [],
+      status: status,
+      totalFundsSent: editingPO ? editingPO.totalFundsSent : 0,
+      transfers: editingPO ? editingPO.transfers : [],
       isReadByBuyer: false,
       isReadByManager: true,
-      createdAt: new Date().toISOString(),
+      createdAt: editingPO ? editingPO.createdAt : new Date().toISOString(),
       items: poItems.map(i => ({
-        id: Math.random().toString(36).substr(2, 9),
+        id: i.id || Math.random().toString(36).substr(2, 9),
         name: i.name || 'Unknown Item',
         packType: i.packType || PackType.BOX,
         requestedQty: i.requestedQty || 0,
-        purchasedQty: 0,
+        purchasedQty: i.purchasedQty || 0,
         lastPurchasePrice: i.lastPurchasePrice || 0,
-        actualPrice: 0,
-        isPurchased: false
+        actualPrice: i.actualPrice || 0,
+        isPurchased: i.isPurchased || false
       }))
     };
-    saveAll([...pos, newPO], containers);
+
+    if (editingPO) {
+        const updatedPOs = pos.map(p => p.id === editingPO.id ? newPO : p);
+        saveAll(updatedPOs, containers);
+    } else {
+        saveAll([...pos, newPO], containers);
+    }
+
     setIsPOModalOpen(false);
     setNewPOTitle('');
     setSelectedBuyerId('');
     setPoItems([{ id: '1', name: '', requestedQty: 1, lastPurchasePrice: 0, packType: PackType.BOX }]);
-    alert("Order-ka waa la diray! Buyer-ka ayaa loo sheegi doonaa.");
+    setEditingPO(null);
+    alert(status === POStatus.DRAFT ? "Order-ka waa la keydiyey (Draft)!" : "Order-ka waa la diray!");
+  };
+
+  const openEditModal = (po: PurchaseOrder) => {
+      setNewPOTitle(po.title);
+      setSelectedBuyerId(po.buyerId);
+      setPoItems(po.items);
+      setEditingPO(po);
+      setIsPOModalOpen(true);
   };
 
   const handleDeletePO = (poId: string) => {
@@ -434,9 +452,19 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                        <div className="flex-1">
                           <div className="flex items-center gap-3">
                              <span className="text-[9px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase">{po.id}</span>
-                             <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-lg ${po.status === POStatus.NEW ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                             <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-lg ${po.status === POStatus.NEW ? 'bg-amber-50 text-amber-600' : po.status === POStatus.DRAFT ? 'bg-slate-100 text-slate-500' : 'bg-emerald-50 text-emerald-600'}`}>
                                {po.status}
                              </span>
+                             {/* EDIT BUTTON FOR DRAFT */}
+                             {po.status === POStatus.DRAFT && (
+                                <button 
+                                  onClick={() => openEditModal(po)} 
+                                  className="ml-2 bg-indigo-50 text-indigo-600 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
+                                  title="Edit Draft"
+                                >
+                                  ✏️
+                                </button>
+                             )}
                              {/* DELETE BUTTON FOR MANAGERS */}
                              {!isBuyer && (
                                 <button 
@@ -965,6 +993,9 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                     {poItems.map((item, idx) => (
                       <div key={item.id} className="flex gap-4 bg-white p-4 rounded-3xl border border-slate-100 items-center">
                          <input className="flex-1 p-3 bg-slate-50 rounded-2xl font-bold" placeholder="Item Name" value={item.name} onChange={e => { const n = [...poItems]; n[idx].name = e.target.value; setPoItems(n); }} />
+                         <select className="w-24 p-3 bg-slate-50 rounded-2xl font-bold text-[10px] uppercase" value={item.packType} onChange={e => { const n = [...poItems]; n[idx].packType = e.target.value as PackType; setPoItems(n); }}>
+                            {Object.values(PackType).map(t => <option key={t} value={t}>{t}</option>)}
+                         </select>
                          <input type="number" className="w-24 p-3 bg-slate-50 rounded-2xl font-bold text-center" value={item.requestedQty} onChange={e => { const n = [...poItems]; n[idx].requestedQty = parseInt(e.target.value) || 0; setPoItems(n); }} />
                          <button onClick={() => setPoItems(poItems.filter(i => i.id !== item.id))} className="text-rose-500 font-bold p-2">✕</button>
                       </div>

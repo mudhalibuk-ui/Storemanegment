@@ -54,7 +54,7 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (isOut && qty > item.quantity) {
-      alert(`Error: Ma haysid alaab kugu filan! Alaabta kuu hartay waa: ${item.quantity} kaliya.`);
+      alert(`Cilad: Alaabta "${item.name}" ma kugu filna. Haraaga waa: ${item.quantity}.`);
       return;
     }
     onSave({ 

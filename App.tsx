@@ -22,6 +22,7 @@ import ImportModal from './components/ImportModal';
 import BulkTransactionModal from './components/BulkTransactionModal';
 import ApprovalQueue from './components/ApprovalQueue';
 import TransactionReceipt from './components/TransactionReceipt';
+import BulkTransactionReceipt from './components/BulkTransactionReceipt';
 
 // HRM Imports
 import HRMEmployeeManagement from './components/HRMEmployeeManagement';
@@ -72,6 +73,7 @@ const App: React.FC = () => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [receiptTransaction, setReceiptTransaction] = useState<Transaction | null>(null);
+  const [bulkReceiptData, setBulkReceiptData] = useState<{ transactions: Transaction[], type: TransactionType, branch: Branch | undefined, personnel: string, date: string } | null>(null);
 
   const [settings, setSettings] = useState<SystemSettings>(() => {
     const saved = localStorage.getItem('smartstock_settings');
@@ -433,16 +435,19 @@ const App: React.FC = () => {
           const validXarunId = targetBranch?.xarunId || user.xarunId || '';
           const isPrivileged = user.role === UserRole.SUPER_ADMIN || user.role === UserRole.MANAGER;
 
+          const createdTransactions: Transaction[] = [];
+
           for (const row of data.items) {
               const item = items.find(i => i.id === row.itemId);
               if (item) {
                 const status = (type === TransactionType.OUT && !isPrivileged) ? TransactionStatus.PENDING : TransactionStatus.APPROVED;
                 
-                await API.transactions.create({
+                const newTrans = await API.transactions.create({
                   itemId: item.id, itemName: item.name, type: type, quantity: row.qty, branchId: data.branchId, 
                   personnel: data.personnel, originOrSource: data.source, notes: data.notes, status: status, 
                   requestedBy: user.id, xarunId: validXarunId
                 });
+                createdTransactions.push(newTrans);
                 
                 if (status === TransactionStatus.APPROVED) {
                     let newQty = item.quantity;
@@ -452,9 +457,33 @@ const App: React.FC = () => {
                 }
               }
           }
-          setIsBulkModalOpen(false); refreshAllData(true); 
-          alert(type === TransactionType.OUT && !isPrivileged ? "Bulk OUT requests sent for approval!" : "Bulk Operation Processed!");
+          setIsBulkModalOpen(false); 
+          refreshAllData(true); 
+          
+          if (createdTransactions.length > 0) {
+             setBulkReceiptData({
+                transactions: createdTransactions,
+                type: type,
+                branch: targetBranch,
+                personnel: data.personnel,
+                date: data.date
+             });
+          } else {
+             alert(type === TransactionType.OUT && !isPrivileged ? "Bulk OUT requests sent for approval!" : "Bulk Operation Processed!");
+          }
       }} onCancel={() => setIsBulkModalOpen(false)} />}
+
+      {bulkReceiptData && (
+        <BulkTransactionReceipt 
+          transactions={bulkReceiptData.transactions}
+          branch={bulkReceiptData.branch}
+          type={bulkReceiptData.type}
+          personnel={bulkReceiptData.personnel}
+          date={bulkReceiptData.date}
+          issuedBy={user.name}
+          onClose={() => setBulkReceiptData(null)}
+        />
+      )}
     </Layout>
   );
 };

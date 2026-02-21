@@ -37,7 +37,8 @@ const FIELD_MAPPING: Record<string, string> = {
   endTime: 'end_time',
   lateThreshold: 'late_threshold',
   consecutiveAbsences: 'consecutive_absences',
-  isWarningDismissed: 'is_warning_dismissed'
+  isWarningDismissed: 'is_warning_dismissed',
+  sessionToken: 'session_token'
 };
 
 const toSnakeCase = (obj: any) => {
@@ -247,7 +248,8 @@ export const API = {
       const data = await fetchAllPages('users_registry');
       return Array.isArray(data) ? data.map(u => ({
         id: u.id, name: u.name, username: u.username, password: u.password, 
-        role: u.role as UserRole, avatar: u.avatar, xarunId: u.xarun_id
+        role: u.role as UserRole, avatar: u.avatar, xarunId: u.xarun_id,
+        sessionToken: u.session_token
       })) : [];
     },
     async save(user: Partial<User>): Promise<User> {

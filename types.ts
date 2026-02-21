@@ -27,6 +27,7 @@ export enum PackType {
 }
 
 export enum POStatus {
+  DRAFT = 'DRAFT',
   NEW = 'NEW', 
   PRICED = 'PRICED', 
   AWAITING_FUNDS = 'AWAITING_FUNDS', 
@@ -100,6 +101,7 @@ export interface User {
   role: UserRole;
   avatar?: string;
   xarunId?: string; 
+  sessionToken?: string;
 }
 
 export interface Branch {

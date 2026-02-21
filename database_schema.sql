@@ -64,6 +64,9 @@ CREATE TABLE IF NOT EXISTS public.employees (
     salary NUMERIC DEFAULT 0,
     avatar TEXT,
     fingerprint_hash TEXT,
+    warning TEXT,
+    consecutive_absences INTEGER DEFAULT 0,
+    is_warning_dismissed BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
