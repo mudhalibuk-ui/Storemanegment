@@ -337,7 +337,16 @@ const App: React.FC = () => {
       {isUserFormOpen && <UserForm xarumo={xarumo} editingUser={editingUser} onSave={async (u) => { await API.users.save(u); setIsUserFormOpen(false); refreshAllData(); }} onCancel={() => setIsUserFormOpen(false)} />}
       {isXarunFormOpen && <XarunForm editingXarun={editingXarun} onSave={async (x) => { await API.xarumo.save(x); setIsXarunFormOpen(false); refreshAllData(); }} onCancel={() => setIsXarunFormOpen(false)} />}
       {isBranchFormOpen && <BranchForm xarumo={xarumo} editingBranch={editingBranch} onSave={async (b) => { await API.branches.save(b); setIsBranchFormOpen(false); refreshAllData(); }} onCancel={() => setIsBranchFormOpen(false)} />}
-      {isItemFormOpen && <InventoryForm branches={branches} editingItem={editingItem} onSave={async (item) => { await API.items.save(item); setIsItemFormOpen(false); refreshAllData(); }} onCancel={() => setIsItemFormOpen(false)} />}
+      {isItemFormOpen && <InventoryForm branches={branches} editingItem={editingItem} onSave={async (item) => { 
+        // FIX: Ensure xarunId is set based on the selected branch
+        const selectedBranch = branches.find(b => b.id === item.branchId);
+        const validXarunId = selectedBranch?.xarunId || user.xarunId || '';
+        const itemWithXarun = { ...item, xarunId: validXarunId };
+        
+        await API.items.save(itemWithXarun); 
+        setIsItemFormOpen(false); 
+        refreshAllData(); 
+      }} onCancel={() => setIsItemFormOpen(false)} />}
       {isEmployeeFormOpen && <EmployeeForm branches={branches} xarumo={xarumo} editingEmployee={editingEmployee} onSave={async (emp) => { await API.employees.save(emp); setIsEmployeeFormOpen(false); refreshAllData(); }} onCancel={() => setIsEmployeeFormOpen(false)} />}
       
 

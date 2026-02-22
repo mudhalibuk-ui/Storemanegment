@@ -37,12 +37,18 @@ const CrossXarunOrderHub: React.FC<CrossXarunOrderHubProps> = ({ user, xarumo, m
     }
   }, [selectedSourceXarunId]);
 
+  useEffect(() => {
+    if (myBranches.length > 0 && !selectedTargetBranchId) {
+      setSelectedTargetBranchId(myBranches[0].id);
+    }
+  }, [myBranches]);
+
   const handleOpenNewOrder = () => {
     setEditingOrderId(null);
     setCurrentOrderItems([]);
     setSelectedSourceXarunId('');
     setOrderNotes('');
-    setSelectedTargetBranchId('');
+    setSelectedTargetBranchId(myBranches[0]?.id || '');
     setIsOrderModalOpen(true);
   };
 
@@ -51,7 +57,7 @@ const CrossXarunOrderHub: React.FC<CrossXarunOrderHubProps> = ({ user, xarumo, m
     setCurrentOrderItems(order.items);
     setSelectedSourceXarunId(order.sourceXarunId);
     setOrderNotes(order.notes || '');
-    setSelectedTargetBranchId(order.targetBranchId || '');
+    setSelectedTargetBranchId(order.targetBranchId || myBranches[0]?.id || '');
     setIsOrderModalOpen(true);
   };
 
@@ -75,8 +81,11 @@ const CrossXarunOrderHub: React.FC<CrossXarunOrderHubProps> = ({ user, xarumo, m
   };
 
   const handleSaveOrder = async () => {
-    if (!selectedSourceXarunId || currentOrderItems.length === 0 || !selectedTargetBranchId) {
-      alert("Fadlan buuxi dhammaan xogta dalabka.");
+    // Ensure default branch is selected if not already
+    const targetBranchId = selectedTargetBranchId || myBranches[0]?.id;
+    
+    if (!selectedSourceXarunId || currentOrderItems.length === 0 || !targetBranchId) {
+      alert("Fadlan buuxi dhammaan xogta dalabka (Please ensure a branch is available).");
       return;
     }
 
@@ -89,7 +98,7 @@ const CrossXarunOrderHub: React.FC<CrossXarunOrderHubProps> = ({ user, xarumo, m
       status: XarunOrderStatus.PENDING,
       notes: orderNotes,
       createdAt: new Date().toISOString(),
-      targetBranchId: selectedTargetBranchId,
+      targetBranchId: targetBranchId,
     };
 
     try {
@@ -197,7 +206,7 @@ const CrossXarunOrderHub: React.FC<CrossXarunOrderHubProps> = ({ user, xarumo, m
       </div>
 
       {/* Pending Requests (for Source Xarun Managers) */}
-      {pendingRequests.length > 0 && (user.role === UserRole.SUPER_ADMIN || user.role === UserRole.MANAGER) && (
+      {pendingRequests.length > 0 && (
         <div className="bg-amber-50 p-6 rounded-[2.5rem] border-2 border-dashed border-amber-200">
           <h3 className="text-sm font-black text-amber-600 uppercase tracking-widest mb-4 ml-2">Dalabyo Sugaya Ogolaansho (Incoming)</h3>
           <div className="grid grid-cols-1 gap-4">
@@ -292,7 +301,7 @@ const CrossXarunOrderHub: React.FC<CrossXarunOrderHubProps> = ({ user, xarumo, m
             <div className="space-y-6">
                 <button 
                     onClick={handleSaveOrder} 
-                    disabled={currentOrderItems.length === 0 || !selectedSourceXarunId || !selectedTargetBranchId}
+                    disabled={currentOrderItems.length === 0 || !selectedSourceXarunId}
                     className="w-full py-5 bg-indigo-600 text-white font-black rounded-[2.5rem] shadow-2xl uppercase text-[11px] hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
                 >
                     {editingOrderId ? "CUSBOONAYSII DALABKA 📝" : "DIR DALABKA ➔"}
