@@ -1,7 +1,8 @@
 
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { InventoryItem, Transaction, TransactionType, SystemSettings, Branch } from '../types';
+import { getInventoryInsights } from '../services/geminiService';
 
 interface DashboardProps {
   items: InventoryItem[];
@@ -11,7 +12,41 @@ interface DashboardProps {
   settings?: SystemSettings;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ items, transactions, insights, branches, settings }) => {
+const Dashboard: React.FC<DashboardProps> = ({ items, transactions, insights: initialInsights, branches, settings }) => {
+  const [insights, setInsights] = useState<string[]>(initialInsights);
+  const [filterType, setFilterType] = useState<string>('all');
+  const [filterDate, setFilterDate] = useState<string>('all');
+
+  const filterData = useCallback(async () => {
+    if (initialInsights.length === 0) return;
+
+    let filteredTransactions = transactions;
+
+    if (filterType !== 'all') {
+      filteredTransactions = filteredTransactions.filter(t => t.type === filterType);
+    }
+
+    if (filterDate !== 'all') {
+      const days = parseInt(filterDate, 10);
+      const dateLimit = new Date();
+      dateLimit.setDate(dateLimit.getDate() - days);
+      filteredTransactions = filteredTransactions.filter(t => new Date(t.timestamp) >= dateLimit);
+    }
+
+    setInsights(["Falanqaynaya xogta la sifeeyay..."]);
+    try {
+      const newInsights = await getInventoryInsights(items, filteredTransactions);
+      setInsights(newInsights);
+    } catch (error) {
+      console.error("Error getting insights:", error);
+      setInsights(["Error generating insights."]);
+    }
+  }, [filterType, filterDate, items, transactions, initialInsights]);
+
+  useEffect(() => {
+    filterData();
+  }, [filterData]);
+
   const stats = {
     totalItems: items.length,
     lowStock: items.filter(i => i.quantity <= i.minThreshold).length,
@@ -114,6 +149,19 @@ const Dashboard: React.FC<DashboardProps> = ({ items, transactions, insights, br
             </div>
           </div>
           
+          <div className="flex items-center gap-2 mb-4 relative z-10">
+            <select value={filterType} onChange={e => setFilterType(e.target.value)} className="bg-white/10 text-white text-xs rounded-lg px-2 py-1">
+              <option value="all">All Types</option>
+              <option value="IN">IN</option>
+              <option value="OUT">OUT</option>
+              <option value="TRANSFER">TRANSFER</option>
+            </select>
+            <select value={filterDate} onChange={e => setFilterDate(e.target.value)} className="bg-white/10 text-white text-xs rounded-lg px-2 py-1">
+              <option value="all">All Time</option>
+              <option value="7">Last 7 Days</option>
+              <option value="30">Last 30 Days</option>
+            </select>
+          </div>
           <div className="flex-1 space-y-4 overflow-y-auto no-scrollbar relative z-10">
             {insights.length > 0 ? insights.map((insight, idx) => (
               <div key={idx} className="bg-white/10 backdrop-blur-md p-5 rounded-[2rem] border border-white/10 text-xs font-bold leading-relaxed shadow-lg hover:bg-white/20 transition-all">

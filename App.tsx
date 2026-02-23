@@ -258,6 +258,19 @@ const App: React.FC = () => {
         />
       )}
 
+      {activeTab === 'inter-branch-transfers' && 
+        <InterBranchTransferPage 
+          user={user} 
+          xarumo={xarumo}
+          myBranches={branches.filter(b => b.xarunId === user.xarunId)}
+          items={items} 
+          interBranchTransferRequests={interBranchTransferRequests}
+          onRefresh={refreshAllData} 
+          onUpdateTransfer={async (transferId, updates) => { await API.interBranchTransferRequests.update(transferId, updates); refreshAllData(true); }}
+          onDeleteTransfer={async (transferId) => { await API.interBranchTransferRequests.delete(transferId); refreshAllData(true); }}
+        />
+      }
+
 
 
       {activeTab === 'procurement' && (

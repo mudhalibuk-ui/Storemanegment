@@ -3,7 +3,7 @@ import { GoogleGenAI, Type, FunctionDeclaration } from "@google/genai";
 import { InventoryItem, Transaction, TransactionType } from "../types";
 
 // Always initialize the client using the apiKey named parameter from process.env.API_KEY.
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+const getAI = () => new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const controlTools: FunctionDeclaration[] = [
   {

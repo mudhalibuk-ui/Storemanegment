@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { InterBranchTransferRequest, Xarun, TransferStatus } from '../../types';
+import { InterBranchTransferRequest, Xarun, TransferStatus, TransferAuditEntry } from '../../types';
 import { XIcon } from 'lucide-react';
 import { differenceInHours, differenceInMinutes } from 'date-fns';
 

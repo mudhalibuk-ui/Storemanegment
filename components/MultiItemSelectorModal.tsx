@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { InventoryItem, Branch } from '../types';
 
 interface SelectedItemWithQuantity extends InventoryItem {
@@ -15,7 +15,8 @@ interface MultiItemSelectorModalProps {
   description: string;
   isLoadingItems?: boolean;
   customHeader?: React.ReactNode;
-  customFooter?: React.ReactNode;
+  onItemsChange?: (items: { itemId: string; itemName: string; quantity: number }[]) => void;
+  customFooter?: (handleSave: () => void) => React.ReactNode;
   maxQuantityPerItem?: boolean; // If true, quantity input max will be item.quantity
 }
 
@@ -29,14 +30,16 @@ const MultiItemSelectorModal: React.FC<MultiItemSelectorModalProps> = ({
   description,
   isLoadingItems = false,
   customHeader,
+  onItemsChange,
   customFooter,
   maxQuantityPerItem = true,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedItems, setSelectedItems] = useState<SelectedItemWithQuantity[]>([]);
+  const hasInitialized = useRef(false);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !hasInitialized.current) {
       // Initialize selected items from existingSelectedItems prop
       const initialSelected = existingSelectedItems.map(exItem => {
         const item = availableItems.find(avItem => avItem.id === exItem.itemId);
@@ -44,8 +47,24 @@ const MultiItemSelectorModal: React.FC<MultiItemSelectorModalProps> = ({
       }).filter(Boolean) as SelectedItemWithQuantity[];
       setSelectedItems(initialSelected);
       setSearchTerm(''); // Clear search on open
+      hasInitialized.current = true;
+    }
+    
+    if (!isOpen) {
+      hasInitialized.current = false;
     }
   }, [isOpen, existingSelectedItems, availableItems]);
+
+  useEffect(() => {
+    if (onItemsChange) {
+      const itemsToReport = selectedItems.map(item => ({
+        itemId: item.id,
+        itemName: item.name,
+        quantity: item.selectedQuantity,
+      }));
+      onItemsChange(itemsToReport);
+    }
+  }, [selectedItems, onItemsChange]);
 
   const filteredAvailableItems = useMemo(() => {
     const lowerCaseSearch = searchTerm.toLowerCase();
@@ -168,11 +187,10 @@ const MultiItemSelectorModal: React.FC<MultiItemSelectorModalProps> = ({
             )}
           </div>
 
-          {customFooter}
+          {customFooter && customFooter(handleSave)}
         </div>
 
-        <div className="p-10 bg-slate-50 border-t border-slate-100 flex gap-4 shrink-0">
-        </div>
+
       </div>
     </div>
   );

@@ -272,10 +272,7 @@ const CrossXarunOrderHub: React.FC<CrossXarunOrderHubProps> = ({ user, xarumo, m
         <MultiItemSelectorModal
           isOpen={isOrderModalOpen}
           onClose={() => setIsOrderModalOpen(false)}
-          onSave={(itemsToSave) => {
-            setCurrentOrderItems(itemsToSave);
-            handleSaveOrder(); // Call save after items are updated
-          }}
+          onItemsChange={setCurrentOrderItems}
           availableItems={sourceXarunItems}
           existingSelectedItems={currentOrderItems}
           title={editingOrderId ? "Cusboonaysii Dalabka" : "Dalab Cusub oo Xarun Kale ah"}
@@ -297,7 +294,8 @@ const CrossXarunOrderHub: React.FC<CrossXarunOrderHubProps> = ({ user, xarumo, m
               </select>
             </div>
           )}
-          customFooter={(
+          onSave={handleSaveOrder}
+          customFooter={(handleModalSave) => (
             <div className="space-y-6">
                 <button 
                     onClick={handleSaveOrder} 

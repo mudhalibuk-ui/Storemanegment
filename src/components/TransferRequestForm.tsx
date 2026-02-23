@@ -21,7 +21,7 @@ const TransferRequestForm: React.FC<TransferRequestFormProps> = ({
   onCancel,
 }) => {
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
-  const [quantity, setQuantity] = useState<number>(1);
+  const [quantity, setQuantity] = useState<string>('1');
   const [targetXarunId, setTargetXarunId] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
@@ -30,7 +30,8 @@ const TransferRequestForm: React.FC<TransferRequestFormProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedItem || quantity <= 0 || quantity > selectedItem.quantity || !targetXarunId) {
+    const numQuantity = parseFloat(quantity);
+    if (!selectedItem || numQuantity <= 0 || numQuantity > selectedItem.quantity || !targetXarunId || !user.xarunId) {
       alert('Fadlan hubi dhammaan goobaha la buuxinayo.');
       return;
     }
@@ -51,12 +52,12 @@ const TransferRequestForm: React.FC<TransferRequestFormProps> = ({
         items: [{
           itemId: selectedItem.id,
           itemName: selectedItem.name,
-          quantity: quantity,
+          quantity: numQuantity,
         }],
         sourceXarunId: user.xarunId,
-        sourceBranchId: sourceBranch!.id,
+        sourceBranchId: sourceBranch.id,
         targetXarunId: targetXarunId,
-        targetBranchId: targetBranch!.id,
+        targetBranchId: targetBranch.id,
         requestedBy: user.id,
         status: TransferStatus.REQUESTED,
         notes: notes,
@@ -73,7 +74,7 @@ const TransferRequestForm: React.FC<TransferRequestFormProps> = ({
       await API.interBranchTransferRequests.create(newTransfer);
       
       // Deduct quantity from source branch and mark as reserved
-      const updatedItem = { ...selectedItem, quantity: selectedItem.quantity - quantity, reservedQuantity: (selectedItem.reservedQuantity || 0) + quantity };
+      const updatedItem = { ...selectedItem, quantity: selectedItem.quantity - numQuantity, reservedQuantity: (selectedItem.reservedQuantity || 0) + numQuantity };
       await API.items.save(updatedItem);
 
       onSave(newTransfer);
@@ -114,7 +115,7 @@ const TransferRequestForm: React.FC<TransferRequestFormProps> = ({
               id="quantity"
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               value={quantity}
-              onChange={(e) => setQuantity(Math.max(0.01, parseFloat(e.target.value) || 0.01))}
+              onChange={(e) => setQuantity(e.target.value)}
               min="0.01"
               step="any"
               max={selectedItem?.quantity || 1}
