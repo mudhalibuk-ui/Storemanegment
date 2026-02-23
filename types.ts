@@ -15,7 +15,8 @@ export enum UserRole {
   SUPER_ADMIN = 'SUPER_ADMIN',
   MANAGER = 'MANAGER',
   STAFF = 'STAFF',
-  BUYER = 'BUYER' 
+  BUYER = 'BUYER',
+  VIEWER = 'VIEWER' 
 }
 
 export enum PackType {
@@ -159,6 +160,7 @@ export interface InventoryItem {
   lastKnownPrice?: number;
   packType?: PackType;
   landedCost?: number;
+  reservedQuantity?: number;
 }
 
 export interface Transaction {
@@ -310,4 +312,43 @@ export interface AdjustStockArgs {
   quantity: number;
   personnel?: string;
   notes?: string;
+}
+
+export enum TransferStatus {
+  REQUESTED = 'REQUESTED',
+  PREPARING = 'PREPARING',
+  ON_THE_WAY = 'ON_THE_WAY',
+  ARRIVED = 'ARRIVED',
+  COMPLETED = 'COMPLETED',
+  REJECTED = 'REJECTED'
+}
+
+export interface TransferAuditEntry {
+  status: TransferStatus;
+  timestamp: string;
+  userId: string;
+  userName: string;
+  leadTime?: number; // Time in minutes/hours/days from previous status
+}
+
+export interface InterBranchTransferRequest {
+  id: string;
+  sourceXarunId: string;
+  sourceBranchId: string;
+  targetXarunId: string;
+  targetBranchId: string;
+  requestedBy: string; // User ID who initiated the request
+  items: XarunOrderItem[]; // Reusing XarunOrderItem for consistency
+  status: TransferStatus;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string; // To track last status change
+  auditTrail: TransferAuditEntry[];
+  approvedBy?: string; // User ID who approved the initial request
+  preparedBy?: string; // User ID who marked as preparing
+  shippedBy?: string; // User ID who marked as on-the-way
+  receivedBy?: string; // User ID who marked as arrived/completed
+  rackNumber?: string; // For storage designation on arrival
+  binLocation?: string; // For storage designation on arrival
+  expectedArrivalDate?: string; // Optional, for planning
 }

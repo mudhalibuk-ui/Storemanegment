@@ -10,12 +10,13 @@ interface LayoutProps {
   systemName?: string;
   lowStockCount?: number;
   pendingApprovalsCount?: number;
+  interBranchTransferCount?: number; // New prop for inter-branch transfers
   user: User;
   onLogout: () => void;
 }
 
-const Layout: React.FC<LayoutProps> = ({ 
-  children, activeTab, setActiveTab, systemName = "SmartStock Pro", lowStockCount = 0, pendingApprovalsCount = 0, user, onLogout
+const Layout: React.FC<LayoutProps> = ({
+  children, activeTab, setActiveTab, systemName = "SmartStock Pro", lowStockCount = 0, pendingApprovalsCount = 0, interBranchTransferCount = 0, user, onLogout
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const isCloud = isDbConnected();
@@ -37,6 +38,7 @@ const Layout: React.FC<LayoutProps> = ({
         { id: 'xarumo', label: 'Xarumaha (Centers)', icon: '📍', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
         { id: 'bakhaarada', label: 'Bakhaarada', icon: '🏢', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
         { id: 'xarun-orders', label: 'Xarun Orders', icon: '🌍', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
+        { id: 'inter-branch-transfers', label: 'Inter-Branch Transfers', icon: '🚚', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], badge: interBranchTransferCount }
       ]
     },
     { 

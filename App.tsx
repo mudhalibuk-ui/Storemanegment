@@ -33,7 +33,8 @@ import HRMReports from './components/HRMReports';
 import EmployeeForm from './components/EmployeeForm';
 
 import { API } from './services/api';
-import { InventoryItem, Branch, Transaction, User, TransactionStatus, TransactionType, SystemSettings, UserRole, Xarun, Employee, Attendance, Payroll, XarunOrderRequest, XarunOrderItem } from './types';
+import InterBranchTransferPage from './src/components/InterBranchTransferPage';
+import { InventoryItem, Branch, Transaction, User, TransactionStatus, TransactionType, SystemSettings, UserRole, Xarun, Employee, Attendance, Payroll, XarunOrderRequest, XarunOrderItem, InterBranchTransferRequest, TransferStatus } from './types';
 import { getInventoryInsights } from './services/geminiService';
 import { formatPlacement } from './services/mappingUtils';
 
@@ -76,6 +77,8 @@ const App: React.FC = () => {
   const [receiptTransaction, setReceiptTransaction] = useState<Transaction | null>(null);
   const [bulkReceiptData, setBulkReceiptData] = useState<{ transactions: Transaction[], type: TransactionType, branch: Branch | undefined, personnel: string, date: string } | null>(null);
   const [xarunOrders, setXarunOrders] = useState<XarunOrderRequest[]>([]);
+  const [interBranchTransferRequests, setInterBranchTransferRequests] = useState<InterBranchTransferRequest[]>([]);
+
 
   const [settings, setSettings] = useState<SystemSettings>(() => {
     const saved = localStorage.getItem('smartstock_settings');
@@ -114,7 +117,7 @@ const App: React.FC = () => {
     const xarunIdFilter = user.role === UserRole.SUPER_ADMIN ? undefined : user.xarunId;
     
     try {
-      const [fXarumo, fItems, fBranches, fTransactions, fUsers, fEmployees, fPayrolls, fAttendance, fXarunOrders] = await Promise.all([
+      const [fXarumo, fItems, fBranches, fTransactions, fUsers, fEmployees, fPayrolls, fAttendance, fXarunOrders, fInterBranchTransferRequests] = await Promise.all([
         API.xarumo.getAll(),
         API.items.getAll(xarunIdFilter),
         API.branches.getAll(xarunIdFilter),
@@ -123,7 +126,8 @@ const App: React.FC = () => {
         API.employees.getAll(xarunIdFilter),
         API.payroll.getAll(),
         API.attendance.getAll(),
-        API.xarunOrders.getAll(xarunIdFilter)
+        API.xarunOrders.getAll(xarunIdFilter),
+        API.interBranchTransferRequests.getAll(xarunIdFilter)
       ]);
 
       setXarumo(fXarumo || []);
@@ -135,6 +139,7 @@ const App: React.FC = () => {
       setPayrolls(fPayrolls || []);
       setAttendance(fAttendance || []);
       setXarunOrders(fXarunOrders || []);
+
 
       if (fItems && fItems.length > 0 && !isBackground && activeTab === 'dashboard') {
         getInventoryInsights(fItems, fTransactions || [])
@@ -195,6 +200,7 @@ const App: React.FC = () => {
       activeTab={activeTab} setActiveTab={setActiveTab} user={user} onLogout={() => setUser(null)} 
       systemName={settings.systemName} lowStockCount={items.filter(i => i.quantity <= i.minThreshold).length} 
       pendingApprovalsCount={transactions.filter(t => t.status === TransactionStatus.PENDING).length}
+          interBranchTransferCount={interBranchTransferRequests.filter(t => t.status === TransferStatus.REQUESTED && t.targetXarunId === user.xarunId).length}
     >
       {activeTab === 'dashboard' && <Dashboard items={items} transactions={transactions} insights={insights} branches={branches} settings={settings} />}
       {activeTab === 'inventory' && (
@@ -251,6 +257,8 @@ const App: React.FC = () => {
           onDeleteOrder={async (orderId: string) => { await API.xarunOrders.delete(orderId); refreshAllData(true); }}
         />
       )}
+
+
 
       {activeTab === 'procurement' && (
         <LogisticsProcurement 

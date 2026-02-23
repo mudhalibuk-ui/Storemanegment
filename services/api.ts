@@ -1,5 +1,5 @@
 
-import { InventoryItem, Transaction, Branch, User, TransactionStatus, Xarun, UserRole, TransactionType, Employee, Attendance, Payroll, Device, Shift, LeaveRequest, EmployeeDocument, XarunOrderRequest } from '../types';
+import { InventoryItem, Transaction, Branch, User, TransactionStatus, Xarun, UserRole, TransactionType, Employee, Attendance, Payroll, Device, Shift, LeaveRequest, EmployeeDocument, XarunOrderRequest, InterBranchTransferRequest } from '../types';
 import { supabaseFetch, isDbConnected } from './supabaseClient';
 
 const FIELD_MAPPING: Record<string, string> = {
@@ -37,7 +37,13 @@ const FIELD_MAPPING: Record<string, string> = {
   endTime: 'end_time',
   lateThreshold: 'late_threshold',
   consecutiveAbsences: 'consecutive_absences',
-  isWarningDismissed: 'is_warning_dismissed'
+  isWarningDismissed: 'is_warning_dismissed',
+  sourceBranchId: 'source_branch_id',
+  auditTrail: 'audit_trail',
+  updatedAt: 'updated_at',
+  rackNumber: 'rack_number',
+  binLocation: 'bin_location',
+  expectedArrivalDate: 'expected_arrival_date'
 };
 
 const toSnakeCase = (obj: any): any => {
@@ -423,6 +429,47 @@ export const API = {
     },
     async delete(id: string): Promise<void> {
       await supabaseFetch(`xarun_orders?id=eq.${id}`, { method: 'DELETE' });
+    }
+  },
+
+  interBranchTransferRequests: {
+    async getAll(xarunId?: string): Promise<InterBranchTransferRequest[]> {
+      const query = xarunId ? `target_xarun_id=eq.${xarunId}|source_xarun_id=eq.${xarunId}` : '';
+      const data = await fetchAllPages('inter_branch_transfer_requests', query, 'created_at');
+      return data.map((t: any) => ({
+        id: t.id,
+        sourceXarunId: t.source_xarun_id,
+        sourceBranchId: t.source_branch_id,
+        targetXarunId: t.target_xarun_id,
+        targetBranchId: t.target_branch_id,
+        requestedBy: t.requested_by,
+        items: t.items,
+        status: t.status,
+        notes: t.notes,
+        createdAt: t.created_at,
+        updatedAt: t.updated_at,
+        auditTrail: t.audit_trail || [],
+        approvedBy: t.approved_by,
+        preparedBy: t.prepared_by,
+        shippedBy: t.shipped_by,
+        receivedBy: t.received_by,
+        rackNumber: t.rack_number,
+        binLocation: t.bin_location,
+        expectedArrivalDate: t.expected_arrival_date,
+      }));
+    },
+    async create(request: Partial<InterBranchTransferRequest>): Promise<InterBranchTransferRequest> {
+      const id = crypto.randomUUID();
+      const payload = { ...request, id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), auditTrail: request.auditTrail || [] };
+      await cloudSave('inter_branch_transfer_requests', payload);
+      return payload as InterBranchTransferRequest;
+    },
+    async update(id: string, updates: Partial<InterBranchTransferRequest>): Promise<void> {
+      const payload = { ...updates, updatedAt: new Date().toISOString() };
+      await supabaseFetch(`inter_branch_transfer_requests?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(toSnakeCase(payload)) });
+    },
+    async delete(id: string): Promise<void> {
+      await supabaseFetch(`inter_branch_transfer_requests?id=eq.${id}`, { method: 'DELETE' });
     }
   }
 };

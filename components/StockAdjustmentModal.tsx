@@ -147,8 +147,8 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
             <div>
               <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-3 px-1">Tirada la {isOut ? 'bixinayo' : 'kordhinayo'}?</label>
               <div className="flex items-center gap-4">
-                <button type="button" onClick={() => setQty(Math.max(1, qty - 1))} className="w-14 h-14 rounded-2xl border-2 border-slate-100 flex items-center justify-center text-2xl font-black text-slate-400 hover:border-indigo-200 hover:text-indigo-600 active:scale-90 transition-all bg-white shadow-sm">−</button>
-                <input required type="number" min="1" className="flex-1 text-center py-4 text-3xl font-black text-slate-900 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 focus:bg-white outline-none transition-all shadow-inner" value={qty} onChange={e => setQty(parseInt(e.target.value) || 0)} />
+                <button type="button" onClick={() => setQty(Math.max(0.01, qty - 1))} className="w-14 h-14 rounded-2xl border-2 border-slate-100 flex items-center justify-center text-2xl font-black text-slate-400 hover:border-indigo-200 hover:text-indigo-600 active:scale-90 transition-all bg-white shadow-sm">−</button>
+                <input required type="number" min="0.01" step="any" className="flex-1 text-center py-4 text-3xl font-black text-slate-900 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 focus:bg-white outline-none transition-all shadow-inner" value={qty} onChange={e => setQty(parseFloat(e.target.value) || 0.01)} />
                 <button type="button" onClick={() => setQty(qty + 1)} className="w-14 h-14 rounded-2xl border-2 border-slate-100 flex items-center justify-center text-2xl font-black text-slate-400 hover:border-indigo-200 hover:text-indigo-600 active:scale-90 transition-all bg-white shadow-sm">+</button>
               </div>
             </div>
