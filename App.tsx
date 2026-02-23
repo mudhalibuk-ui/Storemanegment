@@ -120,7 +120,7 @@ const App: React.FC = () => {
       const [fXarumo, fItems, fBranches, fTransactions, fUsers, fEmployees, fPayrolls, fAttendance, fXarunOrders, fInterBranchTransferRequests] = await Promise.all([
         API.xarumo.getAll(),
         API.items.getAll(), // Fetch all items to allow inter-center transfers
-        API.branches.getAll(xarunIdFilter),
+        API.branches.getAll(), // Fetch all branches to allow inter-center transfers
         API.transactions.getAll(xarunIdFilter),
         API.users.getAll(),
         API.employees.getAll(xarunIdFilter),
@@ -245,7 +245,7 @@ const App: React.FC = () => {
       )}
 
       {activeTab === 'transactions' && <TransactionHistory transactions={transactions} branches={branches} items={items} onRefresh={refreshAllData} />}
-      {activeTab === 'map' && <WarehouseMap items={items} branches={branches} />}
+      {activeTab === 'map' && <WarehouseMap user={user} items={items} branches={branches} />}
 
       {activeTab === 'inter-branch-transfers' && 
         <InterBranchTransferPage 
@@ -284,7 +284,7 @@ const App: React.FC = () => {
       )}
       {activeTab === 'bakhaarada' && (
         <BakhaarList 
-          branches={branches} 
+          branches={user.role === UserRole.SUPER_ADMIN ? branches : branches.filter(b => b.xarunId === user.xarunId)} 
           xarumo={xarumo} 
           filterXarunId={filterXarunId} 
           onClearFilter={() => setFilterXarunId(null)} 

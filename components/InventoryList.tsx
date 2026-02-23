@@ -31,6 +31,11 @@ const InventoryList: React.FC<InventoryListProps> = ({
     Array.from(new Set(items.map(item => item.category))).filter(Boolean) as string[]
   , [items]);
 
+  const filteredBranches = useMemo(() => {
+    if (user.role === UserRole.SUPER_ADMIN) return branches;
+    return branches.filter(b => b.xarunId === user.xarunId);
+  }, [branches, user]);
+
   // NIDAAMKA RAADINTA - (STRICT FILTERING & DEDUPLICATION)
   const filteredItems = useMemo(() => {
     const q = searchTerm.toLowerCase().trim();
@@ -169,7 +174,7 @@ const InventoryList: React.FC<InventoryListProps> = ({
                 onChange={(e) => setBranchFilter(e.target.value)}
               >
                 <option value="all">DHAMAAN BAKHAARADA</option>
-                {branches.map(b => <option key={b.id} value={b.id}>{b.name.toUpperCase()}</option>)}
+                {filteredBranches.map(b => <option key={b.id} value={b.id}>{b.name.toUpperCase()}</option>)}
               </select>
             </div>
           </div>

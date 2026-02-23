@@ -1,15 +1,21 @@
 
-import React, { useState } from 'react';
-import { InventoryItem, Branch } from '../types';
+import React, { useState, useMemo } from 'react';
+import { InventoryItem, Branch, User, UserRole } from '../types';
 import { numberToLetter, formatPlacement } from '../services/mappingUtils';
 
 interface WarehouseMapProps {
+  user: User;
   items: InventoryItem[];
   branches: Branch[];
 }
 
-const WarehouseMap: React.FC<WarehouseMapProps> = ({ items, branches }) => {
-  const [selectedBranchId, setSelectedBranchId] = useState(branches[0]?.id || '');
+const WarehouseMap: React.FC<WarehouseMapProps> = ({ user, items, branches }) => {
+  const filteredBranches = useMemo(() => {
+    if (user.role === UserRole.SUPER_ADMIN) return branches;
+    return branches.filter(b => b.xarunId === user.xarunId);
+  }, [branches, user]);
+
+  const [selectedBranchId, setSelectedBranchId] = useState(filteredBranches[0]?.id || '');
   const [selectedSlot, setSelectedSlot] = useState<{items: InventoryItem[], shelf: number, section: number} | null>(null);
   const [mapSearch, setMapSearch] = useState('');
   const [viewMode, setViewMode] = useState<'MAP' | 'LIST'>('MAP'); // Mobile Toggle State
@@ -68,7 +74,7 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({ items, branches }) => {
              value={selectedBranchId}
              onChange={(e) => setSelectedBranchId(e.target.value)}
            >
-             {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+             {filteredBranches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
            </select>
         </div>
       </div>
