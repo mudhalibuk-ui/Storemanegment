@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { InventoryItem, Branch, User, Xarun, TransferStatus, InterBranchTransferRequest } from '../../types';
+import { InventoryItem, Branch, User, Xarun, TransferStatus, InterBranchTransferRequest, UserRole } from '../../types';
 import { API } from '../../services/api';
 import { X, Search, Plus, Trash2, Truck, Package, Building2, FileText, AlertCircle } from 'lucide-react';
 
@@ -34,18 +34,24 @@ const TransferRequestForm: React.FC<TransferRequestFormProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const availableItems = useMemo(() => 
-    items.filter(item => item.xarunId === user.xarunId && item.quantity > 0),
-    [items, user.xarunId]
-  );
+  const availableItems = useMemo(() => {
+    const isSuperAdmin = user.role === UserRole.SUPER_ADMIN;
+    return items.filter(item => 
+      (isSuperAdmin || !user.xarunId || item.xarunId === user.xarunId) && 
+      item.quantity > 0
+    );
+  }, [items, user.xarunId, user.role]);
 
   const filteredItems = useMemo(() => {
     if (!searchTerm) return [];
-    const lower = searchTerm.toLowerCase();
+    const lower = searchTerm.toLowerCase().trim();
     return availableItems.filter(item => 
       !selectedItems.some(si => si.itemId === item.id) &&
-      (item.name.toLowerCase().includes(lower) || item.sku.toLowerCase().includes(lower))
-    ).slice(0, 5);
+      (
+        (item.name?.toLowerCase() || '').includes(lower) || 
+        (item.sku?.toLowerCase() || '').includes(lower)
+      )
+    ).slice(0, 8);
   }, [availableItems, searchTerm, selectedItems]);
 
   const handleAddItem = (item: InventoryItem) => {
@@ -190,22 +196,32 @@ const TransferRequestForm: React.FC<TransferRequestFormProps> = ({
             </div>
 
             {/* Search Results Dropdown */}
-            {filteredItems.length > 0 && (
+            {searchTerm && (
               <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-100 rounded-2xl shadow-xl z-10 overflow-hidden animate-in slide-in-from-top-2 duration-200">
-                {filteredItems.map(item => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => handleAddItem(item)}
-                    className="w-full px-6 py-4 text-left hover:bg-indigo-50 flex justify-between items-center group transition-colors"
-                  >
-                    <div>
-                      <p className="font-bold text-slate-800 group-hover:text-indigo-600">{item.name}</p>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">SKU: {item.sku} • Stock: {item.quantity}</p>
-                    </div>
-                    <Plus className="w-5 h-5 text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </button>
-                ))}
+                {filteredItems.length > 0 ? (
+                  filteredItems.map(item => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleAddItem(item)}
+                      className="w-full px-6 py-4 text-left hover:bg-indigo-50 flex justify-between items-center group transition-colors"
+                    >
+                      <div>
+                        <p className="font-bold text-slate-800 group-hover:text-indigo-600">{item.name}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">SKU: {item.sku} • Stock: {item.quantity}</p>
+                      </div>
+                      <Plus className="w-5 h-5 text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-6 py-8 text-center">
+                    <AlertCircle className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Alaab lama helin (No items found)</p>
+                    {availableItems.length === 0 && (
+                      <p className="text-[10px] text-rose-400 mt-1 uppercase font-bold">Xaruntan wax alaab ah kuma jiraan</p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

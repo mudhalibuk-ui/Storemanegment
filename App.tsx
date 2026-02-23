@@ -139,6 +139,7 @@ const App: React.FC = () => {
       setPayrolls(fPayrolls || []);
       setAttendance(fAttendance || []);
       setXarunOrders(fXarunOrders || []);
+      setInterBranchTransferRequests(fInterBranchTransferRequests || []);
 
 
       if (fItems && fItems.length > 0 && !isBackground && activeTab === 'dashboard') {
