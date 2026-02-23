@@ -317,6 +317,7 @@ export interface AdjustStockArgs {
 export enum TransferStatus {
   REQUESTED = 'REQUESTED',
   PREPARING = 'PREPARING',
+  READY = 'READY',
   ON_THE_WAY = 'ON_THE_WAY',
   ARRIVED = 'ARRIVED',
   COMPLETED = 'COMPLETED',

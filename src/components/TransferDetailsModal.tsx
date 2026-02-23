@@ -31,7 +31,6 @@ const TransferDetailsModal: React.FC<TransferDetailsModalProps> = ({
 
   const getXarunName = (xarunId: string) => xarumo.find(x => x.id === xarunId)?.name || 'Unknown Xarun';
   const getItemName = (itemId: string) => items.find(i => i.id === itemId)?.name || 'Unknown Item';
-  const transferItem = transfer.items[0]; // Assuming one item per transfer for now
 
   const isSourceXarun = user.xarunId === transfer.sourceXarunId;
   const isTargetXarun = user.xarunId === transfer.targetXarunId;
@@ -48,9 +47,11 @@ const TransferDetailsModal: React.FC<TransferDetailsModalProps> = ({
       try {
         // Release reserved quantity if the transfer was not yet arrived
         if (transfer.status !== TransferStatus.ARRIVED) {
-          const sourceItem = items.find(item => item.id === transferItem.itemId && item.xarunId === transfer.sourceXarunId);
-          if (sourceItem) {
-            await API.items.save({ ...sourceItem, reservedQuantity: Math.max(0, (sourceItem.reservedQuantity || 0) - transferItem.quantity) });
+          for (const transferItem of transfer.items) {
+            const sourceItem = items.find(item => item.id === transferItem.itemId && item.xarunId === transfer.sourceXarunId);
+            if (sourceItem) {
+              await API.items.save({ ...sourceItem, reservedQuantity: Math.max(0, (sourceItem.reservedQuantity || 0) - transferItem.quantity) });
+            }
           }
         }
         await onDelete(transfer.id);
@@ -84,8 +85,20 @@ const TransferDetailsModal: React.FC<TransferDetailsModalProps> = ({
         if (isSourceXarun || isSuperAdmin) {
           return (
             <button
-              onClick={() => handleStatusChange(TransferStatus.ON_THE_WAY)}
+              onClick={() => handleStatusChange(TransferStatus.READY)}
               className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+            >
+              <CheckCircleIcon className="w-5 h-5 inline-block mr-2" /> Mark Ready
+            </button>
+          );
+        }
+        break;
+      case TransferStatus.READY:
+        if (isSourceXarun || isSuperAdmin) {
+          return (
+            <button
+              onClick={() => handleStatusChange(TransferStatus.ON_THE_WAY)}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700"
             >
               <TruckIcon className="w-5 h-5 inline-block mr-2" /> Mark On-the-Way
             </button>
@@ -137,13 +150,16 @@ const TransferDetailsModal: React.FC<TransferDetailsModalProps> = ({
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Transfer Details</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <div>
-            <p className="text-sm font-medium text-gray-500">Item Name</p>
-            <p className="text-lg text-gray-900">{transferItem.itemName}</p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-500">Quantity</p>
-            <p className="text-lg text-gray-900">{transferItem.quantity}</p>
+          <div className="md:col-span-2">
+            <p className="text-sm font-medium text-gray-500 mb-2">Items</p>
+            <div className="bg-gray-50 rounded-md p-3 space-y-2">
+              {transfer.items.map((item, idx) => (
+                <div key={idx} className="flex justify-between text-sm">
+                  <span className="font-medium">{item.itemName}</span>
+                  <span className="text-gray-600">x {item.quantity}</span>
+                </div>
+              ))}
+            </div>
           </div>
           <div>
             <p className="text-sm font-medium text-gray-500">Source Xarun</p>
@@ -161,6 +177,7 @@ const TransferDetailsModal: React.FC<TransferDetailsModalProps> = ({
             <p className="text-sm font-medium text-gray-500">Current Status</p>
             <p className={`text-lg font-semibold ${transfer.status === TransferStatus.REQUESTED ? 'text-blue-600'
               : transfer.status === TransferStatus.PREPARING ? 'text-yellow-600'
+              : transfer.status === TransferStatus.READY ? 'text-emerald-600'
               : transfer.status === TransferStatus.ON_THE_WAY ? 'text-purple-600'
               : 'text-green-600'}`}>{transfer.status}</p>
           </div>

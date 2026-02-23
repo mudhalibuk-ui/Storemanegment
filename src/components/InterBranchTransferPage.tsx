@@ -47,6 +47,7 @@ const InterBranchTransferPage: React.FC<InterBranchTransferPageProps> = ({
   // Group transfers by status for display
   const requestedTransfers = relevantTransfers.filter(t => t.status === TransferStatus.REQUESTED);
   const preparingTransfers = relevantTransfers.filter(t => t.status === TransferStatus.PREPARING);
+  const readyTransfers = relevantTransfers.filter(t => t.status === TransferStatus.READY);
   const onTheWayTransfers = relevantTransfers.filter(t => t.status === TransferStatus.ON_THE_WAY);
   const arrivedTransfers = relevantTransfers.filter(t => t.status === TransferStatus.ARRIVED);
 
@@ -85,6 +86,9 @@ const InterBranchTransferPage: React.FC<InterBranchTransferPageProps> = ({
       case TransferStatus.PREPARING:
         updates.preparedBy = user.id;
         break;
+      case TransferStatus.READY:
+        // No specific field for ready, just audit trail
+        break;
       case TransferStatus.ON_THE_WAY:
         updates.shippedBy = user.id;
         break;
@@ -93,29 +97,30 @@ const InterBranchTransferPage: React.FC<InterBranchTransferPageProps> = ({
         updates.rackNumber = rackNumber;
         updates.binLocation = binLocation;
 
-        const transferItem = transfer.items[0]; // Assuming one item per transfer
-        const targetItem = items.find(item => item.id === transferItem.itemId && item.xarunId === transfer.targetXarunId);
-        const sourceItem = items.find(item => item.id === transferItem.itemId && item.xarunId === transfer.sourceXarunId);
+        for (const transferItem of transfer.items) {
+          const targetItem = items.find(item => item.id === transferItem.itemId && item.xarunId === transfer.targetXarunId);
+          const sourceItem = items.find(item => item.id === transferItem.itemId && item.xarunId === transfer.sourceXarunId);
 
-        if (targetItem) {
-          await API.items.save({ ...targetItem, quantity: targetItem.quantity + transferItem.quantity, shelves: parseInt(rackNumber!), sections: parseInt(binLocation!) });
-        } else {
-          const originalItem = items.find(item => item.id === transferItem.itemId);
-          if (originalItem) {
-            await API.items.save({
-              ...originalItem,
-              id: `item-${Date.now()}`,
-              xarunId: transfer.targetXarunId,
-              quantity: transferItem.quantity,
-              reservedQuantity: 0,
-              shelves: parseInt(rackNumber!),
-              sections: parseInt(binLocation!),
-            });
+          if (targetItem) {
+            await API.items.save({ ...targetItem, quantity: targetItem.quantity + transferItem.quantity, shelves: parseInt(rackNumber!), sections: parseInt(binLocation!) });
+          } else {
+            const originalItem = items.find(item => item.id === transferItem.itemId);
+            if (originalItem) {
+              await API.items.save({
+                ...originalItem,
+                id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                xarunId: transfer.targetXarunId,
+                quantity: transferItem.quantity,
+                reservedQuantity: 0,
+                shelves: parseInt(rackNumber!),
+                sections: parseInt(binLocation!),
+              });
+            }
           }
-        }
 
-        if (sourceItem) {
-          await API.items.save({ ...sourceItem, reservedQuantity: Math.max(0, (sourceItem.reservedQuantity || 0) - transferItem.quantity) });
+          if (sourceItem) {
+            await API.items.save({ ...sourceItem, reservedQuantity: Math.max(0, (sourceItem.reservedQuantity || 0) - transferItem.quantity) });
+          }
         }
         break;
     }
@@ -127,7 +132,7 @@ const InterBranchTransferPage: React.FC<InterBranchTransferPageProps> = ({
   return (
     <div className="p-4 sm:p-6 lg:p-8 bg-gray-100 min-h-screen">
       <div className="flex flex-col sm:flex-row items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-4 sm:mb-0">Inter-Branch Transfers</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-4 sm:mb-0">Logistics & Transfers</h1>
         <div className="flex space-x-2">
           {isManager && (
             <button
@@ -148,7 +153,7 @@ const InterBranchTransferPage: React.FC<InterBranchTransferPageProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
         {/* Requested */} 
         <div className="bg-white rounded-lg shadow p-4">
           <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center"><ClockIcon className="w-5 h-5 mr-2 text-blue-500" />Requested ({requestedTransfers.length})</h2>
@@ -158,7 +163,10 @@ const InterBranchTransferPage: React.FC<InterBranchTransferPageProps> = ({
             ) : (
               requestedTransfers.map(transfer => (
                 <div key={transfer.id} className="border border-blue-200 rounded-md p-3 bg-blue-50">
-                  <p className="font-medium">{getItemName(transfer.items[0].itemId)} x {transfer.items[0].quantity}</p>
+                  <p className="font-medium">
+                    {getItemName(transfer.items[0].itemId)} x {transfer.items[0].quantity}
+                    {transfer.items.length > 1 && <span className="text-xs text-blue-600 ml-1">+{transfer.items.length - 1} more</span>}
+                  </p>
                   <p className="text-sm text-gray-600">From: {getXarunName(transfer.sourceXarunId)} <ArrowRightIcon className="inline-block w-4 h-4 mx-1" /> To: {getXarunName(transfer.targetXarunId)}</p>
                   <p className="text-xs text-gray-500">Requested: {format(new Date(transfer.createdAt), 'MMM dd, yyyy HH:mm')}</p>
                   <div className="mt-2 flex justify-end space-x-2">
@@ -182,12 +190,42 @@ const InterBranchTransferPage: React.FC<InterBranchTransferPageProps> = ({
             ) : (
               preparingTransfers.map(transfer => (
                 <div key={transfer.id} className="border border-yellow-200 rounded-md p-3 bg-yellow-50">
-                  <p className="font-medium">{getItemName(transfer.items[0].itemId)} x {transfer.items[0].quantity}</p>
+                  <p className="font-medium">
+                    {getItemName(transfer.items[0].itemId)} x {transfer.items[0].quantity}
+                    {transfer.items.length > 1 && <span className="text-xs text-yellow-600 ml-1">+{transfer.items.length - 1} more</span>}
+                  </p>
                   <p className="text-sm text-gray-600">From: {getXarunName(transfer.sourceXarunId)} <ArrowRightIcon className="inline-block w-4 h-4 mx-1" /> To: {getXarunName(transfer.targetXarunId)}</p>
                   <p className="text-xs text-gray-500">Started: {format(new Date(transfer.auditTrail?.find((h: TransferAuditEntry) => h.status === TransferStatus.PREPARING)?.timestamp || transfer.createdAt), 'MMM dd, yyyy HH:mm')}</p>
                   <div className="mt-2 flex justify-end space-x-2">
                     {transfer.sourceXarunId === myXarunId && user.role !== UserRole.VIEWER && (
-                      <button onClick={() => handleStatusUpdate(transfer, TransferStatus.ON_THE_WAY, user)} className="px-3 py-1 bg-yellow-500 text-white text-xs rounded-md hover:bg-yellow-600">Ship</button>
+                      <button onClick={() => handleStatusUpdate(transfer, TransferStatus.READY, user)} className="px-3 py-1 bg-yellow-500 text-white text-xs rounded-md hover:bg-yellow-600">Ready</button>
+                    )}
+                    <button onClick={() => setSelectedTransfer(transfer)} className="px-3 py-1 bg-gray-200 text-gray-800 text-xs rounded-md hover:bg-gray-300">View</button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Ready */} 
+        <div className="bg-white rounded-lg shadow p-4">
+          <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center"><CheckCircleIcon className="w-5 h-5 mr-2 text-emerald-500" />Ready ({readyTransfers.length})</h2>
+          <div className="space-y-4">
+            {readyTransfers.length === 0 ? (
+              <p className="text-gray-500">No transfers ready.</p>
+            ) : (
+              readyTransfers.map(transfer => (
+                <div key={transfer.id} className="border border-emerald-200 rounded-md p-3 bg-emerald-50">
+                  <p className="font-medium">
+                    {getItemName(transfer.items[0].itemId)} x {transfer.items[0].quantity}
+                    {transfer.items.length > 1 && <span className="text-xs text-emerald-600 ml-1">+{transfer.items.length - 1} more</span>}
+                  </p>
+                  <p className="text-sm text-gray-600">From: {getXarunName(transfer.sourceXarunId)} <ArrowRightIcon className="inline-block w-4 h-4 mx-1" /> To: {getXarunName(transfer.targetXarunId)}</p>
+                  <p className="text-xs text-gray-500">Ready: {format(new Date(transfer.auditTrail?.find((h: TransferAuditEntry) => h.status === TransferStatus.READY)?.timestamp || transfer.createdAt), 'MMM dd, yyyy HH:mm')}</p>
+                  <div className="mt-2 flex justify-end space-x-2">
+                    {transfer.sourceXarunId === myXarunId && user.role !== UserRole.VIEWER && (
+                      <button onClick={() => handleStatusUpdate(transfer, TransferStatus.ON_THE_WAY, user)} className="px-3 py-1 bg-emerald-500 text-white text-xs rounded-md hover:bg-emerald-600">Ship</button>
                     )}
                     <button onClick={() => setSelectedTransfer(transfer)} className="px-3 py-1 bg-gray-200 text-gray-800 text-xs rounded-md hover:bg-gray-300">View</button>
                   </div>
@@ -206,7 +244,10 @@ const InterBranchTransferPage: React.FC<InterBranchTransferPageProps> = ({
             ) : (
               onTheWayTransfers.map(transfer => (
                 <div key={transfer.id} className="border border-purple-200 rounded-md p-3 bg-purple-50">
-                  <p className="font-medium">{getItemName(transfer.items[0].itemId)} x {transfer.items[0].quantity}</p>
+                  <p className="font-medium">
+                    {getItemName(transfer.items[0].itemId)} x {transfer.items[0].quantity}
+                    {transfer.items.length > 1 && <span className="text-xs text-purple-600 ml-1">+{transfer.items.length - 1} more</span>}
+                  </p>
                   <p className="text-sm text-gray-600">From: {getXarunName(transfer.sourceXarunId)} <ArrowRightIcon className="inline-block w-4 h-4 mx-1" /> To: {getXarunName(transfer.targetXarunId)}</p>
                   <p className="text-xs text-gray-500">Shipped: {format(new Date(transfer.auditTrail?.find((h: TransferAuditEntry) => h.status === TransferStatus.ON_THE_WAY)?.timestamp || transfer.createdAt), 'MMM dd, yyyy HH:mm')}</p>
                   <div className="mt-2 flex justify-end space-x-2">
@@ -230,7 +271,10 @@ const InterBranchTransferPage: React.FC<InterBranchTransferPageProps> = ({
             ) : (
               arrivedTransfers.map(transfer => (
                 <div key={transfer.id} className="border border-green-200 rounded-md p-3 bg-green-50">
-                  <p className="font-medium">{getItemName(transfer.items[0].itemId)} x {transfer.items[0].quantity}</p>
+                  <p className="font-medium">
+                    {getItemName(transfer.items[0].itemId)} x {transfer.items[0].quantity}
+                    {transfer.items.length > 1 && <span className="text-xs text-green-600 ml-1">+{transfer.items.length - 1} more</span>}
+                  </p>
                   <p className="text-sm text-gray-600">From: {getXarunName(transfer.sourceXarunId)} <ArrowRightIcon className="inline-block w-4 h-4 mx-1" /> To: {getXarunName(transfer.targetXarunId)}</p>
                   <p className="text-xs text-gray-500">Arrived: {format(new Date(transfer.auditTrail?.find((h: TransferAuditEntry) => h.status === TransferStatus.ARRIVED)?.timestamp || transfer.createdAt), 'MMM dd, yyyy HH:mm')}</p>
                   <div className="mt-2 flex justify-end space-x-2">

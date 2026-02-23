@@ -246,18 +246,6 @@ const App: React.FC = () => {
       {activeTab === 'transactions' && <TransactionHistory transactions={transactions} branches={branches} items={items} onRefresh={refreshAllData} />}
       {activeTab === 'map' && <WarehouseMap items={items} branches={branches} />}
 
-      {activeTab === 'xarun-orders' && (
-        <CrossXarunOrderHub 
-          user={user}
-          xarumo={xarumo}
-          myBranches={branches}
-          xarunOrders={xarunOrders}
-          onRefresh={() => refreshAllData(true)}
-          onUpdateOrder={async (orderId: string, updates: Partial<XarunOrderRequest>) => { await API.xarunOrders.update(orderId, updates); refreshAllData(true); }}
-          onDeleteOrder={async (orderId: string) => { await API.xarunOrders.delete(orderId); refreshAllData(true); }}
-        />
-      )}
-
       {activeTab === 'inter-branch-transfers' && 
         <InterBranchTransferPage 
           user={user} 
