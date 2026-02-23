@@ -1,10 +1,11 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { InventoryItem, Transaction, TransactionType, SystemSettings, Branch } from '../types';
+import { InventoryItem, Transaction, TransactionType, SystemSettings, Branch, User } from '../types';
 import { getInventoryInsights } from '../services/geminiService';
 
 interface DashboardProps {
+  user: User;
   items: InventoryItem[];
   transactions: Transaction[];
   insights: string[];
@@ -12,10 +13,20 @@ interface DashboardProps {
   settings?: SystemSettings;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ items, transactions, insights: initialInsights, branches, settings }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, items: allItems, transactions: allTransactions, insights: initialInsights, branches, settings }) => {
   const [insights, setInsights] = useState<string[]>(initialInsights);
   const [filterType, setFilterType] = useState<string>('all');
   const [filterDate, setFilterDate] = useState<string>('all');
+
+  const items = useMemo(() => {
+    if (user.role === 'SUPER_ADMIN' || !user.xarunId) return allItems;
+    return allItems.filter(i => i.xarunId === user.xarunId);
+  }, [allItems, user]);
+
+  const transactions = useMemo(() => {
+    if (user.role === 'SUPER_ADMIN' || !user.xarunId) return allTransactions;
+    return allTransactions.filter(t => t.xarunId === user.xarunId);
+  }, [allTransactions, user]);
 
   const filterData = useCallback(async () => {
     if (initialInsights.length === 0) return;

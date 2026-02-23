@@ -29,21 +29,21 @@ const TransferRequestForm: React.FC<TransferRequestFormProps> = ({
   onCancel,
 }) => {
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
-  const [targetXarunId, setTargetXarunId] = useState<string>('');
+  const [sourceXarunId, setSourceXarunId] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
   const availableItems = useMemo(() => {
-    const isSuperAdmin = user.role === UserRole.SUPER_ADMIN;
+    if (!sourceXarunId) return [];
     return items.filter(item => 
-      (isSuperAdmin || !user.xarunId || item.xarunId === user.xarunId) && 
+      item.xarunId === sourceXarunId && 
       item.quantity > 0
     );
-  }, [items, user.xarunId, user.role]);
+  }, [items, sourceXarunId]);
 
   const filteredItems = useMemo(() => {
-    if (!searchTerm) return [];
+    if (!searchTerm || !sourceXarunId) return [];
     const lower = searchTerm.toLowerCase().trim();
     return availableItems.filter(item => 
       !selectedItems.some(si => si.itemId === item.id) &&
@@ -52,7 +52,7 @@ const TransferRequestForm: React.FC<TransferRequestFormProps> = ({
         (item.sku?.toLowerCase() || '').includes(lower)
       )
     ).slice(0, 8);
-  }, [availableItems, searchTerm, selectedItems]);
+  }, [availableItems, searchTerm, selectedItems, sourceXarunId]);
 
   const handleAddItem = (item: InventoryItem) => {
     setSelectedItems(prev => [...prev, {
@@ -75,17 +75,23 @@ const TransferRequestForm: React.FC<TransferRequestFormProps> = ({
     ));
   };
 
+  const handleSourceXarunChange = (id: string) => {
+    setSourceXarunId(id);
+    setSelectedItems([]); // Reset items when source changes
+    setSearchTerm('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedItems.length === 0 || !targetXarunId || !user.xarunId) {
-      alert('Fadlan dooro ugu yaraan hal shay iyo xarunta loo dirayo.');
+    if (selectedItems.length === 0 || !sourceXarunId || !user.xarunId) {
+      alert('Fadlan dooro ugu yaraan hal shay iyo xarunta laga dalbanayo.');
       return;
     }
 
     setIsLoading(true);
     try {
-      const sourceBranch = myBranches.find(b => b.xarunId === user.xarunId);
-      const targetBranch = myBranches.find(b => b.xarunId === targetXarunId);
+      const sourceBranch = myBranches.find(b => b.xarunId === sourceXarunId);
+      const targetBranch = myBranches.find(b => b.xarunId === user.xarunId);
 
       if (!sourceBranch || !targetBranch) {
         alert('Cilad: Ma heli karno laanta isha ama laanta bartilmaameedka.');
@@ -100,9 +106,9 @@ const TransferRequestForm: React.FC<TransferRequestFormProps> = ({
           itemName: si.itemName,
           quantity: si.quantity,
         })),
-        sourceXarunId: user.xarunId,
+        sourceXarunId: sourceXarunId,
         sourceBranchId: sourceBranch.id,
-        targetXarunId: targetXarunId,
+        targetXarunId: user.xarunId,
         targetBranchId: targetBranch.id,
         requestedBy: user.id,
         status: TransferStatus.REQUESTED,
@@ -159,19 +165,19 @@ const TransferRequestForm: React.FC<TransferRequestFormProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto no-scrollbar p-8 space-y-8">
-          {/* Target Selection */}
+          {/* Source Selection */}
           <div className="space-y-3">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
               <Building2 className="w-3 h-3" />
-              Xarunta Loo Dirayo (Target Xarun)
+              Xarunta Laga Dalbanayo (Source Xarun)
             </label>
             <select
               className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none font-bold text-sm transition-all appearance-none cursor-pointer"
-              value={targetXarunId}
-              onChange={(e) => setTargetXarunId(e.target.value)}
+              value={sourceXarunId}
+              onChange={(e) => handleSourceXarunChange(e.target.value)}
               required
             >
-              <option value="">Dooro xarunta loo dirayo...</option>
+              <option value="">Dooro xarunta laga dalbanayo...</option>
               {xarumo.filter(x => x.id !== user.xarunId).map(xarun => (
                 <option key={xarun.id} value={xarun.id}>{xarun.name}</option>
               ))}
@@ -179,7 +185,7 @@ const TransferRequestForm: React.FC<TransferRequestFormProps> = ({
           </div>
 
           {/* Item Search */}
-          <div className="space-y-3 relative">
+          <div className={`space-y-3 relative ${!sourceXarunId ? 'opacity-50 pointer-events-none' : ''}`}>
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
               <Search className="w-3 h-3" />
               Raadi Alaab (Search Items)
@@ -188,15 +194,16 @@ const TransferRequestForm: React.FC<TransferRequestFormProps> = ({
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <input
                 type="text"
-                placeholder="Ku qor magaca ama SKU..."
+                placeholder={sourceXarunId ? "Ku qor magaca ama SKU..." : "Fadlan horta dooro xarunta..."}
                 className="w-full pl-14 pr-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none font-bold text-sm transition-all"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                disabled={!sourceXarunId}
               />
             </div>
 
             {/* Search Results Dropdown */}
-            {searchTerm && (
+            {searchTerm && sourceXarunId && (
               <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-100 rounded-2xl shadow-xl z-10 overflow-hidden animate-in slide-in-from-top-2 duration-200">
                 {filteredItems.length > 0 ? (
                   filteredItems.map(item => (
@@ -302,7 +309,7 @@ const TransferRequestForm: React.FC<TransferRequestFormProps> = ({
             type="submit"
             onClick={handleSubmit}
             className="flex-[2] py-4 bg-indigo-600 text-white font-black rounded-2xl uppercase text-[10px] tracking-widest shadow-lg shadow-indigo-200 hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
-            disabled={isLoading || selectedItems.length === 0 || !targetXarunId}
+            disabled={isLoading || selectedItems.length === 0 || !sourceXarunId}
           >
             {isLoading ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

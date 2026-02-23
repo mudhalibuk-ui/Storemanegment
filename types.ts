@@ -131,7 +131,6 @@ export interface User {
   role: UserRole;
   avatar?: string;
   xarunId?: string; 
-  sessionToken?: string;
 }
 
 export interface Branch {

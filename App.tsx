@@ -119,7 +119,7 @@ const App: React.FC = () => {
     try {
       const [fXarumo, fItems, fBranches, fTransactions, fUsers, fEmployees, fPayrolls, fAttendance, fXarunOrders, fInterBranchTransferRequests] = await Promise.all([
         API.xarumo.getAll(),
-        API.items.getAll(xarunIdFilter),
+        API.items.getAll(), // Fetch all items to allow inter-center transfers
         API.branches.getAll(xarunIdFilter),
         API.transactions.getAll(xarunIdFilter),
         API.users.getAll(),
@@ -203,7 +203,7 @@ const App: React.FC = () => {
       pendingApprovalsCount={transactions.filter(t => t.status === TransactionStatus.PENDING).length}
           interBranchTransferCount={interBranchTransferRequests.filter(t => t.status === TransferStatus.REQUESTED && t.targetXarunId === user.xarunId).length}
     >
-      {activeTab === 'dashboard' && <Dashboard items={items} transactions={transactions} insights={insights} branches={branches} settings={settings} />}
+      {activeTab === 'dashboard' && <Dashboard user={user} items={items} transactions={transactions} insights={insights} branches={branches} settings={settings} />}
       {activeTab === 'inventory' && (
         <InventoryList 
           user={user}
@@ -251,7 +251,7 @@ const App: React.FC = () => {
         <InterBranchTransferPage 
           user={user} 
           xarumo={xarumo}
-          myBranches={branches.filter(b => b.xarunId === user.xarunId)}
+          myBranches={branches}
           items={items} 
           interBranchTransferRequests={interBranchTransferRequests}
           onRefresh={refreshAllData} 

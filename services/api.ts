@@ -253,8 +253,7 @@ export const API = {
       const data = await fetchAllPages('users_registry');
       return Array.isArray(data) ? data.map(u => ({
         id: u.id, name: u.name, username: u.username, password: u.password, 
-        role: u.role as UserRole, avatar: u.avatar, xarunId: u.xarun_id,
-        sessionToken: u.session_token
+        role: u.role as UserRole, avatar: u.avatar, xarunId: u.xarun_id
       })) : [];
     },
     async save(user: Partial<User>): Promise<User> {
@@ -410,7 +409,7 @@ export const API = {
 
   xarunOrders: {
     async getAll(xarunId?: string): Promise<XarunOrderRequest[]> {
-      const query = xarunId ? `target_xarun_id=eq.${xarunId}|source_xarun_id=eq.${xarunId}` : '';
+      const query = xarunId ? `or=(target_xarun_id.eq.${xarunId},source_xarun_id.eq.${xarunId})` : '';
       const data = await fetchAllPages('xarun_orders', query, 'created_at');
       return data.map((o: any) => ({
         id: o.id, sourceXarunId: o.source_xarun_id, targetXarunId: o.target_xarun_id,
@@ -434,7 +433,7 @@ export const API = {
 
   interBranchTransferRequests: {
     async getAll(xarunId?: string): Promise<InterBranchTransferRequest[]> {
-      const query = xarunId ? `target_xarun_id=eq.${xarunId}|source_xarun_id=eq.${xarunId}` : '';
+      const query = xarunId ? `or=(target_xarun_id.eq.${xarunId},source_xarun_id.eq.${xarunId})` : '';
       const data = await fetchAllPages('inter_branch_transfer_requests', query, 'created_at');
       return data.map((t: any) => ({
         id: t.id,

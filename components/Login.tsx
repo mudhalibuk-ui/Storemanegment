@@ -50,17 +50,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       );
 
       if (foundUser) {
-        // Generate Session Token
-        const sessionToken = crypto.randomUUID();
-        
-        // Save to DB (Fire and forget to avoid blocking if offline, but try)
-        try {
-            await API.users.save({ ...foundUser, sessionToken });
-        } catch (e) {
-            console.error("Failed to save session token", e);
-        }
-
-        onLogin({ ...foundUser, sessionToken });
+        onLogin(foundUser);
       } else {
         setError('Username ama Password waa qalad!');
       }

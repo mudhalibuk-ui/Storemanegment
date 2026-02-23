@@ -37,6 +37,9 @@ const InventoryList: React.FC<InventoryListProps> = ({
     const seenIds = new Set<string>();
     
     return items.filter(item => {
+      // 0. SCOPE CHECK: Only show items from user's xarun if not Super Admin
+      if (user.role !== UserRole.SUPER_ADMIN && user.xarunId && item.xarunId !== user.xarunId) return false;
+
       // 1. DEDUPLICATION CHECK: If we've already included this ID, skip it.
       if (seenIds.has(item.id)) return false;
 
