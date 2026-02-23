@@ -90,11 +90,29 @@ const TransferRequestForm: React.FC<TransferRequestFormProps> = ({
 
     setIsLoading(true);
     try {
-      const sourceBranch = myBranches.find(b => b.xarunId === sourceXarunId);
-      const targetBranch = myBranches.find(b => b.xarunId === user.xarunId);
+      // Get source branch from the first item selected (they should all be from the same xarun)
+      const firstItem = items.find(i => i.id === selectedItems[0].itemId);
+      const sourceBranchId = firstItem?.branchId;
+      
+      // Find target branch (first branch of user's xarun)
+      let targetBranch = myBranches.find(b => b.xarunId === user.xarunId);
 
-      if (!sourceBranch || !targetBranch) {
-        alert('Cilad: Ma heli karno laanta isha ama laanta bartilmaameedka.');
+      // Fallback: If no branch found for user's xarun, but they have branches in myBranches, 
+      // maybe the IDs are mismatched or it's a Super Admin.
+      if (!targetBranch && user.role === UserRole.SUPER_ADMIN && myBranches.length > 0) {
+        targetBranch = myBranches[0];
+      }
+
+      if (!sourceBranchId) {
+        alert('Cilad: Ma heli karno bakhaarka alaabta laga soo qaadayo (Source branch not found).');
+        setIsLoading(false);
+        return;
+      }
+
+      if (!targetBranch) {
+        const myXarunName = xarumo.find(x => x.id === user.xarunId)?.name || user.xarunId || 'Lama yaqaan';
+        console.error('Target branch not found for xarun:', user.xarunId, 'Available branches:', myBranches);
+        alert(`Cilad: Xaruntaada (${myXarunName}) ma laha wax Bakhaar ah oo alaabta lagu rido. Fadlan marka hore xaruntaada u samee ugu yaraan hal Bakhaar.`);
         setIsLoading(false);
         return;
       }
@@ -107,7 +125,7 @@ const TransferRequestForm: React.FC<TransferRequestFormProps> = ({
           quantity: si.quantity,
         })),
         sourceXarunId: sourceXarunId,
-        sourceBranchId: sourceBranch.id,
+        sourceBranchId: sourceBranchId,
         targetXarunId: user.xarunId,
         targetBranchId: targetBranch.id,
         requestedBy: user.id,
