@@ -109,6 +109,11 @@ async function fetchAllPages(table: string, queryParams: string = '', orderBy: s
       headers: { 'Range': `${rangeStart}-${rangeEnd}` }
     });
     
+    if (data && typeof data === 'object' && 'error' in data) {
+      console.error(`Error fetching ${table}:`, data.error);
+      throw new Error(data.error);
+    }
+
     if (!Array.isArray(data)) {
       // Fallback: If partial data exists in Map, return it. Else try local.
       return allDataMap.size > 0 ? Array.from(allDataMap.values()) : (getLocal(table) || []);
@@ -409,7 +414,7 @@ export const API = {
 
   xarunOrders: {
     async getAll(xarunId?: string): Promise<XarunOrderRequest[]> {
-      const query = xarunId ? `or=(target_xarun_id.eq.${xarunId},source_xarun_id.eq.${xarunId})` : '';
+      const query = xarunId ? `or=(target_xarun_id.eq.${encodeURIComponent(xarunId)},source_xarun_id.eq.${encodeURIComponent(xarunId)})` : '';
       const data = await fetchAllPages('xarun_orders', query, 'created_at');
       return data.map((o: any) => ({
         id: o.id, sourceXarunId: o.source_xarun_id, targetXarunId: o.target_xarun_id,
@@ -433,7 +438,7 @@ export const API = {
 
   interBranchTransferRequests: {
     async getAll(xarunId?: string): Promise<InterBranchTransferRequest[]> {
-      const query = xarunId ? `or=(target_xarun_id.eq.${xarunId},source_xarun_id.eq.${xarunId})` : '';
+      const query = xarunId ? `or=(target_xarun_id.eq.${encodeURIComponent(xarunId)},source_xarun_id.eq.${encodeURIComponent(xarunId)})` : '';
       const data = await fetchAllPages('inter_branch_transfer_requests', query, 'created_at');
       return data.map((t: any) => ({
         id: t.id,
