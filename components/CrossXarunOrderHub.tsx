@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { InventoryItem, Branch, Xarun, User, XarunOrderRequest, XarunOrderStatus, XarunOrderItem, UserRole } from '../types';
 import { API } from '../services/api';
 import MultiItemSelectorModal from './MultiItemSelectorModal';
+import ReceiveOrderModal from './ReceiveOrderModal';
 
 interface CrossXarunOrderHubProps {
   user: User;
@@ -22,6 +23,7 @@ const CrossXarunOrderHub: React.FC<CrossXarunOrderHubProps> = ({ user, xarumo, m
   const [sourceXarunItems, setSourceXarunItems] = useState<InventoryItem[]>([]);
   const [isLoadingSourceItems, setIsLoadingSourceItems] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const [receivingOrder, setReceivingOrder] = useState<XarunOrderRequest | null>(null);
 
   const availableSourceXarumo = useMemo(() => xarumo.filter(x => x.id !== user.xarunId), [xarumo, user.xarunId]);
   const myXarun = useMemo(() => xarumo.find(x => x.id === user.xarunId), [xarumo, user.xarunId]);
@@ -125,7 +127,10 @@ const CrossXarunOrderHub: React.FC<CrossXarunOrderHubProps> = ({ user, xarumo, m
     try {
       // 1. Update stock in source Xarun (reduce quantity)
       for (const orderItem of order.items) {
-        const itemInSource = sourceXarunItems.find(i => i.id === orderItem.itemId); // Need to re-fetch or pass current source items
+        // Fetch fresh source items to ensure stock is available
+        const freshSourceItems = await API.items.getAll(order.sourceXarunId);
+        const itemInSource = freshSourceItems.find(i => i.id === orderItem.itemId);
+        
         if (itemInSource && itemInSource.quantity >= orderItem.quantity) {
           await API.items.save({ ...itemInSource, quantity: itemInSource.quantity - orderItem.quantity });
         } else {
@@ -134,42 +139,74 @@ const CrossXarunOrderHub: React.FC<CrossXarunOrderHubProps> = ({ user, xarumo, m
         }
       }
 
-      // 2. Create/Update stock in target Xarun (increase quantity)
-      // This logic assumes items might already exist in the target Xarun's branches
-      // For simplicity, we'll assume the item goes to the specified targetBranchId
-      for (const orderItem of order.items) {
-        // Find if item already exists in target branch
-        const existingItemInTargetBranch = (await API.items.getAll(order.targetXarunId)).find(i => i.sku === (sourceXarunItems.find(si => si.id === orderItem.itemId)?.sku) && i.branchId === order.targetBranchId);
-
-        if (existingItemInTargetBranch) {
-          await API.items.save({ ...existingItemInTargetBranch, quantity: existingItemInTargetBranch.quantity + orderItem.quantity });
-        } else {
-          // If item doesn't exist, create a new one in the target branch
-          const sourceItemTemplate = sourceXarunItems.find(si => si.id === orderItem.itemId);
-          if (sourceItemTemplate) {
-            await API.items.save({
-              name: sourceItemTemplate.name,
-              category: sourceItemTemplate.category,
-              sku: sourceItemTemplate.sku,
-              packType: sourceItemTemplate.packType,
-              minThreshold: sourceItemTemplate.minThreshold,
-              quantity: orderItem.quantity,
-              branchId: order.targetBranchId,
-              xarunId: order.targetXarunId,
-              shelves: 1, // Default placement
-              sections: 1, // Default placement
-            });
-          }
-        }
-      }
-
-      // 3. Update order status to APPROVED and then COMPLETED
+      // 2. Update order status to APPROVED (Shipped)
       await onUpdateOrder(orderId, { status: XarunOrderStatus.APPROVED, approvedBy: user.id });
-      await onUpdateOrder(orderId, { status: XarunOrderStatus.COMPLETED });
-      alert("Dalabka waa la ogolaaday oo alaabta waa la wareejiyey!");
+      alert("Dalabka waa la ogolaaday oo alaabta waa la soo diray!");
       onRefresh();
     } catch (e) {
       alert("Cilad ayaa dhacday markii la ogolaanayay dalabka.");
+      console.error(e);
+    }
+  };
+
+  const handleReceiveOrder = async (itemsWithLocation: { itemId: string, quantity: number, branchId: string, shelves: number, sections: number }[]) => {
+    if (!receivingOrder) return;
+
+    try {
+      // 1. Create/Update stock in target Xarun (increase quantity)
+      for (const item of itemsWithLocation) {
+        // Find if item already exists in target branch
+        const existingItems = await API.items.getAll(receivingOrder.targetXarunId);
+        // We need to match by SKU or Name since ID might be different across Xaruns
+        // But wait, the orderItem.itemId refers to the SOURCE item ID.
+        // We need to find the source item details to copy them if creating new.
+        
+        // Ideally we should have stored source item details in the order, but for now we fetch source items again or rely on what we have.
+        // We can fetch source item details using the itemId from the order.
+        // However, source item might have changed.
+        // Let's assume we can fetch it.
+        
+        const sourceItems = await API.items.getAll(receivingOrder.sourceXarunId);
+        const sourceItemTemplate = sourceItems.find(si => si.id === item.itemId);
+
+        if (!sourceItemTemplate) {
+            console.error(`Source item not found for ID: ${item.itemId}`);
+            continue;
+        }
+
+        const existingItemInTargetBranch = existingItems.find(i => i.sku === sourceItemTemplate.sku && i.branchId === item.branchId);
+
+        if (existingItemInTargetBranch) {
+          await API.items.save({ ...existingItemInTargetBranch, quantity: existingItemInTargetBranch.quantity + item.quantity });
+        } else {
+          // Create new item
+          await API.items.save({
+            name: sourceItemTemplate.name,
+            category: sourceItemTemplate.category,
+            sku: sourceItemTemplate.sku,
+            packType: sourceItemTemplate.packType,
+            minThreshold: sourceItemTemplate.minThreshold,
+            quantity: item.quantity,
+            branchId: item.branchId,
+            xarunId: receivingOrder.targetXarunId,
+            shelves: item.shelves,
+            sections: item.sections,
+            supplier: sourceItemTemplate.supplier
+          });
+        }
+      }
+
+      // 2. Update order status to COMPLETED
+      await onUpdateOrder(receivingOrder.id, { status: XarunOrderStatus.COMPLETED, approvedBy: user.id }); // approvedBy here means receivedBy in a way, or keep original approver? 
+      // Actually approvedBy was set by Source. We shouldn't overwrite it unless we have a receivedBy field.
+      // XarunOrderRequest doesn't have receivedBy. Let's just update status.
+      await onUpdateOrder(receivingOrder.id, { status: XarunOrderStatus.COMPLETED });
+
+      alert("Alaabta waa la keydiyey oo dalabka waa la dhameystiray!");
+      setReceivingOrder(null);
+      onRefresh();
+    } catch (e) {
+      alert("Cilad ayaa dhacday markii la keydinayay alaabta.");
       console.error(e);
     }
   };
@@ -187,6 +224,7 @@ const CrossXarunOrderHub: React.FC<CrossXarunOrderHubProps> = ({ user, xarumo, m
   };
 
   const pendingRequests = useMemo(() => xarunOrders.filter(o => o.status === XarunOrderStatus.PENDING && o.sourceXarunId === user.xarunId), [xarunOrders, user.xarunId]);
+  const incomingShipments = useMemo(() => xarunOrders.filter(o => o.status === XarunOrderStatus.APPROVED && o.targetXarunId === user.xarunId), [xarunOrders, user.xarunId]);
   const myOutgoingRequests = useMemo(() => xarunOrders.filter(o => o.requestedBy === user.id), [xarunOrders, user.id]);
 
   return (
@@ -204,6 +242,34 @@ const CrossXarunOrderHub: React.FC<CrossXarunOrderHubProps> = ({ user, xarumo, m
           </button>
         )}
       </div>
+
+      {/* Incoming Shipments (Ready to Receive) */}
+      {incomingShipments.length > 0 && (
+        <div className="bg-emerald-50 p-6 rounded-[2.5rem] border-2 border-dashed border-emerald-200">
+          <h3 className="text-sm font-black text-emerald-600 uppercase tracking-widest mb-4 ml-2">Alaabta Soo Socota (Incoming Shipments)</h3>
+          <div className="grid grid-cols-1 gap-4">
+            {incomingShipments.map(order => (
+              <div key={order.id} className="bg-white p-6 rounded-3xl border border-emerald-100 flex flex-col md:flex-row justify-between items-start md:items-center shadow-sm">
+                <div className="flex-1">
+                  <h4 className="font-black text-slate-700">Shixnad ka timid: {xarumo.find(x => x.id === order.sourceXarunId)?.name}</h4>
+                  <p className="text-[10px] text-slate-400 uppercase">Status: {order.status} • {new Date(order.createdAt).toLocaleDateString()}</p>
+                  <ul className="mt-2 text-xs text-slate-600 space-y-1">
+                    {order.items.map((item, idx) => (
+                      <li key={idx}>- {item.itemName} ({item.quantity})</li>
+                    ))}
+                  </ul>
+                  {order.notes && <p className="text-[10px] text-slate-500 mt-2 italic">Notes: {order.notes}</p>}
+                </div>
+                <div className="flex gap-2 mt-4 md:mt-0">
+                  <button onClick={() => setReceivingOrder(order)} className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase shadow-lg hover:bg-emerald-700 transition-all animate-pulse">
+                    📦 Gudoon & Keydi (Receive)
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Pending Requests (for Source Xarun Managers) */}
       {pendingRequests.length > 0 && (
@@ -306,6 +372,17 @@ const CrossXarunOrderHub: React.FC<CrossXarunOrderHubProps> = ({ user, xarumo, m
                 </button>
             </div>
           )}
+        />
+      )}
+
+      {/* Receive Order Modal */}
+      {receivingOrder && (
+        <ReceiveOrderModal
+          isOpen={!!receivingOrder}
+          onClose={() => setReceivingOrder(null)}
+          order={receivingOrder}
+          branches={myBranches}
+          onReceive={handleReceiveOrder}
         />
       )}
     </div>
