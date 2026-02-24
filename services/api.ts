@@ -110,6 +110,10 @@ async function fetchAllPages(table: string, queryParams: string = '', orderBy: s
     });
     
     if (data && typeof data === 'object' && 'error' in data) {
+      if ((data.error === "Not Found" || data.status === 404) && ['xarun_orders', 'inter_branch_transfer_requests'].includes(table)) {
+        console.warn(`Table ${table} not found, returning empty array.`);
+        return [];
+      }
       console.error(`Error fetching ${table}:`, data.error);
       throw new Error(data.error);
     }
@@ -197,7 +201,8 @@ export const API = {
         shelves: item.shelves, sections: item.sections, quantity: item.quantity, 
         minThreshold: item.min_threshold, branchId: item.branch_id, 
         lastUpdated: item.last_updated, xarunId: item.xarun_id,
-        packType: item.pack_type, lastKnownPrice: item.last_known_price
+        packType: item.pack_type, lastKnownPrice: item.last_known_price,
+        supplier: item.supplier
       }));
     },
     async save(item: Partial<InventoryItem>): Promise<InventoryItem> {

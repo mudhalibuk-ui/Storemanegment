@@ -160,6 +160,7 @@ export interface InventoryItem {
   packType?: PackType;
   landedCost?: number;
   reservedQuantity?: number;
+  supplier?: string;
 }
 
 export interface Transaction {
@@ -304,6 +305,7 @@ export interface CreateInventoryItemArgs {
   minThreshold: number;
   xarunId: string;
   packType?: PackType;
+  supplier?: string;
 }
 
 export interface AdjustStockArgs {

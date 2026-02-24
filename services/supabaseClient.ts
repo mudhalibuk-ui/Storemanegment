@@ -71,8 +71,8 @@ export const supabaseFetch = async (endpoint: string, options: RequestInit = {})
         if (response.status === 404) {
           // If deleting and 404, it's already gone, so success.
           if (method === 'DELETE') return [];
-          errorListener("Resource not found (404).");
-          return { error: "Not Found" };
+          // errorListener("Resource not found (404).");
+          return { error: "Not Found", status: 404 };
         }
         
         // Return explicit error details

@@ -50,8 +50,10 @@ const InventoryList: React.FC<InventoryListProps> = ({
 
       const name = (item.name || '').toLowerCase();
       const sku = (item.sku || '').toLowerCase();
+      const category = (item.category || '').toLowerCase();
+      const supplier = (item.supplier || '').toLowerCase();
 
-      const matchesSearch = q === '' || name.includes(q) || sku.includes(q);
+      const matchesSearch = q === '' || name.includes(q) || sku.includes(q) || category.includes(q) || supplier.includes(q);
       const matchesBranch = branchFilter === 'all' || item.branchId === branchFilter;
       const matchesCategory = categoryFilter === 'all' || item.category === categoryFilter;
       
@@ -114,7 +116,7 @@ const InventoryList: React.FC<InventoryListProps> = ({
               <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 text-lg">🔍</span>
               <input 
                 type="text" 
-                placeholder="Ku qor magaca alaabta si aad u sifeeyo..."
+                placeholder="Raadi Magaca, SKU, Category ama Supplier..."
                 className="w-full pl-14 pr-12 py-4 md:py-5 bg-slate-50 border-2 border-slate-100 rounded-[3rem] focus:border-indigo-500 focus:bg-white outline-none font-bold text-sm md:text-base transition-all shadow-inner"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -214,6 +216,9 @@ const InventoryList: React.FC<InventoryListProps> = ({
                           <div className="flex flex-wrap gap-2 items-center mt-1">
                             <span className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.sku}</span>
                             <span className="text-[8px] md:text-[9px] font-black text-indigo-400 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 uppercase">{item.category}</span>
+                            {item.supplier && (
+                              <span className="text-[8px] md:text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 uppercase">🏭 {item.supplier}</span>
+                            )}
                             {branch && (
                               <span className="text-[8px] md:text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 uppercase">🏢 {branch.name}</span>
                             )}

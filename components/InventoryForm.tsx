@@ -19,7 +19,8 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
     sections: 1,
     quantity: 0,
     minThreshold: 5,
-    branchId: branches[0]?.id || ''
+    branchId: branches[0]?.id || '',
+    supplier: ''
   });
 
   useEffect(() => {
@@ -109,6 +110,12 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
                  <input required className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-indigo-500 transition-all" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} />
                </div>
                <div className="space-y-1">
+                 <label className="text-[10px] font-black text-slate-400 uppercase px-1">Supplier</label>
+                 <input className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-indigo-500 transition-all" value={formData.supplier || ''} onChange={e => setFormData({...formData, supplier: e.target.value})} />
+               </div>
+            </div>
+
+            <div className="space-y-1">
                  <label className="text-[10px] font-black text-slate-400 uppercase px-1">SKU Code</label>
                  <div className="relative">
                     <input 
@@ -125,7 +132,6 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
                       AUTO
                     </button>
                  </div>
-               </div>
             </div>
 
             {/* Dynamic Layout Selection */}
