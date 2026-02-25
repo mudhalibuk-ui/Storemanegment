@@ -347,13 +347,31 @@ const App: React.FC = () => {
       {isUserFormOpen && <UserForm xarumo={xarumo} editingUser={editingUser} onSave={async (u) => { await API.users.save(u); setIsUserFormOpen(false); refreshAllData(); }} onCancel={() => setIsUserFormOpen(false)} />}
       {isXarunFormOpen && <XarunForm editingXarun={editingXarun} onSave={async (x) => { await API.xarumo.save(x); setIsXarunFormOpen(false); refreshAllData(); }} onCancel={() => setIsXarunFormOpen(false)} />}
       {isBranchFormOpen && <BranchForm xarumo={xarumo} editingBranch={editingBranch} onSave={async (b) => { await API.branches.save(b); setIsBranchFormOpen(false); refreshAllData(); }} onCancel={() => setIsBranchFormOpen(false)} />}
-      {isItemFormOpen && <InventoryForm branches={branches} editingItem={editingItem} onSave={async (item) => { 
+      {isItemFormOpen && <InventoryForm branches={branches} editingItem={editingItem} onSave={async (item, updateAll) => { 
         // FIX: Ensure xarunId is set based on the selected branch
         const selectedBranch = branches.find(b => b.id === item.branchId);
         const validXarunId = selectedBranch?.xarunId || user.xarunId || '';
         const itemWithXarun = { ...item, xarunId: validXarunId };
         
         await API.items.save(itemWithXarun); 
+
+        if (updateAll && item.sku) {
+            // Find all other items with same SKU and update their master details
+            const relatedItems = items.filter(i => i.sku === item.sku && i.id !== item.id);
+            for (const related of relatedItems) {
+                await API.items.save({
+                    ...related,
+                    name: item.name,
+                    category: item.category,
+                    supplier: item.supplier,
+                    packType: item.packType,
+                    minThreshold: item.minThreshold,
+                    lastKnownPrice: item.lastKnownPrice,
+                    landedCost: item.landedCost
+                });
+            }
+        }
+
         setIsItemFormOpen(false); 
         refreshAllData(); 
       }} onCancel={() => setIsItemFormOpen(false)} />}

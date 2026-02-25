@@ -6,7 +6,7 @@ import { numberToLetter } from '../services/mappingUtils';
 interface InventoryFormProps {
   branches: Branch[];
   editingItem: InventoryItem | null;
-  onSave: (item: Partial<InventoryItem>) => void;
+  onSave: (item: Partial<InventoryItem>, updateAll?: boolean) => void;
   onCancel: () => void;
 }
 
@@ -22,6 +22,8 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
     branchId: branches[0]?.id || '',
     supplier: ''
   });
+
+  const [updateAllBranches, setUpdateAllBranches] = useState(false);
 
   useEffect(() => {
     if (editingItem) setFormData(editingItem);
@@ -69,7 +71,7 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
       const prefix = finalData.category ? finalData.category.substring(0, 3).toUpperCase() : 'ITM';
       finalData.sku = `${prefix}-${Math.floor(100000 + Math.random() * 900000)}`;
     }
-    onSave(finalData);
+    onSave(finalData, updateAllBranches);
   };
 
   return (
@@ -87,6 +89,21 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
         
         <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto no-scrollbar">
           <div className="space-y-4">
+            {editingItem && (
+                <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl flex items-center gap-3">
+                    <input 
+                        type="checkbox" 
+                        id="updateAll" 
+                        checked={updateAllBranches} 
+                        onChange={e => setUpdateAllBranches(e.target.checked)}
+                        className="w-5 h-5 rounded-lg border-2 border-indigo-200 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <label htmlFor="updateAll" className="text-xs font-bold text-indigo-900 cursor-pointer select-none">
+                        Bedel dhamaan bakhaarada (Update all branches with same SKU)
+                    </label>
+                </div>
+            )}
+
             <div className="space-y-1">
               <label className="text-[10px] font-black text-slate-400 uppercase px-1">Bakhaarka la dhigayo</label>
               <select 
