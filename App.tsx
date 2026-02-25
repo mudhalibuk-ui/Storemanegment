@@ -395,20 +395,57 @@ const App: React.FC = () => {
 
             // If Approved (IN always approved, OUT approved for Admin), update stock
             if (status === TransactionStatus.APPROVED) {
-                let newQty = item.quantity;
-                if (type === TransactionType.IN) {
-                    newQty = item.quantity + data.qty;
-                } else if (type === TransactionType.OUT) {
-                    newQty = item.quantity - data.qty;
-                }
+                const targetBranchId = data.branchId;
+                const sourceItem = adjustmentModal.item;
+                
+                // Find if the item exists in the target branch (by SKU)
+                // We use the 'items' state which contains all items
+                const existingTargetItem = items.find(i => i.sku === sourceItem.sku && i.branchId === targetBranchId);
 
-                const updatePayload: any = { ...item, quantity: newQty };
                 if (type === TransactionType.IN) {
-                    updatePayload.shelves = data.shelf || item.shelves;
-                    updatePayload.sections = data.section || item.sections;
+                    if (existingTargetItem) {
+                        // Update existing item in target branch
+                        await API.items.save({ 
+                            ...existingTargetItem, 
+                            quantity: existingTargetItem.quantity + data.qty,
+                            shelves: data.shelf || existingTargetItem.shelves,
+                            sections: data.section || existingTargetItem.sections
+                        });
+                    } else {
+                        // Create new item in target branch
+                        const foundTargetBranch = branches.find(b => b.id === targetBranchId);
+                        await API.items.save({
+                            name: sourceItem.name,
+                            category: sourceItem.category,
+                            sku: sourceItem.sku,
+                            quantity: data.qty,
+                            branchId: targetBranchId,
+                            minThreshold: sourceItem.minThreshold,
+                            xarunId: foundTargetBranch?.xarunId || user.xarunId || '',
+                            shelves: data.shelf || 1,
+                            sections: data.section || 1,
+                            packType: sourceItem.packType,
+                            supplier: sourceItem.supplier,
+                            lastKnownPrice: sourceItem.lastKnownPrice,
+                            landedCost: sourceItem.landedCost
+                        });
+                    }
+                } else if (type === TransactionType.OUT) {
+                    if (existingTargetItem) {
+                        if (existingTargetItem.quantity < data.qty) {
+                            alert(`Error: Not enough stock in ${branches.find(b => b.id === targetBranchId)?.name}. Available: ${existingTargetItem.quantity}`);
+                            return;
+                        }
+                        await API.items.save({ 
+                            ...existingTargetItem, 
+                            quantity: existingTargetItem.quantity - data.qty 
+                        });
+                    } else {
+                        alert(`Error: Item "${sourceItem.name}" does not exist in the selected branch.`);
+                        return;
+                    }
                 }
                 
-                await API.items.save(updatePayload);
                 setReceiptTransaction(trans); // Show receipt
             } else {
                 alert("Codsiga bixinta waa la diray. Sug ogolaanshaha Admin-ka.");
