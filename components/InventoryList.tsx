@@ -37,16 +37,27 @@ const InventoryList: React.FC<InventoryListProps> = ({
   }, [branches, user]);
 
   // NIDAAMKA RAADINTA - (STRICT FILTERING & DEDUPLICATION)
-  const filteredItems = useMemo(() => {
+  // GROUP BY SKU
+  const groupedItems = useMemo(() => {
+    // console.log("InventoryList: items count:", items.length);
     const q = searchTerm.toLowerCase().trim();
-    const seenIds = new Set<string>();
-    
-    return items.filter(item => {
-      // 0. SCOPE CHECK: Only show items from user's xarun if not Super Admin
-      if (user.role !== UserRole.SUPER_ADMIN && user.xarunId && item.xarunId !== user.xarunId) return false;
+    const groups = new Map<string, InventoryItem[]>();
 
-      // 1. DEDUPLICATION CHECK: If we've already included this ID, skip it.
-      if (seenIds.has(item.id)) return false;
+    items.forEach(item => {
+      // 0. SCOPE CHECK: Only show items from user's xarun if not Super Admin
+      // If item.xarunId is missing, we check if it belongs to a branch in the user's xarun.
+      if (user.role !== UserRole.SUPER_ADMIN && user.xarunId) {
+          if (item.xarunId && item.xarunId !== user.xarunId) return;
+          
+          // Fallback: If xarunId is missing, check branch ownership
+          if (!item.xarunId) {
+             const foundBranch = branches.find(b => b.id === item.branchId);
+             if (foundBranch && foundBranch.xarunId !== user.xarunId) return;
+             // If branch not found or branch has no xarunId, maybe hide it? 
+             // Let's be safe and hide unless we are sure.
+             if (!foundBranch) return; 
+          }
+      }
 
       const name = (item.name || '').toLowerCase();
       const sku = (item.sku || '').toLowerCase();
@@ -56,14 +67,18 @@ const InventoryList: React.FC<InventoryListProps> = ({
       const matchesSearch = q === '' || name.includes(q) || sku.includes(q) || category.includes(q) || supplier.includes(q);
       const matchesBranch = branchFilter === 'all' || item.branchId === branchFilter;
       const matchesCategory = categoryFilter === 'all' || item.category === categoryFilter;
-      
+
       if (matchesSearch && matchesBranch && matchesCategory) {
-          seenIds.add(item.id);
-          return true;
+        const key = item.sku || item.name; // Group by SKU preferably, fallback to name
+        if (!groups.has(key)) {
+          groups.set(key, []);
+        }
+        groups.get(key)?.push(item);
       }
-      return false;
-    }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  }, [items, searchTerm, branchFilter, categoryFilter]);
+    });
+
+    return Array.from(groups.values()).sort((a, b) => (a[0].name || '').localeCompare(b[0].name || ''));
+  }, [items, searchTerm, branchFilter, categoryFilter, user]);
 
   const clearFilters = () => {
     setSearchTerm('');
@@ -183,34 +198,35 @@ const InventoryList: React.FC<InventoryListProps> = ({
           
           {searchTerm && (
              <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest px-2 animate-pulse">
-               🔎 Natiijada la helay: {filteredItems.length} items
+               🔎 Natiijada la helay: {groupedItems.length} items (Grouped)
              </p>
           )}
         </div>
       </div>
 
-      {/* MAIN TABLE SECTION - USING filteredItems */}
+      {/* MAIN TABLE SECTION - USING groupedItems */}
       <div className="bg-white rounded-[2.5rem] md:rounded-[3rem] shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto no-scrollbar">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">
-                <th className="px-6 md:px-10 py-6">Product & Branch</th>
-                <th className="px-6 md:px-10 py-6">Placement</th>
-                <th className="px-6 md:px-10 py-6 text-center">Qty</th>
-                <th className="px-6 md:px-10 py-6">Updated</th>
+                <th className="px-6 md:px-10 py-6">Product & Details</th>
+                <th className="px-6 md:px-10 py-6">Stock Locations</th>
+                <th className="px-6 md:px-10 py-6 text-center">Total Qty</th>
                 <th className="px-6 md:px-10 py-6 text-center">Controls</th>
                 <th className="px-6 md:px-10 py-6 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredItems.length > 0 ? (
-                filteredItems.map((item) => {
-                  const isLow = item.quantity <= item.minThreshold;
-                  const branch = branches.find(b => b.id === item.branchId);
+              {groupedItems.length > 0 ? (
+                groupedItems.map((group) => {
+                  const item = group[0]; // Representative item
+                  const totalQty = group.reduce((sum, i) => sum + i.quantity, 0);
+                  const isLow = totalQty <= item.minThreshold;
+                  
                   return (
-                    <tr key={item.id} className="hover:bg-slate-50 transition-colors group">
-                      <td className="px-6 md:px-10 py-6">
+                    <tr key={item.sku || item.id} className="hover:bg-slate-50 transition-colors group">
+                      <td className="px-6 md:px-10 py-6 align-top">
                         <div className="flex flex-col">
                           <span className="font-black text-slate-800 text-sm md:text-base uppercase tracking-tighter">{item.name}</span>
                           <div className="flex flex-wrap gap-2 items-center mt-1">
@@ -219,25 +235,38 @@ const InventoryList: React.FC<InventoryListProps> = ({
                             {item.supplier && (
                               <span className="text-[8px] md:text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 uppercase">🏭 {item.supplier}</span>
                             )}
-                            {branch && (
-                              <span className="text-[8px] md:text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 uppercase">🏢 {branch.name}</span>
-                            )}
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 md:px-10 py-6">
-                        <span className="text-[10px] md:text-[11px] font-black text-indigo-600 bg-indigo-50 px-4 py-1.5 rounded-xl border border-indigo-100 uppercase whitespace-nowrap">
-                          {formatPlacement(item.shelves, item.sections)}
-                        </span>
+                      <td className="px-6 md:px-10 py-6 align-top">
+                        <div className="flex flex-col gap-2">
+                          {group.map(variant => {
+                            const branch = branches.find(b => b.id === variant.branchId);
+                            return (
+                              <div key={variant.id} className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-black text-slate-500 uppercase">🏢 {branch?.name || 'Unknown'}</span>
+                                  <span className="text-[9px] font-bold text-indigo-400 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 uppercase">
+                                    {formatPlacement(variant.shelves, variant.sections)}
+                                  </span>
+                                </div>
+                                <span className={`text-xs font-black ${variant.quantity <= variant.minThreshold ? 'text-rose-600' : 'text-slate-800'}`}>
+                                  {variant.quantity}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </td>
-                      <td className="px-6 md:px-10 py-6 text-center">
-                        <span className={`text-2xl md:text-3xl font-black ${isLow ? 'text-rose-600' : 'text-slate-900'}`}>{item.quantity}</span>
+                      <td className="px-6 md:px-10 py-6 text-center align-top">
+                        <span className={`text-2xl md:text-3xl font-black ${isLow ? 'text-rose-600' : 'text-slate-900'}`}>{totalQty}</span>
                       </td>
-                      <td className="px-6 md:px-10 py-6">
-                          <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">{item.lastUpdated ? new Date(item.lastUpdated).toLocaleDateString() : 'N/A'}</span>
-                      </td>
-                      <td className="px-6 md:px-10 py-6">
+                      <td className="px-6 md:px-10 py-6 align-top">
                         <div className="flex items-center justify-center gap-1.5 md:gap-2">
+                          {/* We pass the first item, but the modal should ideally handle branch selection if needed. 
+                              Currently StockAdjustmentModal allows branch selection but defaults to item.branchId. 
+                              Since we have multiple branches, we might want to pass the item corresponding to the user's preferred branch or just the first one.
+                          */}
                           <button onClick={() => onTransaction(item, 'IN')} className="w-10 h-10 md:w-11 md:h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-90" title="Stock In">📥</button>
                           <button onClick={() => onTransaction(item, 'OUT')} className="w-10 h-10 md:w-11 md:h-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all shadow-sm active:scale-90" title="Stock Out">📤</button>
                           <button onClick={() => onTransaction(item, 'TRANSFER')} className="w-10 h-10 md:w-11 md:h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center hover:bg-amber-600 hover:text-white transition-all shadow-sm active:scale-90" title="Transfer to Branch">🚛</button>
@@ -250,7 +279,7 @@ const InventoryList: React.FC<InventoryListProps> = ({
                           )}
                         </div>
                       </td>
-                      <td className="px-6 md:px-10 py-6 text-right">
+                      <td className="px-6 md:px-10 py-6 text-right align-top">
                         <button onClick={() => printQRLabel(item)} className="p-3 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all" title="Print QR Label">🖨️</button>
                       </td>
                     </tr>
