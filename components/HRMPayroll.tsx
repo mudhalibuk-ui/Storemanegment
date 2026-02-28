@@ -110,8 +110,27 @@ const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo }) => {
   };
 
   const markAsPaid = async (payroll: Payroll) => {
+    if (!confirm("Ma hubtaa inaad bixiso mushaharkan?")) return;
     await API.payroll.save({ ...payroll, status: 'PAID', paymentDate: new Date().toISOString() });
     loadPayrollData();
+  };
+
+  const resetPayrollStatus = async (payroll: Payroll) => {
+    if (!confirm("Ma hubtaa inaad dib u furto mushaharkan? Tani waxay kuu ogolaaneysaa inaad dib u xisaabiso.")) return;
+    await API.payroll.save({ ...payroll, status: 'UNPAID', paymentDate: undefined });
+    loadPayrollData();
+  };
+
+  const resetAllPayrollStatus = async () => {
+    if (!confirm(`Ma hubtaa inaad dib u furto dhamaan mushaharka bisha ${selectedMonth} ${selectedYear}?`)) return;
+    setIsProcessing(true);
+    for (const pay of payrolls) {
+      if (pay.status === 'PAID') {
+        await API.payroll.save({ ...pay, status: 'UNPAID', paymentDate: undefined });
+      }
+    }
+    await loadPayrollData();
+    setIsProcessing(false);
   };
 
   const printPayslip = (payroll: Payroll) => {
@@ -153,16 +172,19 @@ const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo }) => {
     <div className="space-y-6">
       <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
         <div>
-          <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">Payroll (Mushaharka)</h2>
-          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Automatic Calculation (10h/Day Limit + Overtime)</p>
+          <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">Maamulka Mushaharka</h2>
+          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Xisaabin Toos ah (10saac/Maalin + Saacado Dheeri ah)</p>
         </div>
         
         <div className="flex gap-4">
           <select className="px-6 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}>
             {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map(m => <option key={m} value={m}>{m}</option>)}
           </select>
+          <button onClick={resetAllPayrollStatus} disabled={isProcessing || payrolls.length === 0} className="bg-amber-100 text-amber-700 px-6 py-3.5 rounded-2xl font-black shadow-sm hover:bg-amber-200 active:scale-95 transition-all uppercase text-[10px] tracking-widest">
+            DIB U FUR DHAMAAN
+          </button>
           <button onClick={processPayroll} disabled={isProcessing} className="bg-indigo-600 text-white px-8 py-3.5 rounded-2xl font-black shadow-lg hover:scale-105 active:scale-95 transition-all uppercase text-[10px] tracking-widest">
-            {isProcessing ? 'CALCULATING...' : 'PROCESS PAYROLL'}
+            {isProcessing ? 'WAA LA XISAABINAYAA...' : 'XISAABI MUSHAHARKA'}
           </button>
         </div>
       </div>
@@ -172,11 +194,11 @@ const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo }) => {
           <thead>
             <tr className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
               <th className="px-10 py-6">Shaqaalaha</th>
-              <th className="px-10 py-6">Hours (Total)</th>
-              <th className="px-10 py-6">Base Salary</th>
-              <th className="px-10 py-6">Net Pay</th>
-              <th className="px-10 py-6">Status</th>
-              <th className="px-10 py-6 text-right">Actions</th>
+              <th className="px-10 py-6">Saacadaha (Wadarta)</th>
+              <th className="px-10 py-6">Mushaharka Aasaasiga</th>
+              <th className="px-10 py-6">Mushaharka Net-ka</th>
+              <th className="px-10 py-6">Xaaladda</th>
+              <th className="px-10 py-6 text-right">Falalka</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
@@ -192,11 +214,17 @@ const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo }) => {
                     {pay.bonus > 0 && <span className="text-[9px] text-emerald-500 font-bold block">Inc. OT: +${pay.bonus}</span>}
                   </td>
                   <td className="px-10 py-4">
-                    <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${pay.status === 'PAID' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>{pay.status}</span>
+                    <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${pay.status === 'PAID' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                        {pay.status === 'PAID' ? 'LA BIXIYAY' : 'LAMA BIXIN'}
+                    </span>
                   </td>
                   <td className="px-10 py-4 text-right">
-                    <button onClick={() => printPayslip(pay)} className="p-3 bg-slate-50 rounded-xl hover:bg-slate-900 hover:text-white transition-all">🖨️</button>
-                    {pay.status === 'UNPAID' && <button onClick={() => markAsPaid(pay)} className="ml-2 bg-emerald-600 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase">PAY</button>}
+                    <button onClick={() => printPayslip(pay)} className="p-3 bg-slate-50 rounded-xl hover:bg-slate-900 hover:text-white transition-all" title="Print Payslip">🖨️</button>
+                    {pay.status === 'UNPAID' ? (
+                        <button onClick={() => markAsPaid(pay)} className="ml-2 bg-emerald-600 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase">BIXI</button>
+                    ) : (
+                        <button onClick={() => resetPayrollStatus(pay)} className="ml-2 bg-amber-100 text-amber-600 px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-amber-200">DIB U FUR</button>
+                    )}
                   </td>
                 </tr>
               );
