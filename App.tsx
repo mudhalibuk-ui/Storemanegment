@@ -527,6 +527,23 @@ const App: React.FC = () => {
           const validXarunId = targetBranch?.xarunId || user.xarunId || '';
           const isPrivileged = user.role === UserRole.SUPER_ADMIN || user.role === UserRole.MANAGER;
 
+          if (type === 'MOVE') {
+              for (const row of data.items) {
+                  const item = items.find(i => i.id === row.itemId);
+                  if (item && row.shelf !== undefined && row.section !== undefined) {
+                      await API.items.save({
+                          ...item,
+                          shelves: row.shelf,
+                          sections: row.section
+                      });
+                  }
+              }
+              setIsBulkModalOpen(false);
+              refreshAllData(true);
+              alert("Goobaha alaabta waa la bedelay!");
+              return;
+          }
+
           const createdTransactions: Transaction[] = [];
 
           for (const row of data.items) {
@@ -535,7 +552,7 @@ const App: React.FC = () => {
                 const status = (type === TransactionType.OUT && !isPrivileged) ? TransactionStatus.PENDING : TransactionStatus.APPROVED;
                 
                 const newTrans = await API.transactions.create({
-                  itemId: item.id, itemName: item.name, type: type, quantity: row.qty, branchId: data.branchId, 
+                  itemId: item.id, itemName: item.name, type: type as TransactionType, quantity: row.qty, branchId: data.branchId, 
                   personnel: data.personnel, originOrSource: data.source, notes: data.notes, status: status, 
                   requestedBy: user.id, xarunId: validXarunId
                 });
@@ -555,7 +572,7 @@ const App: React.FC = () => {
           if (createdTransactions.length > 0) {
              setBulkReceiptData({
                 transactions: createdTransactions,
-                type: type,
+                type: type as TransactionType,
                 branch: targetBranch,
                 personnel: data.personnel,
                 date: data.date

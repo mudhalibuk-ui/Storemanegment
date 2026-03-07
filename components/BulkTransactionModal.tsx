@@ -3,27 +3,32 @@ import React, { useState, useEffect } from 'react';
 import { InventoryItem, Branch, TransactionType } from '../types';
 
 interface BulkRow {
-  id: string; // Added unique ID for better React rendering and stability
+  id: string; 
   itemId: string;
   qty: number;
   searchTerm: string;
   isSearching: boolean;
+  shelf?: number;
+  section?: number;
 }
 
 interface BulkTransactionModalProps {
   items: InventoryItem[];
   branches: Branch[];
-  onSave: (type: TransactionType.IN | TransactionType.OUT, data: { items: BulkRow[]; notes: string; personnel: string; source: string; branchId: string; date: string }) => void;
+  onSave: (type: TransactionType.IN | TransactionType.OUT | 'MOVE', data: { items: BulkRow[]; notes: string; personnel: string; source: string; branchId: string; date: string }) => void;
   onCancel: () => void;
 }
 
 const BulkTransactionModal: React.FC<BulkTransactionModalProps> = ({ items, branches, onSave, onCancel }) => {
-  const [type, setType] = useState<TransactionType.IN | TransactionType.OUT>(TransactionType.IN);
+  const [type, setType] = useState<TransactionType.IN | TransactionType.OUT | 'MOVE'>(TransactionType.IN);
   const [selectedBranchId, setSelectedBranchId] = useState(branches[0]?.id || '');
   const [personnel, setPersonnel] = useState('');
   const [source, setSource] = useState('');
   const [notes, setNotes] = useState('');
   const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0]);
+  
+  const [globalShelf, setGlobalShelf] = useState<number>(1);
+  const [globalSection, setGlobalSection] = useState<number>(1);
   
   // Set default to 5 rows as requested
   const [rows, setRows] = useState<BulkRow[]>(
@@ -47,8 +52,16 @@ const BulkTransactionModal: React.FC<BulkTransactionModalProps> = ({ items, bran
   const addRow = () => {
     setRows(prev => [
       ...prev, 
-      { id: `row-${Date.now()}-${prev.length}`, itemId: '', qty: 1, searchTerm: '', isSearching: false }
+      { id: `row-${Date.now()}-${prev.length}`, itemId: '', qty: 1, searchTerm: '', isSearching: false, shelf: type === 'MOVE' ? globalShelf : undefined, section: type === 'MOVE' ? globalSection : undefined }
     ]);
+  };
+
+  const applyGlobalLocation = () => {
+    setRows(prev => prev.map(row => ({
+      ...row,
+      shelf: globalShelf,
+      section: globalSection
+    })));
   };
 
   const removeRow = (index: number) => {
@@ -70,9 +83,9 @@ const BulkTransactionModal: React.FC<BulkTransactionModalProps> = ({ items, bran
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const validRows = rows.filter(r => r.itemId && r.qty > 0);
+    const validRows = rows.filter(r => r.itemId && (type === 'MOVE' || r.qty > 0));
     if (validRows.length === 0) {
-      alert("Fadlan dooro ugu yaraan hal alaab oo tiri leh!");
+      alert("Fadlan dooro ugu yaraan hal alaab!");
       return;
     }
 
@@ -114,22 +127,76 @@ const BulkTransactionModal: React.FC<BulkTransactionModalProps> = ({ items, bran
             <button 
               type="button"
               onClick={() => setType(TransactionType.IN)} 
-              className={`px-6 py-2 rounded-lg text-[9px] font-black transition-all ${type === 'IN' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400'}`}
+              className={`px-4 py-2 rounded-lg text-[9px] font-black transition-all ${type === 'IN' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400'}`}
             >
               IN 📥
             </button>
             <button 
               type="button"
               onClick={() => setType(TransactionType.OUT)} 
-              className={`px-6 py-2 rounded-lg text-[9px] font-black transition-all ${type === 'OUT' ? 'bg-rose-600 text-white shadow-lg' : 'text-slate-400'}`}
+              className={`px-4 py-2 rounded-lg text-[9px] font-black transition-all ${type === 'OUT' ? 'bg-rose-600 text-white shadow-lg' : 'text-slate-400'}`}
             >
               OUT 📤
+            </button>
+            <button 
+              type="button"
+              onClick={() => {
+                setType('MOVE');
+                setRows(prev => prev.map(r => ({ ...r, shelf: globalShelf, section: globalSection })));
+              }} 
+              className={`px-4 py-2 rounded-lg text-[9px] font-black transition-all ${type === 'MOVE' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400'}`}
+            >
+              MOVE 📍
             </button>
           </div>
         </div>
 
         {/* Content */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 no-scrollbar bg-white">
+          {type === 'MOVE' && (
+            <div className="bg-indigo-50/50 p-6 rounded-[2.5rem] border border-indigo-100 flex flex-col md:flex-row items-center justify-between gap-6 animate-in slide-in-from-top-4 duration-300">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-2xl shadow-lg shadow-indigo-200">📍</div>
+                <div>
+                  <h3 className="text-sm font-black text-indigo-900 uppercase tracking-tight">Global Location Update</h3>
+                  <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Set location for all selected items</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black text-slate-400 uppercase">Shelf:</span>
+                  <select 
+                    className="p-3 bg-white border-2 border-indigo-100 rounded-xl font-black text-xs text-indigo-900 outline-none"
+                    value={globalShelf}
+                    onChange={e => setGlobalShelf(parseInt(e.target.value))}
+                  >
+                    {Array.from({ length: branches.find(b => b.id === selectedBranchId)?.totalShelves || 10 }, (_, i) => (
+                      <option key={i+1} value={i+1}>{String.fromCharCode(65 + i)}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black text-slate-400 uppercase">Section:</span>
+                  <select 
+                    className="p-3 bg-white border-2 border-indigo-100 rounded-xl font-black text-xs text-indigo-900 outline-none"
+                    value={globalSection}
+                    onChange={e => setGlobalSection(parseInt(e.target.value))}
+                  >
+                    {Array.from({ length: 20 }, (_, i) => (
+                      <option key={i+1} value={i+1}>{(i+1).toString().padStart(2, '0')}</option>
+                    ))}
+                  </select>
+                </div>
+                <button 
+                  type="button"
+                  onClick={applyGlobalLocation}
+                  className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:bg-indigo-700 transition-all active:scale-95"
+                >
+                  Apply to All
+                </button>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 shrink-0">
             <div className="space-y-1">
               <label className="text-[9px] font-black text-slate-400 uppercase px-1 tracking-widest">Taariikhda</label>
@@ -245,13 +312,36 @@ const BulkTransactionModal: React.FC<BulkTransactionModalProps> = ({ items, bran
                     
                     <div className="w-full md:w-32 flex flex-col gap-1 shrink-0">
                        <label className="md:hidden text-[8px] font-black text-slate-400 uppercase ml-1">Tirada</label>
-                       <input 
-                        type="number" 
-                        placeholder="Qty" 
-                        className="w-full p-4 rounded-2xl border-2 border-slate-200 text-center font-black text-lg bg-white focus:border-indigo-500 outline-none transition-all shadow-sm" 
-                        value={row.qty} 
-                        onChange={e => handleRowChange(idx, 'qty', parseInt(e.target.value) || 0)} 
-                      />
+                       {type === 'MOVE' ? (
+                         <div className="flex gap-2">
+                            <select 
+                              className="flex-1 p-3 rounded-2xl border-2 border-slate-200 font-black text-xs bg-white focus:border-indigo-500 outline-none"
+                              value={row.shelf}
+                              onChange={e => handleRowChange(idx, 'shelf', parseInt(e.target.value))}
+                            >
+                              {Array.from({ length: branches.find(b => b.id === selectedBranchId)?.totalShelves || 10 }, (_, i) => (
+                                <option key={i+1} value={i+1}>{String.fromCharCode(65 + i)}</option>
+                              ))}
+                            </select>
+                            <select 
+                              className="flex-1 p-3 rounded-2xl border-2 border-slate-200 font-black text-xs bg-white focus:border-indigo-500 outline-none"
+                              value={row.section}
+                              onChange={e => handleRowChange(idx, 'section', parseInt(e.target.value))}
+                            >
+                              {Array.from({ length: 20 }, (_, i) => (
+                                <option key={i+1} value={i+1}>{(i+1).toString().padStart(2, '0')}</option>
+                              ))}
+                            </select>
+                         </div>
+                       ) : (
+                         <input 
+                          type="number" 
+                          placeholder="Qty" 
+                          className="w-full p-4 rounded-2xl border-2 border-slate-200 text-center font-black text-lg bg-white focus:border-indigo-500 outline-none transition-all shadow-sm" 
+                          value={row.qty} 
+                          onChange={e => handleRowChange(idx, 'qty', parseInt(e.target.value) || 0)} 
+                        />
+                       )}
                     </div>
 
                     <button 
@@ -281,9 +371,9 @@ const BulkTransactionModal: React.FC<BulkTransactionModalProps> = ({ items, bran
           <button 
             type="submit" 
             onClick={handleSubmit}
-            className={`flex-[3] py-5 text-white font-black rounded-3xl text-[11px] uppercase tracking-[0.1em] shadow-2xl transition-all active:scale-95 ${type === 'IN' ? 'bg-emerald-600 shadow-emerald-200 hover:bg-emerald-700' : 'bg-rose-600 shadow-rose-200 hover:bg-rose-700'}`}
+            className={`flex-[3] py-5 text-white font-black rounded-3xl text-[11px] uppercase tracking-[0.1em] shadow-2xl transition-all active:scale-95 ${type === 'IN' ? 'bg-emerald-600 shadow-emerald-200 hover:bg-emerald-700' : type === 'OUT' ? 'bg-rose-600 shadow-rose-200 hover:bg-rose-700' : 'bg-indigo-600 shadow-indigo-200 hover:bg-indigo-700'}`}
           >
-            HUBI BULK {type === 'IN' ? 'IN MOVE' : 'OUT MOVE'} 🚀
+            HUBI BULK {type === 'IN' ? 'IN MOVE' : type === 'OUT' ? 'OUT MOVE' : 'LOCATION UPDATE'} 🚀
           </button>
         </div>
       </div>
