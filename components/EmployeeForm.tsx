@@ -35,7 +35,22 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ branches, xarumo, editingEm
   useEffect(() => {
     API.shifts.getAll().then(setShifts);
     if (editingEmployee) {
-      setFormData(editingEmployee);
+      setFormData({
+        ...editingEmployee,
+        name: editingEmployee.name || '',
+        employeeIdCode: editingEmployee.employeeIdCode || '',
+        position: editingEmployee.position || '',
+        department: editingEmployee.department || '',
+        status: editingEmployee.status || 'ACTIVE',
+        joinedDate: editingEmployee.joinedDate || new Date().toISOString().split('T')[0],
+        xarunId: editingEmployee.xarunId || xarumo[0]?.id || '',
+        branchId: editingEmployee.branchId || '',
+        shiftId: editingEmployee.shiftId || '',
+        salary: editingEmployee.salary || 0,
+        avatar: editingEmployee.avatar || '',
+        phone: editingEmployee.phone || '',
+        email: editingEmployee.email || ''
+      });
     } else {
       generateNewAvatar();
     }
@@ -130,7 +145,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ branches, xarumo, editingEm
                               ID-ga <strong>{formData.employeeIdCode}</strong> waxaa hadda heysta shaqaale kale oo la yiraahdo:
                           </p>
                           <div className="bg-white p-3 rounded-xl border border-rose-100 mt-3 flex items-center gap-3">
-                              <img src={conflictUser.avatar} className="w-10 h-10 rounded-full" alt="" />
+                              <img src={conflictUser.avatar || 'https://via.placeholder.com/150'} className="w-10 h-10 rounded-full" alt="" />
                               <div>
                                   <p className="font-black text-slate-800">{conflictUser.name}</p>
                                   <p className="text-xs text-slate-500">{conflictUser.position}</p>
@@ -159,7 +174,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ branches, xarumo, editingEm
           )}
 
           <div className="flex flex-col md:flex-row gap-6 items-center bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
-             <img src={formData.avatar} className="w-24 h-24 rounded-[2rem] bg-white shadow-sm border-4 border-white object-cover" alt="Preview" />
+             <img src={formData.avatar || 'https://via.placeholder.com/150'} className="w-24 h-24 rounded-[2rem] bg-white shadow-sm border-4 border-white object-cover" alt="Preview" />
              <div className="flex-1">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Profile Picture</p>
                 <div className="flex gap-3">

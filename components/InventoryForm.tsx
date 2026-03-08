@@ -26,7 +26,16 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
   const [updateAllBranches, setUpdateAllBranches] = useState(false);
 
   useEffect(() => {
-    if (editingItem) setFormData(editingItem);
+    if (editingItem) {
+      setFormData({
+        ...editingItem,
+        name: editingItem.name || '',
+        category: editingItem.category || '',
+        sku: editingItem.sku || '',
+        supplier: editingItem.supplier || '',
+        branchId: editingItem.branchId || branches[0]?.id || ''
+      });
+    }
   }, [editingItem]);
 
   // Ensure default branch is set if not present

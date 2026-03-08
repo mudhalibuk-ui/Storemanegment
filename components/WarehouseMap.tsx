@@ -1,15 +1,18 @@
 
 import React, { useState, useMemo } from 'react';
-import { InventoryItem, Branch, User, UserRole } from '../types';
+import { InventoryItem, Branch, User, UserRole, TransactionType, TransactionStatus } from '../types';
 import { numberToLetter, formatPlacement } from '../services/mappingUtils';
+import ItemSelectorModal from './ItemSelectorModal';
+import { API } from '../services/api';
 
 interface WarehouseMapProps {
   user: User;
   items: InventoryItem[];
   branches: Branch[];
+  onRefresh?: () => void;
 }
 
-const WarehouseMap: React.FC<WarehouseMapProps> = ({ user, items, branches }) => {
+const WarehouseMap: React.FC<WarehouseMapProps> = ({ user, items, branches, onRefresh }) => {
   const filteredBranches = useMemo(() => {
     if (user.role === UserRole.SUPER_ADMIN) return branches;
     return branches.filter(b => b.xarunId === user.xarunId);
@@ -19,6 +22,8 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({ user, items, branches }) =>
   const [selectedSlot, setSelectedSlot] = useState<{items: InventoryItem[], shelf: number, section: number} | null>(null);
   const [mapSearch, setMapSearch] = useState('');
   const [viewMode, setViewMode] = useState<'MAP' | 'LIST'>('MAP'); // Mobile Toggle State
+  const [isSelectingItem, setIsSelectingItem] = useState(false);
+  const [isMoving, setIsMoving] = useState(false);
   
   const selectedBranch = branches.find(b => b.id === selectedBranchId);
   const branchItems = items.filter(i => i.branchId === selectedBranchId);
@@ -34,6 +39,48 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({ user, items, branches }) =>
       shelf,
       section
     });
+  };
+
+  const handleMoveItemToSlot = async (item: InventoryItem) => {
+    if (!selectedSlot || !selectedBranch) return;
+    
+    if (!confirm(`Ma hubtaa inaad u soo rarto ${item.name} booskan: ${formatPlacement(selectedSlot.shelf, selectedSlot.section)}?`)) return;
+
+    setIsMoving(true);
+    try {
+      // Update item location
+      await API.items.save({
+        ...item,
+        shelves: selectedSlot.shelf,
+        sections: selectedSlot.section,
+        branchId: selectedBranch.id,
+        xarunId: selectedBranch.xarunId
+      });
+
+      // Create MOVE transaction
+      await API.transactions.create({
+        itemId: item.id,
+        itemName: item.name,
+        type: TransactionType.MOVE,
+        quantity: item.quantity,
+        branchId: selectedBranch.id,
+        personnel: user.name,
+        originOrSource: `Moved from ${formatPlacement(item.shelves, item.sections)} to ${formatPlacement(selectedSlot.shelf, selectedSlot.section)}`,
+        placementInfo: formatPlacement(selectedSlot.shelf, selectedSlot.section),
+        status: TransactionStatus.APPROVED,
+        requestedBy: user.id,
+        xarunId: selectedBranch.xarunId
+      });
+
+      alert("✅ Guul: Alaabta waa la soo raray!");
+      setIsSelectingItem(false);
+      setSelectedSlot(null);
+      if (onRefresh) onRefresh();
+    } catch (err: any) {
+      alert("Cilad: " + err.message);
+    } finally {
+      setIsMoving(false);
+    }
   };
 
   const getShelfStats = (shelfNum: number) => {
@@ -211,16 +258,50 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({ user, items, branches }) =>
                     </div>
                  ))
                ) : (
-                 <div className="py-20 text-center">
+                 <div className="py-10 text-center">
                     <div className="text-6xl mb-6 opacity-20">🗄️</div>
                     <h4 className="text-xl font-black text-slate-400 uppercase">GODKAN WAA FAARUQ</h4>
+                    <p className="text-xs text-slate-400 mt-2">Ma rabtaa inaad alaab halkan ku soo rarto?</p>
+                    <button 
+                      onClick={() => setIsSelectingItem(true)}
+                      className="mt-6 px-8 py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all uppercase text-[10px] tracking-widest"
+                    >
+                      + KU SHUB ALAAB (ADD ITEM)
+                    </button>
                  </div>
                )}
             </div>
 
-            <div className="p-8 bg-slate-50 border-t border-slate-100">
-               <button onClick={() => setSelectedSlot(null)} className="w-full py-4 bg-white border-2 border-slate-200 text-slate-500 font-black rounded-2xl uppercase text-[10px]">XIR</button>
+            <div className="p-8 bg-slate-50 border-t border-slate-100 flex gap-3">
+               <button onClick={() => setSelectedSlot(null)} className="flex-1 py-4 bg-white border-2 border-slate-200 text-slate-500 font-black rounded-2xl uppercase text-[10px]">XIR</button>
+               {selectedSlot.items.length > 0 && (
+                 <button 
+                   onClick={() => setIsSelectingItem(true)}
+                   className="flex-[2] py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl uppercase text-[10px] tracking-widest"
+                 >
+                   + KU SHUB ALAAB KALE
+                 </button>
+               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {isSelectingItem && (
+        <ItemSelectorModal 
+          items={items} 
+          branches={branches} 
+          type="IN" 
+          onSelect={handleMoveItemToSlot} 
+          onCancel={() => setIsSelectingItem(false)} 
+        />
+      )}
+
+      {isMoving && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[10001] flex items-center justify-center">
+          <div className="bg-white p-10 rounded-[3rem] shadow-2xl flex flex-col items-center">
+            <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-6"></div>
+            <p className="font-black text-slate-800 uppercase tracking-widest text-xs">Alaabta waa la rarayaa...</p>
           </div>
         </div>
       )}

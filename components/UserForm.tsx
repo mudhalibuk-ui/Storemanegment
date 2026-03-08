@@ -22,7 +22,10 @@ const UserForm: React.FC<UserFormProps> = ({ xarumo, editingUser, onSave, onCanc
     if (editingUser) {
       setFormData({
         ...editingUser,
-        password: editingUser.password || ''
+        name: editingUser.name || '',
+        username: editingUser.username || '',
+        password: editingUser.password || '',
+        xarunId: editingUser.xarunId || ''
       });
     }
   }, [editingUser]);

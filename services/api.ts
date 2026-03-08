@@ -212,8 +212,30 @@ export const API = {
       return payload as InventoryItem;
     },
     async bulkSave(items: Partial<InventoryItem>[]): Promise<boolean> {
-      // (Bulk logic same as before)
-      return true;
+      if (!isDbConnected()) return false;
+      try {
+        const payload = items.map(item => toSnakeCase({
+          ...item,
+          lastUpdated: new Date().toISOString()
+        }));
+        
+        const result = await supabaseFetch(`inventory_items?on_conflict=sku,branch_id`, {
+          method: 'POST',
+          headers: {
+            'Prefer': 'resolution=merge-duplicates'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (result && result.error) {
+          console.error("Bulk Save Error:", result.error);
+          return false;
+        }
+        return true;
+      } catch (e) {
+        console.error("Bulk Save Exception:", e);
+        return false;
+      }
     },
     async delete(id: string): Promise<{success: boolean, error?: string}> {
       if (isDbConnected()) {

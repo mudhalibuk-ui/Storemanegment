@@ -12,7 +12,7 @@ interface InventoryListProps {
   onImport: () => void;
   onBulkAction: () => void;
   onEdit: (item: InventoryItem) => void;
-  onTransaction: (item: InventoryItem, type: 'IN' | 'OUT' | 'TRANSFER') => void;
+  onTransaction: (item: InventoryItem, type: 'IN' | 'OUT' | 'TRANSFER' | 'MOVE') => void;
   onViewHistory: (item: InventoryItem) => void;
   onRefresh?: () => void; 
   onDeleteAll?: () => void;
@@ -269,6 +269,7 @@ const InventoryList: React.FC<InventoryListProps> = ({
                           */}
                           <button onClick={() => onTransaction(item, 'IN')} className="w-10 h-10 md:w-11 md:h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-90" title="Stock In">📥</button>
                           <button onClick={() => onTransaction(item, 'OUT')} className="w-10 h-10 md:w-11 md:h-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all shadow-sm active:scale-90" title="Stock Out">📤</button>
+                          <button onClick={() => onTransaction(item, 'MOVE')} className="w-10 h-10 md:w-11 md:h-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-90" title="Adjust Location">📍</button>
                           <button onClick={() => onTransaction(item, 'TRANSFER')} className="w-10 h-10 md:w-11 md:h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center hover:bg-amber-600 hover:text-white transition-all shadow-sm active:scale-90" title="Transfer to Branch">🚛</button>
                           <button onClick={() => onViewHistory(item)} className="w-10 h-10 md:w-11 md:h-11 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-900 hover:text-white transition-all shadow-sm active:scale-90" title="History (Graph)">📊</button>
                           <button onClick={() => onEdit(item)} className="w-10 h-10 md:w-11 md:h-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-90" title="Edit">📝</button>

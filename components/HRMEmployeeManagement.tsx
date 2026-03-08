@@ -45,6 +45,28 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
     }).length;
   };
 
+  const getLateCount = (employeeId: string) => {
+    const now = new Date();
+    return attendance.filter(a => {
+        const d = new Date(a.date);
+        return a.employeeId === employeeId && 
+               a.status === 'LATE' && 
+               d.getMonth() === now.getMonth() &&
+               d.getFullYear() === now.getFullYear();
+    }).length;
+  };
+
+  const getPresentCount = (employeeId: string) => {
+    const now = new Date();
+    return attendance.filter(a => {
+        const d = new Date(a.date);
+        return a.employeeId === employeeId && 
+               (a.status === 'PRESENT' || a.status === 'LATE') && 
+               d.getMonth() === now.getMonth() &&
+               d.getFullYear() === now.getFullYear();
+    }).length;
+  };
+
   const sendWarningMessage = (employee: Employee, absentCount: number) => {
       if (!employee.phone) {
           alert("Shaqaalahan lagama hayo Lambar Telefoon (Phone Number). Fadlan ku dar Edit-ka.");
@@ -215,6 +237,8 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filtered.map(emp => {
           const absentCount = getAbsentCount(emp.id);
+          const lateCount = getLateCount(emp.id);
+          const presentCount = getPresentCount(emp.id);
           const isHighRisk = absentCount >= 3 && !emp.isWarningDismissed; // Warning Threshold
 
           return (
@@ -247,7 +271,7 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
 
               <div className="flex flex-col items-center text-center">
                 <div className="relative mb-6">
-                   <img src={emp.avatar} className="w-24 h-24 rounded-[2rem] border-4 border-slate-50 shadow-xl object-cover" alt="" />
+                   <img src={emp.avatar || 'https://via.placeholder.com/150'} className="w-24 h-24 rounded-[2rem] border-4 border-slate-50 shadow-xl object-cover" alt="" />
                    <span className={`absolute -bottom-2 -right-2 px-3 py-1 rounded-full text-[8px] font-black border-2 border-white text-white ${emp.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
                       {emp.status}
                    </span>
@@ -256,18 +280,28 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
                 <h3 className="text-xl font-black text-slate-800 tracking-tight">{emp.name}</h3>
                 <p className="text-sm font-black text-indigo-500 uppercase tracking-widest mt-1">{emp.position}</p>
                 
-                {/* ABSENT ALERT */}
-                <div className="mt-4 flex flex-col w-full px-4">
-                    <div className="flex justify-between text-[10px] font-black uppercase text-slate-400 mb-1">
-                        <span>Bishan Maqnaanshaha</span>
-                        <span className={isHighRisk ? 'text-rose-600' : 'text-slate-600'}>{absentCount} Days</span>
+                {/* ATTENDANCE STATS GRID */}
+                <div className="mt-4 grid grid-cols-3 gap-2 w-full px-2">
+                    {/* ABSENT */}
+                    <div className="flex flex-col items-center bg-rose-50 p-2 rounded-xl border border-rose-100">
+                        <span className="text-[8px] font-black text-rose-400 uppercase tracking-widest mb-1">Maqnaansho</span>
+                        <span className={`text-lg font-black ${isHighRisk ? 'text-rose-600 animate-pulse' : 'text-rose-600'}`}>{absentCount}</span>
+                        <span className="text-[7px] font-bold text-rose-300 uppercase">Days</span>
                     </div>
-                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${isHighRisk ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`} style={{width: `${Math.min(100, (absentCount/5)*100)}%`}}></div>
+
+                    {/* LATE */}
+                    <div className="flex flex-col items-center bg-amber-50 p-2 rounded-xl border border-amber-100">
+                        <span className="text-[8px] font-black text-amber-400 uppercase tracking-widest mb-1">Daahis</span>
+                        <span className="text-lg font-black text-amber-600">{lateCount}</span>
+                        <span className="text-[7px] font-bold text-amber-300 uppercase">Days</span>
                     </div>
-                    {isHighRisk && (
-                        <p className="text-[9px] font-bold text-rose-500 mt-1 uppercase text-center animate-pulse">⚠️ Warning Level Reached</p>
-                    )}
+
+                    {/* PRESENT */}
+                    <div className="flex flex-col items-center bg-emerald-50 p-2 rounded-xl border border-emerald-100">
+                        <span className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-1">Joogitaan</span>
+                        <span className="text-lg font-black text-emerald-600">{presentCount}</span>
+                        <span className="text-[7px] font-bold text-emerald-300 uppercase">Days</span>
+                    </div>
                 </div>
 
                 <div className="mt-4 w-full space-y-3 pt-4 border-t border-slate-50">

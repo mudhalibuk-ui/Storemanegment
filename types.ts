@@ -2,7 +2,8 @@
 export enum TransactionType {
   IN = 'IN',
   OUT = 'OUT',
-  TRANSFER = 'TRANSFER'
+  TRANSFER = 'TRANSFER',
+  MOVE = 'MOVE'
 }
 
 export enum TransactionStatus {

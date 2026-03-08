@@ -7,7 +7,7 @@ import { letterToNumber } from '../services/mappingUtils';
 interface ImportModalProps {
   branches: Branch[];
   userXarunId?: string;
-  onImport: (items: InventoryItem[]) => Promise<boolean>; // Changed to Promise<boolean>
+  onImport: (items: Partial<InventoryItem>[]) => Promise<boolean>;
   onCancel: () => void;
 }
 
@@ -118,7 +118,6 @@ const ImportModal: React.FC<ImportModalProps> = ({ branches, userXarunId, onImpo
         const rawSection = (findVal(row, MAPPINGS.section) || '1').toString();
 
         return {
-          id: `temp-${Date.now()}-${index}`,
           name,
           category,
           sku,
@@ -129,7 +128,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ branches, userXarunId, onImpo
           lastUpdated: new Date().toISOString(),
           minThreshold,
           xarunId: itemXarunId
-        } as InventoryItem;
+        } as any;
       });
 
       const success = await onImport(processedItems);

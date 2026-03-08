@@ -6,7 +6,7 @@ import { formatPlacement, numberToLetter } from '../services/mappingUtils';
 interface StockAdjustmentModalProps {
   item: InventoryItem;
   branches: Branch[];
-  type: TransactionType.IN | TransactionType.OUT;
+  type: TransactionType.IN | TransactionType.OUT | TransactionType.MOVE;
   userRole: UserRole;
   onSave: (data: { qty: number; notes: string; personnel: string; source: string; placement: string; branchId: string; shelf?: number; section?: number }) => void;
   onCancel: () => void;
@@ -15,14 +15,15 @@ interface StockAdjustmentModalProps {
 const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branches, type, userRole, onSave, onCancel }) => {
   const isOut = type === TransactionType.OUT;
   const isIn = type === TransactionType.IN;
+  const isMove = type === TransactionType.MOVE;
   const isPrivileged = userRole === UserRole.SUPER_ADMIN || userRole === UserRole.MANAGER;
   
   const currentPlacement = formatPlacement(item.shelves, item.sections);
   
-  const [qty, setQty] = useState<number>(1);
+  const [qty, setQty] = useState<number>(isMove ? 0 : 1);
   const [notes, setNotes] = useState('');
   const [personnel, setPersonnel] = useState('');
-  const [source, setSource] = useState('');
+  const [source, setSource] = useState(isMove ? currentPlacement : '');
   const [selectedBranchId, setSelectedBranchId] = useState(item.branchId);
   
   const [shelf, setShelf] = useState<number>(item.shelves || 1);
@@ -44,12 +45,12 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
     }
   }, [shelf, selectedBranch]);
   
-  const headerBg = isOut ? 'bg-rose-50' : 'bg-emerald-50';
-  const iconBg = isOut ? 'bg-rose-100' : 'bg-emerald-100';
-  const titleColor = isOut ? 'text-rose-900' : 'text-emerald-900';
-  const buttonBg = isOut ? 'bg-rose-600' : 'bg-emerald-600';
-  const buttonHover = isOut ? 'hover:bg-rose-700' : 'hover:bg-emerald-700';
-  const shadowColor = isOut ? 'shadow-rose-200' : 'shadow-emerald-200';
+  const headerBg = isOut ? 'bg-rose-50' : isMove ? 'bg-indigo-50' : 'bg-emerald-50';
+  const iconBg = isOut ? 'bg-rose-100' : isMove ? 'bg-indigo-100' : 'bg-emerald-100';
+  const titleColor = isOut ? 'text-rose-900' : isMove ? 'text-indigo-900' : 'text-emerald-900';
+  const buttonBg = isOut ? 'bg-rose-600' : isMove ? 'bg-indigo-600' : 'bg-emerald-600';
+  const buttonHover = isOut ? 'hover:bg-rose-700' : isMove ? 'hover:bg-indigo-700' : 'hover:bg-emerald-700';
+  const shadowColor = isOut ? 'shadow-rose-200' : isMove ? 'shadow-indigo-200' : 'shadow-emerald-200';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,11 +62,11 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
       qty, 
       notes, 
       personnel, 
-      source, 
+      source: isMove ? `Laga soo raray: ${currentPlacement}` : source, 
       placement,
       branchId: selectedBranchId,
-      shelf: isIn ? shelf : undefined,
-      section: isIn ? section : undefined
+      shelf: (isIn || isMove) ? shelf : undefined,
+      section: (isIn || isMove) ? section : undefined
     });
   };
 
@@ -89,7 +90,7 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
               {isOut ? '📤' : '📥'}
             </div>
             <div>
-              <h2 className={`text-2xl font-black ${titleColor} tracking-tight`}>Stock {isOut ? 'Out' : 'In'}</h2>
+              <h2 className={`text-2xl font-black ${titleColor} tracking-tight`}>Stock {isOut ? 'Out' : isMove ? 'Move' : 'In'}</h2>
               <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">{item.name}</p>
             </div>
           </div>
@@ -102,11 +103,11 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 space-y-6 overflow-y-auto no-scrollbar">
-          {isOut && !isPrivileged && (
+          {(isOut || isMove) && !isPrivileged && (
             <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start gap-3">
               <span className="text-xl">🛡️</span>
               <p className="text-[10px] font-bold text-amber-700 uppercase leading-relaxed">
-                Fiiro Gaar ah: Dhaqdhaqaaqa "OUT" wuxuu u baahan yahay ogolaanshaha Admin-ka ka hor inta aan laga goyn stock-ga.
+                Fiiro Gaar ah: Dhaqdhaqaaqa "{isOut ? 'OUT' : 'MOVE'}" wuxuu u baahan yahay ogolaanshaha Admin-ka ka hor inta aan la fulin.
               </p>
             </div>
           )}
@@ -144,19 +145,21 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
           </div>
 
           <div className="space-y-5">
-            <div>
-              <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-3 px-1">Tirada la {isOut ? 'bixinayo' : 'kordhinayo'}?</label>
-              <div className="flex items-center gap-4">
-                <button type="button" onClick={() => setQty(Math.max(0.01, qty - 1))} className="w-14 h-14 rounded-2xl border-2 border-slate-100 flex items-center justify-center text-2xl font-black text-slate-400 hover:border-indigo-200 hover:text-indigo-600 active:scale-90 transition-all bg-white shadow-sm">−</button>
-                <input required type="number" min="0.01" step="any" className="flex-1 text-center py-4 text-3xl font-black text-slate-900 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 focus:bg-white outline-none transition-all shadow-inner" value={qty} onChange={e => setQty(parseFloat(e.target.value) || 0.01)} />
-                <button type="button" onClick={() => setQty(qty + 1)} className="w-14 h-14 rounded-2xl border-2 border-slate-100 flex items-center justify-center text-2xl font-black text-slate-400 hover:border-indigo-200 hover:text-indigo-600 active:scale-90 transition-all bg-white shadow-sm">+</button>
+            {!isMove && (
+              <div>
+                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-3 px-1">Tirada la {isOut ? 'bixinayo' : 'kordhinayo'}?</label>
+                <div className="flex items-center gap-4">
+                  <button type="button" onClick={() => setQty(Math.max(0.01, qty - 1))} className="w-14 h-14 rounded-2xl border-2 border-slate-100 flex items-center justify-center text-2xl font-black text-slate-400 hover:border-indigo-200 hover:text-indigo-600 active:scale-90 transition-all bg-white shadow-sm">−</button>
+                  <input required type="number" min="0.01" step="any" className="flex-1 text-center py-4 text-3xl font-black text-slate-900 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 focus:bg-white outline-none transition-all shadow-inner" value={qty} onChange={e => setQty(parseFloat(e.target.value) || 0.01)} />
+                  <button type="button" onClick={() => setQty(qty + 1)} className="w-14 h-14 rounded-2xl border-2 border-slate-100 flex items-center justify-center text-2xl font-black text-slate-400 hover:border-indigo-200 hover:text-indigo-600 active:scale-90 transition-all bg-white shadow-sm">+</button>
+                </div>
               </div>
-            </div>
+            )}
 
-            {isIn && (
+            {(isIn || isMove) && (
               <div className="bg-indigo-50/50 p-6 rounded-[2rem] border-2 border-dashed border-indigo-100">
                 <h3 className="text-xs font-black text-indigo-800 mb-4 flex items-center gap-2 uppercase tracking-widest">
-                  📍 Layout Selection
+                  📍 {isMove ? 'Goobta Cusub (New Location)' : 'Layout Selection'}
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -177,12 +180,12 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
 
             <div className="grid grid-cols-2 gap-5">
               <div>
-                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 px-1">{isOut ? 'Qofka Qaadaya' : 'Qofka Keenay'}</label>
+                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 px-1">{isOut ? 'Qofka Qaadaya' : isMove ? 'Qofka Raraya' : 'Qofka Keenay'}</label>
                 <input required type="text" className="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 focus:bg-white outline-none text-sm font-bold text-slate-800 transition-all" placeholder="Magaca qofka" value={personnel} onChange={e => setPersonnel(e.target.value)} />
               </div>
               <div>
-                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 px-1">{isOut ? 'Loo dirayo' : 'Laga keenay'}</label>
-                <input required type="text" className="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 focus:bg-white outline-none text-sm font-bold text-slate-800 transition-all" placeholder="Meesha" value={source} onChange={e => setSource(e.target.value)} />
+                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 px-1">{isOut ? 'Loo dirayo' : isMove ? 'Goobtii Hore' : 'Laga keenay'}</label>
+                <input required type="text" className="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 focus:bg-white outline-none text-sm font-bold text-slate-800 transition-all" placeholder="Meesha" value={source} onChange={e => setSource(e.target.value)} disabled={isMove} />
               </div>
             </div>
 
@@ -195,7 +198,7 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
           <div className="pt-4 flex gap-4">
              <button type="button" onClick={onCancel} className="flex-1 py-5 bg-slate-100 text-slate-500 font-black rounded-3xl hover:bg-slate-200 transition-all active:scale-95 uppercase text-[10px] tracking-widest">Jooji</button>
              <button type="submit" className={`flex-[2] py-5 ${buttonBg} ${buttonHover} text-white font-black rounded-3xl shadow-2xl ${shadowColor} transition-all active:scale-95 uppercase text-[10px] tracking-widest`}>
-               {isOut && !isPrivileged ? 'DIR CODSIGA ➔' : (isOut ? 'HUBI STOCK OUT' : 'HUBI STOCK IN')}
+               {isOut && !isPrivileged ? 'DIR CODSIGA ➔' : (isOut ? 'HUBI STOCK OUT' : isMove ? 'HUBI LOCATION CHANGE' : 'HUBI STOCK IN')}
              </button>
           </div>
         </form>

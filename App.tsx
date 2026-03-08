@@ -38,7 +38,7 @@ import { InventoryItem, Branch, Transaction, User, TransactionStatus, Transactio
 import { getInventoryInsights } from './services/geminiService';
 import { formatPlacement } from './services/mappingUtils';
 
-type AdjustmentModalState = { item: InventoryItem; type: TransactionType.IN | TransactionType.OUT } | null;
+type AdjustmentModalState = { item: InventoryItem; type: TransactionType.IN | TransactionType.OUT | TransactionType.MOVE } | null;
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -245,7 +245,7 @@ const App: React.FC = () => {
       )}
 
       {activeTab === 'transactions' && <TransactionHistory transactions={transactions} branches={branches} items={items} onRefresh={refreshAllData} />}
-      {activeTab === 'map' && <WarehouseMap user={user} items={items} branches={branches} />}
+      {activeTab === 'map' && <WarehouseMap user={user} items={items} branches={branches} onRefresh={refreshAllData} />}
 
       {activeTab === 'inter-branch-transfers' && 
         <InterBranchTransferPage 
@@ -389,9 +389,9 @@ const App: React.FC = () => {
             const type = adjustmentModal.type;
             const item = adjustmentModal.item;
             
-            // Logic for status: IF OUT and NOT privileged, must be PENDING. Otherwise APPROVED.
+            // Logic for status: IF (OUT or MOVE) and NOT privileged, must be PENDING. Otherwise APPROVED.
             const isPrivileged = user.role === UserRole.SUPER_ADMIN || user.role === UserRole.MANAGER;
-            const status = (type === TransactionType.OUT && !isPrivileged) ? TransactionStatus.PENDING : TransactionStatus.APPROVED;
+            const status = ((type === TransactionType.OUT || type === TransactionType.MOVE) && !isPrivileged) ? TransactionStatus.PENDING : TransactionStatus.APPROVED;
             
             // CRITICAL FIX: Ensure XarunID is retrieved from the BRANCH, not just the user.
             const targetBranch = branches.find(b => b.id === data.branchId);
@@ -448,16 +448,22 @@ const App: React.FC = () => {
                             landedCost: sourceItem.landedCost
                         });
                     }
-                } else if (type === TransactionType.OUT) {
+                } else if (type === TransactionType.OUT || type === TransactionType.MOVE) {
                     if (existingTargetItem) {
-                        if (existingTargetItem.quantity < data.qty) {
+                        if (type === TransactionType.OUT && existingTargetItem.quantity < data.qty) {
                             alert(`Error: Not enough stock in ${branches.find(b => b.id === targetBranchId)?.name}. Available: ${existingTargetItem.quantity}`);
                             return;
                         }
-                        await API.items.save({ 
-                            ...existingTargetItem, 
-                            quantity: existingTargetItem.quantity - data.qty 
-                        });
+                        
+                        const updates: any = { ...existingTargetItem };
+                        if (type === TransactionType.OUT) {
+                            updates.quantity = existingTargetItem.quantity - data.qty;
+                        } else if (type === TransactionType.MOVE && data.shelf !== undefined && data.section !== undefined) {
+                            updates.shelves = data.shelf;
+                            updates.sections = data.section;
+                        }
+                        
+                        await API.items.save(updates);
                     } else {
                         alert(`Error: Item "${sourceItem.name}" does not exist in the selected branch.`);
                         return;
