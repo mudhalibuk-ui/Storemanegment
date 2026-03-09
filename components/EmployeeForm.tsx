@@ -233,9 +233,16 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ branches, xarumo, editingEm
              </div>
              <div className="space-y-1">
                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Xarunta (Center)</label>
-               <select className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-800 outline-none focus:border-indigo-500 transition-all cursor-pointer" value={formData.xarunId} onChange={e => setFormData({...formData, xarunId: e.target.value})}>
+               <select className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-800 outline-none focus:border-indigo-500 transition-all cursor-pointer" value={formData.xarunId} onChange={e => setFormData({...formData, xarunId: e.target.value, branchId: ''})}>
                  <option value="">Dooro Xarun...</option>
                  {xarumo.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+               </select>
+             </div>
+             <div className="space-y-1">
+               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Bakhaarka (Branch)</label>
+               <select className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-800 outline-none focus:border-indigo-500 transition-all cursor-pointer" value={formData.branchId} onChange={e => setFormData({...formData, branchId: e.target.value})}>
+                 <option value="">Dooro Bakhaar...</option>
+                 {branches.filter(b => b.xarunId === formData.xarunId).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                </select>
              </div>
           </div>

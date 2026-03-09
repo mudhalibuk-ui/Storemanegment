@@ -329,15 +329,24 @@ export const API = {
     },
     async save(employee: Partial<Employee>): Promise<Employee> {
       const id = employee.id || crypto.randomUUID();
-      const payload = { ...employee, id };
+      // Clean up empty strings for optional fields that might have foreign key constraints
+      const cleanEmployee = { ...employee };
+      if (cleanEmployee.branchId === '') delete cleanEmployee.branchId;
+      if (cleanEmployee.shiftId === '') delete cleanEmployee.shiftId;
+      
+      const payload = { ...cleanEmployee, id };
       const result = await cloudSave('employees', payload);
       
       if (result && result.error) {
-        console.error("API Error:", result.error, result.details); // Log details
-        if (result.error === "Conflict/Duplicate Key" || (result.details && result.details.includes("duplicate key value"))) {
+        console.error("API Error:", result.error, result.details);
+        // Only throw DUPLICATE_ID if it's actually a unique constraint violation on employee_id_code or id
+        const isDuplicate = result.error === "Conflict/Duplicate Key" && 
+                          (result.details?.includes("employee_id_code") || result.details?.includes("employees_pkey"));
+        
+        if (isDuplicate) {
            throw new Error("DUPLICATE_ID");
         }
-        throw new Error(result.error);
+        throw new Error(result.error + (result.details ? ": " + result.details : ""));
       }
       
       return payload as Employee;
