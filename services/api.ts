@@ -245,18 +245,7 @@ export const API = {
         id, 
         name: xarun.name, 
         location: xarun.location,
-        logo: xarun.logo,
-        address: xarun.address,
-        phone: xarun.phone,
-        email: xarun.email,
-        website: xarun.website,
-        tax_id: xarun.taxId,
-        // currency: xarun.currency, // Omitted to fix PGRST204 error
-        // status: xarun.status || 'ACTIVE', // Omitted to fix PGRST204 error
-        // plan: xarun.plan || 'BASIC', // Omitted to fix PGRST204 error
-        max_users: xarun.maxUsers,
-        expiry_date: xarun.expiryDate,
-        created_at: xarun.createdAt || new Date().toISOString()
+        createdAt: xarun.createdAt || new Date().toISOString()
       };
       const saved = await cloudSave('xarumo', payload);
       return (Array.isArray(saved) ? saved[0] : saved) || { ...xarun, id };

@@ -662,7 +662,14 @@ const App: React.FC = () => {
             documents={dmsDocuments}
             onRefresh={refreshAllData}
             xarumo={xarumo}
-            onUpdateXarun={async (x) => { await API.xarumo.save(x); refreshAllData(true); }}
+            onUpdateXarun={async (x) => { 
+              try {
+                await API.xarumo.save(x); 
+                refreshAllData(true); 
+              } catch (err: any) {
+                alert("Khalad ayaa dhacay markii la cusboonaysiinayay xarunta: " + err.message);
+              }
+            }}
           />
         );
       case 'helpdesk':
@@ -706,7 +713,15 @@ const App: React.FC = () => {
 
       {/* FORM MODALS */}
       {isUserFormOpen && <UserForm xarumo={xarumo} editingUser={editingUser} onSave={async (u) => { await API.users.save(u); setIsUserFormOpen(false); refreshAllData(); }} onCancel={() => setIsUserFormOpen(false)} />}
-      {isXarunFormOpen && <XarunForm editingXarun={editingXarun} onSave={async (x) => { await API.xarumo.save(x); setIsXarunFormOpen(false); refreshAllData(); }} onCancel={() => setIsXarunFormOpen(false)} />}
+      {isXarunFormOpen && <XarunForm editingXarun={editingXarun} onSave={async (x) => { 
+        try {
+          await API.xarumo.save(x); 
+          setIsXarunFormOpen(false); 
+          refreshAllData(); 
+        } catch (err: any) {
+          alert("Khalad ayaa dhacay markii la kaydinayay xarunta: " + err.message);
+        }
+      }} onCancel={() => setIsXarunFormOpen(false)} />}
       {isBranchFormOpen && <BranchForm xarumo={xarumo} user={user} editingBranch={editingBranch} onSave={async (b) => { await API.branches.save(b); setIsBranchFormOpen(false); refreshAllData(); }} onCancel={() => setIsBranchFormOpen(false)} />}
       {isItemFormOpen && <InventoryForm branches={branches} editingItem={editingItem} onSave={async (item, updateAll) => { 
         // FIX: Ensure xarunId is set based on the selected branch
