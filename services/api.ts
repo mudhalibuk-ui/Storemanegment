@@ -580,26 +580,49 @@ export const API = {
   attendance: {
     async getAll(): Promise<Attendance[]> {
       const data = await fetchAllPages('attendance', '', 'date');
-      return data.map((a: any) => ({
-        id: a.id, employeeId: a.employee_id, date: a.date, status: a.status,
-        clockIn: a.clock_in, clockOut: a.clock_out, overtimeIn: a.overtime_in,
-        overtimeOut: a.overtime_out, notes: a.notes, deviceId: a.device_id
-      }));
+      return data.map((a: any) => {
+        let status = a.status;
+        if (status === 'LEAVE' && a.notes?.includes('HOLIDAY')) {
+          status = 'HOLIDAY';
+        }
+        return {
+          id: a.id, employeeId: a.employee_id, date: a.date, status: status,
+          clockIn: a.clock_in, clockOut: a.clock_out, overtimeIn: a.overtime_in,
+          overtimeOut: a.overtime_out, notes: a.notes, deviceId: a.device_id
+        };
+      });
     },
     async getByDate(date: string): Promise<Attendance[]> {
       const data = await supabaseFetch(`attendance?select=*&date=eq.${date}`);
       if (!Array.isArray(data)) return [];
-      return data.map((a: any) => ({
-        id: a.id, employeeId: a.employee_id, date: a.date, status: a.status,
-        clockIn: a.clock_in, clockOut: a.clock_out, overtimeIn: a.overtime_in,
-        overtimeOut: a.overtime_out, notes: a.notes, deviceId: a.device_id
-      }));
+      return data.map((a: any) => {
+        let status = a.status;
+        if (status === 'LEAVE' && a.notes?.includes('HOLIDAY')) {
+          status = 'HOLIDAY';
+        }
+        return {
+          id: a.id, employeeId: a.employee_id, date: a.date, status: status,
+          clockIn: a.clock_in, clockOut: a.clock_out, overtimeIn: a.overtime_in,
+          overtimeOut: a.overtime_out, notes: a.notes, deviceId: a.device_id
+        };
+      });
     },
     async save(record: Partial<Attendance>): Promise<Attendance> {
       const id = record.id || crypto.randomUUID();
-      const payload = { ...record, id };
+      let statusToSave = record.status;
+      let notesToSave = record.notes;
+      
+      if (statusToSave === 'HOLIDAY') {
+        statusToSave = 'LEAVE';
+        notesToSave = notesToSave ? (notesToSave.includes('HOLIDAY') ? notesToSave : `HOLIDAY - ${notesToSave}`) : 'HOLIDAY';
+      } else if (statusToSave === 'LEAVE' && notesToSave?.includes('HOLIDAY')) {
+        notesToSave = notesToSave.replace('HOLIDAY - ', '').replace('HOLIDAY', '').trim();
+      }
+      
+      const payload = { ...record, id, status: statusToSave, notes: notesToSave };
       await cloudSave('attendance', payload);
-      return payload as Attendance;
+      
+      return { ...payload, status: record.status } as Attendance;
     }
   },
 
