@@ -1,25 +1,47 @@
 
 import React, { useState } from 'react';
-import { Transaction, TransactionType, Branch, InventoryItem } from '../types';
+import { Transaction, TransactionType, Branch, InventoryItem, Sale, SystemSettings } from '../types';
 import { API } from '../services/api';
+import { FileText } from 'lucide-react';
+import DocumentViewer from './DocumentViewer';
 
 interface TransactionHistoryProps {
   transactions: Transaction[];
   branches: Branch[];
   items?: InventoryItem[];
+  sales?: Sale[];
+  settings?: SystemSettings;
   onRefresh?: () => void;
 }
 
-const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, branches, items = [], onRefresh }) => {
+const TransactionHistory: React.FC<TransactionHistoryProps> = ({ 
+  transactions, 
+  branches, 
+  items = [], 
+  sales = [], 
+  settings, 
+  onRefresh 
+}) => {
   const [filter, setFilter] = useState('ALL');
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [viewingDocument, setViewingDocument] = useState<{ type: 'INVOICE' | 'QUOTATION' | 'SALES_ORDER', data: Partial<Sale> } | null>(null);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   
   const [itemSearch, setItemSearch] = useState('');
   const [isSearchingItem, setIsSearchingItem] = useState(false);
 
-  const filtered = transactions.filter(t => filter === 'ALL' || t.type === filter);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filtered = transactions.filter(t => {
+    const matchesFilter = filter === 'ALL' || t.type === filter;
+    const matchesSearch = 
+      t.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      t.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      t.personnel?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      t.originOrSource?.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesFilter && matchesSearch;
+  });
 
   const handleDelete = async (transaction: Transaction) => {
     if (!confirm(`Ma hubtaa inaad tirtirto dhaqdhaqaaqan? \n${transaction.itemName} - ${transaction.quantity} Units`)) return;
@@ -113,16 +135,27 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, b
           <p className="text-[10px] md:text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Logs-ka Stock-ga & Taariikhda.</p>
         </div>
         
-        <div className="flex bg-slate-100 p-1.5 md:p-2 rounded-2xl w-full md:w-auto">
-          {['ALL', 'IN', 'OUT', 'TRANSFER'].map(type => (
-            <button 
-              key={type}
-              onClick={() => setFilter(type)}
-              className={`flex-1 md:flex-none px-4 md:px-6 py-2 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all ${filter === type ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              {type}
-            </button>
-          ))}
+        <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+          <div className="relative w-full md:w-64">
+            <input 
+              type="text" 
+              placeholder="Search history..."
+              className="w-full pl-4 pr-10 py-3 bg-slate-100 border-none rounded-2xl text-[10px] font-black uppercase tracking-widest focus:ring-2 focus:ring-indigo-500 transition-all"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="flex bg-slate-100 p-1.5 md:p-2 rounded-2xl w-full md:w-auto">
+            {['ALL', 'IN', 'OUT', 'TRANSFER'].map(type => (
+              <button 
+                key={type}
+                onClick={() => setFilter(type)}
+                className={`flex-1 md:flex-none px-4 md:px-6 py-2 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all ${filter === type ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -162,6 +195,23 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, b
                   </td>
                   <td className="px-6 md:px-10 py-5 text-right">
                     <div className="flex justify-end gap-2">
+                       {t.referenceId && sales.find(s => s.id === t.referenceId) && (
+                         <button 
+                          onClick={() => {
+                            const sale = sales.find(s => s.id === t.referenceId);
+                            if (sale) {
+                              setViewingDocument({ 
+                                type: sale.type === 'QUOTATION' ? 'QUOTATION' : sale.type === 'SALES_ORDER' ? 'SALES_ORDER' : 'INVOICE', 
+                                data: sale 
+                              });
+                            }
+                          }}
+                          className="p-2.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-xl transition-all active:scale-95"
+                          title="View Document"
+                         >
+                           <FileText size={16} />
+                         </button>
+                       )}
                        <button 
                         onClick={() => startEdit(t)}
                         className="p-2.5 bg-slate-100 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-95"
@@ -304,6 +354,15 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, b
              </form>
           </div>
         </div>
+      )}
+
+      {viewingDocument && settings && (
+        <DocumentViewer 
+          type={viewingDocument.type}
+          data={viewingDocument.data}
+          settings={settings}
+          onClose={() => setViewingDocument(null)}
+        />
       )}
     </div>
   );

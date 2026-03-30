@@ -11,11 +11,19 @@ interface XarunFormProps {
 const XarunForm: React.FC<XarunFormProps> = ({ editingXarun, onSave, onCancel }) => {
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [currency, setCurrency] = useState('USD');
 
   useEffect(() => {
     if (editingXarun) {
       setName(editingXarun.name);
       setLocation(editingXarun.location);
+      setEmail(editingXarun.email || '');
+      setPhone(editingXarun.phone || '');
+      setAddress(editingXarun.address || '');
+      setCurrency(editingXarun.currency || 'USD');
     }
   }, [editingXarun]);
 
@@ -28,7 +36,11 @@ const XarunForm: React.FC<XarunFormProps> = ({ editingXarun, onSave, onCancel })
     onSave({
       id: editingXarun?.id,
       name: name.trim(),
-      location: location.trim()
+      location: location.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      address: address.trim(),
+      currency
     });
   };
 
@@ -48,33 +60,79 @@ const XarunForm: React.FC<XarunFormProps> = ({ editingXarun, onSave, onCancel })
            <button onClick={onCancel} className="text-slate-300 hover:text-slate-500 transition-colors">✕</button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Magaca Xarunta</label>
-            <input 
-              autoFocus
-              required
-              type="text"
-              className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-800 focus:border-indigo-500 focus:bg-white outline-none transition-all"
-              placeholder="e.g. Center A"
-              value={name}
-              onChange={e => setName(e.target.value)}
-            />
+        <form onSubmit={handleSubmit} className="space-y-6 max-h-[70vh] overflow-y-auto px-2 no-scrollbar">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Magaca Shirkadda/Xarunta</label>
+              <input 
+                autoFocus
+                required
+                type="text"
+                className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-800 focus:border-indigo-500 focus:bg-white outline-none transition-all"
+                placeholder="e.g. Center A"
+                value={name}
+                onChange={e => setName(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Magaalada (Location)</label>
+              <input 
+                required
+                type="text"
+                className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-800 focus:border-indigo-500 focus:bg-white outline-none transition-all"
+                placeholder="e.g. Mogadishu"
+                value={location}
+                onChange={e => setLocation(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Email</label>
+              <input 
+                type="email"
+                className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-800 focus:border-indigo-500 focus:bg-white outline-none transition-all"
+                placeholder="info@company.com"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Taleefan</label>
+              <input 
+                type="text"
+                className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-800 focus:border-indigo-500 focus:bg-white outline-none transition-all"
+                placeholder="+252..."
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+              />
+            </div>
+
+            <div className="md:col-span-2 space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Cinwaanka (Address)</label>
+              <textarea 
+                className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-800 focus:border-indigo-500 focus:bg-white outline-none transition-all min-h-[80px]"
+                placeholder="Street, District..."
+                value={address}
+                onChange={e => setAddress(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Currency</label>
+              <select 
+                className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-800 focus:border-indigo-500 focus:bg-white outline-none transition-all"
+                value={currency}
+                onChange={e => setCurrency(e.target.value)}
+              >
+                <option value="USD">USD ($)</option>
+                <option value="SOS">SOS (Sh.So)</option>
+              </select>
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Magaalada (Location)</label>
-            <input 
-              required
-              type="text"
-              className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-800 focus:border-indigo-500 focus:bg-white outline-none transition-all"
-              placeholder="e.g. Mogadishu"
-              value={location}
-              onChange={e => setLocation(e.target.value)}
-            />
-          </div>
-
-          <div className="flex gap-4 pt-6">
+          <div className="flex gap-4 pt-6 sticky bottom-0 bg-white">
              <button 
                type="button" 
                onClick={onCancel} 

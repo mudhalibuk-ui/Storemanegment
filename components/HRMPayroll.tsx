@@ -52,7 +52,9 @@ const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo }) => {
       let totalOvertimeHours = 0;
 
       empLogs.forEach(log => {
-          if (log.clockIn && log.clockOut) {
+          if (log.status === 'HOLIDAY') {
+              totalWorkedHours += 10; // Standard 10 hours for a paid holiday
+          } else if (log.clockIn && log.clockOut) {
               const hours = calculateHours(log.clockIn, log.clockOut);
               totalWorkedHours += hours;
               

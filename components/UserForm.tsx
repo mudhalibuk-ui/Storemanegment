@@ -15,8 +15,38 @@ const UserForm: React.FC<UserFormProps> = ({ xarumo, editingUser, onSave, onCanc
     username: '',
     password: '',
     role: UserRole.STAFF,
-    xarunId: xarumo[0]?.id || ''
+    xarunId: xarumo[0]?.id || '',
+    permissions: []
   });
+
+  const allPermissions = [
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'crm', label: 'CRM' },
+    { id: 'mrp', label: 'Manufacturing' },
+    { id: 'projects', label: 'Projects' },
+    { id: 'fleet', label: 'Fleet' },
+    { id: 'qc', label: 'Quality Control' },
+    { id: 'dms', label: 'Documents' },
+    { id: 'helpdesk', label: 'Helpdesk' },
+    { id: 'pos', label: 'POS' },
+    { id: 'customers', label: 'Customers' },
+    { id: 'vendors', label: 'Vendors' },
+    { id: 'purchases', label: 'Purchases' },
+    { id: 'payments', label: 'Payments' },
+    { id: 'financials', label: 'Financials' },
+    { id: 'inventory', label: 'Inventory' },
+    { id: 'inventory-adjustment', label: 'Inventory Adjustment' },
+    { id: 'approvals', label: 'Approvals' },
+    { id: 'transactions', label: 'Transactions' },
+    { id: 'map', label: 'Warehouse Map' },
+    { id: 'xarumo', label: 'Centers' },
+    { id: 'bakhaarada', label: 'Warehouses' },
+    { id: 'inter-branch-transfers', label: 'Logistics' },
+    { id: 'hr-employees', label: 'HR Employees' },
+    { id: 'hr-attendance', label: 'HR Attendance' },
+    { id: 'hr-payroll', label: 'HR Payroll' },
+    { id: 'hr-reports', label: 'HR Reports' },
+  ];
 
   useEffect(() => {
     if (editingUser) {
@@ -25,10 +55,20 @@ const UserForm: React.FC<UserFormProps> = ({ xarumo, editingUser, onSave, onCanc
         name: editingUser.name || '',
         username: editingUser.username || '',
         password: editingUser.password || '',
-        xarunId: editingUser.xarunId || ''
+        xarunId: editingUser.xarunId || '',
+        permissions: editingUser.permissions || []
       });
     }
   }, [editingUser]);
+
+  const togglePermission = (id: string) => {
+    const current = formData.permissions || [];
+    if (current.includes(id)) {
+      setFormData({ ...formData, permissions: current.filter(p => p !== id) });
+    } else {
+      setFormData({ ...formData, permissions: [...current, id] });
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,6 +120,27 @@ const UserForm: React.FC<UserFormProps> = ({ xarumo, editingUser, onSave, onCanc
                   {xarumo.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
                 </select>
               </div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Permissions (Features)</label>
+              <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-4 bg-slate-50 rounded-2xl no-scrollbar border-2 border-slate-100">
+                {allPermissions.map(p => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => togglePermission(p.id)}
+                    className={`p-3 rounded-xl text-[9px] font-black uppercase text-left transition-all ${
+                      formData.permissions?.includes(p.id)
+                        ? 'bg-indigo-600 text-white shadow-md'
+                        : 'bg-white text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[8px] text-slate-400 font-bold italic px-2">* Haddii eedan waxba dooran, doorka (Role) ayaa go'aaminaya waxa uu arkayo.</p>
             </div>
           </div>
 

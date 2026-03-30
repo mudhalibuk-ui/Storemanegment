@@ -8,7 +8,7 @@ interface StockAdjustmentModalProps {
   branches: Branch[];
   type: TransactionType.IN | TransactionType.OUT | TransactionType.MOVE;
   userRole: UserRole;
-  onSave: (data: { qty: number; notes: string; personnel: string; source: string; placement: string; branchId: string; shelf?: number; section?: number }) => void;
+  onSave: (data: { qty: number; unitCost?: number; notes: string; personnel: string; source: string; placement: string; branchId: string; shelf?: number; section?: number }) => void;
   onCancel: () => void;
 }
 
@@ -21,6 +21,7 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
   const currentPlacement = formatPlacement(item.shelves, item.sections);
   
   const [qty, setQty] = useState<number>(isMove ? 0 : 1);
+  const [unitCost, setUnitCost] = useState<number>(item.lastKnownPrice || 0);
   const [notes, setNotes] = useState('');
   const [personnel, setPersonnel] = useState('');
   const [source, setSource] = useState(isMove ? currentPlacement : '');
@@ -60,6 +61,7 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
     }
     onSave({ 
       qty, 
+      unitCost: isIn ? unitCost : undefined,
       notes, 
       personnel, 
       source: isMove ? `Laga soo raray: ${currentPlacement}` : source, 
@@ -67,7 +69,7 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
       branchId: selectedBranchId,
       shelf: (isIn || isMove) ? shelf : undefined,
       section: (isIn || isMove) ? section : undefined
-    });
+    } as any);
   };
 
   const shelfOptions = Array.from({ length: selectedBranch?.totalShelves || 1 }, (_, i) => ({
@@ -146,13 +148,19 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
 
           <div className="space-y-5">
             {!isMove && (
-              <div>
-                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-3 px-1">Tirada la {isOut ? 'bixinayo' : 'kordhinayo'}?</label>
-                <div className="flex items-center gap-4">
-                  <button type="button" onClick={() => setQty(Math.max(0.01, qty - 1))} className="w-14 h-14 rounded-2xl border-2 border-slate-100 flex items-center justify-center text-2xl font-black text-slate-400 hover:border-indigo-200 hover:text-indigo-600 active:scale-90 transition-all bg-white shadow-sm">−</button>
-                  <input required type="number" min="0.01" step="any" className="flex-1 text-center py-4 text-3xl font-black text-slate-900 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 focus:bg-white outline-none transition-all shadow-inner" value={qty} onChange={e => setQty(parseFloat(e.target.value) || 0.01)} />
-                  <button type="button" onClick={() => setQty(qty + 1)} className="w-14 h-14 rounded-2xl border-2 border-slate-100 flex items-center justify-center text-2xl font-black text-slate-400 hover:border-indigo-200 hover:text-indigo-600 active:scale-90 transition-all bg-white shadow-sm">+</button>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-3 px-1">Tirada (Qty)</label>
+                  <div className="flex items-center gap-2">
+                    <input required type="number" min="0.01" step="any" className="w-full text-center py-3 text-xl font-black text-slate-900 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 focus:bg-white outline-none transition-all shadow-inner" value={qty} onChange={e => setQty(parseFloat(e.target.value) || 0.01)} />
+                  </div>
                 </div>
+                {isIn && (
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-3 px-1">Cost Per Unit ($)</label>
+                    <input required type="number" min="0" step="0.01" className="w-full text-center py-3 text-xl font-black text-slate-900 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 focus:bg-white outline-none transition-all shadow-inner" value={unitCost} onChange={e => setUnitCost(parseFloat(e.target.value) || 0)} />
+                  </div>
+                )}
               </div>
             )}
 

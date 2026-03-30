@@ -24,6 +24,37 @@ const Settings: React.FC<SettingsProps> = ({
 }) => {
   const [localSettings, setLocalSettings] = useState<SystemSettings>(settings);
   const [devices, setDevices] = useState<Device[]>([]);
+
+  const AVAILABLE_FEATURES = [
+    { id: 'dashboard', name: 'Dashboard & Analytics', description: 'Main overview and statistics' },
+    { id: 'inventory', name: 'Inventory Management', description: 'Stock items, adjustments, and warehouse map' },
+    { id: 'pos', name: 'POS & Sales', description: 'Point of Sale terminal and customer management' },
+    { id: 'purchases', name: 'Purchasing & Vendors', description: 'Purchase orders and vendor management' },
+    { id: 'financials', name: 'Financial Management', description: 'Payments, expenses, and financial reports' },
+    { id: 'hr', name: 'HR Management', description: 'Employees, attendance, and payroll' },
+    { id: 'crm', name: 'CRM (Sales Pipeline)', description: 'Lead tracking and sales funnel' },
+    { id: 'mrp', name: 'Manufacturing (MRP)', description: 'Production planning and work orders' },
+    { id: 'projects', name: 'Project Management', description: 'Task tracking and project hub' },
+    { id: 'fleet', name: 'Fleet & Logistics', description: 'Vehicle tracking and logistics' },
+    { id: 'qc', name: 'Quality Control', description: 'Product quality testing and standards' },
+    { id: 'dms', name: 'Document Management (DMS)', description: 'File storage and document organization' },
+    { id: 'helpdesk', name: 'Support Helpdesk', description: 'Ticketing system and customer support' },
+    { id: 'inter-branch', name: 'Inter-Branch Transfers', description: 'Logistics between different locations' },
+    { id: 'stock-take', name: 'Year-End Audit (Stock-take)', description: 'Inventory auditing and reconciliation' },
+  ];
+
+  const toggleFeature = (featureId: string) => {
+    const currentFeatures = localSettings.enabledFeatures || [];
+    let newFeatures: string[];
+    
+    if (currentFeatures.includes(featureId)) {
+      newFeatures = currentFeatures.filter(id => id !== featureId);
+    } else {
+      newFeatures = [...currentFeatures, featureId];
+    }
+    
+    setLocalSettings({ ...localSettings, enabledFeatures: newFeatures });
+  };
   const [newDevice, setNewDevice] = useState<Partial<Device>>({ name: '', ip_address: '', port: 4370, is_active: true, xarun_id: '' });
   const [isLoadingDevices, setIsLoadingDevices] = useState(false);
   const dbStatus = isDbConnected();
@@ -127,6 +158,51 @@ const Settings: React.FC<SettingsProps> = ({
                     {branches.map(b => <option key={b.id} value={b.id} className="text-slate-900">{b.name}</option>)}
                  </select>
               </div>
+              <div className="space-y-1">
+                 <label className="text-[10px] font-black text-slate-400 uppercase">Financial Closing Date (Xiritaanka Muddada)</label>
+                 <input 
+                   type="date" 
+                   className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl font-bold outline-none focus:border-indigo-500 transition-all text-white" 
+                   value={localSettings.financialClosingDate || ''} 
+                   onChange={e => setLocalSettings({...localSettings, financialClosingDate: e.target.value})} 
+                 />
+                 <p className="text-[8px] text-slate-500 italic mt-1">* Waxba laguma qori karo (Journal) taariikhdan iyo wixii ka horreeya.</p>
+              </div>
+           </div>
+
+           {/* COMPANY PROFILE SECTION */}
+           <div className="space-y-4">
+              <h3 className="text-xs font-black text-indigo-400 uppercase tracking-widest">Company Profile (Document Header)</h3>
+              <div className="bg-white/5 p-6 rounded-[2rem] border border-white/10 space-y-4">
+                 <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase">Company Logo URL</label>
+                    <input className="w-full p-3 bg-white/5 border border-white/10 rounded-xl font-bold text-white text-xs" value={localSettings.companyLogo || ''} onChange={e => setLocalSettings({...localSettings, companyLogo: e.target.value})} placeholder="https://example.com/logo.png" />
+                 </div>
+                 <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase">Address</label>
+                    <input className="w-full p-3 bg-white/5 border border-white/10 rounded-xl font-bold text-white text-xs" value={localSettings.companyAddress || ''} onChange={e => setLocalSettings({...localSettings, companyAddress: e.target.value})} placeholder="Mogadishu, Somalia" />
+                 </div>
+                 <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                       <label className="text-[10px] font-black text-slate-400 uppercase">Phone</label>
+                       <input className="w-full p-3 bg-white/5 border border-white/10 rounded-xl font-bold text-white text-xs" value={localSettings.companyPhone || ''} onChange={e => setLocalSettings({...localSettings, companyPhone: e.target.value})} placeholder="+252..." />
+                    </div>
+                    <div className="space-y-1">
+                       <label className="text-[10px] font-black text-slate-400 uppercase">Email</label>
+                       <input className="w-full p-3 bg-white/5 border border-white/10 rounded-xl font-bold text-white text-xs" value={localSettings.companyEmail || ''} onChange={e => setLocalSettings({...localSettings, companyEmail: e.target.value})} placeholder="info@company.com" />
+                    </div>
+                 </div>
+                 <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                       <label className="text-[10px] font-black text-slate-400 uppercase">Website</label>
+                       <input className="w-full p-3 bg-white/5 border border-white/10 rounded-xl font-bold text-white text-xs" value={localSettings.companyWebsite || ''} onChange={e => setLocalSettings({...localSettings, companyWebsite: e.target.value})} placeholder="www.company.com" />
+                    </div>
+                    <div className="space-y-1">
+                       <label className="text-[10px] font-black text-slate-400 uppercase">Tax ID / License</label>
+                       <input className="w-full p-3 bg-white/5 border border-white/10 rounded-xl font-bold text-white text-xs" value={localSettings.companyTaxId || ''} onChange={e => setLocalSettings({...localSettings, companyTaxId: e.target.value})} placeholder="TRN-123456" />
+                    </div>
+                 </div>
+              </div>
            </div>
 
            {/* DEVICE MANAGEMENT SECTION */}
@@ -214,6 +290,40 @@ const Settings: React.FC<SettingsProps> = ({
                  </div>
               </div>
               <p className="text-[8px] text-slate-500 italic mt-2">* Qiimahan waxaa si otomaatik ah loogu darayaa Unit Price-ka alaabta markay timaado.</p>
+           </div>
+
+           {/* FEATURE MANAGEMENT SECTION */}
+           <div className="col-span-1 md:col-span-2 bg-white/5 p-8 rounded-[3rem] border border-white/10 space-y-6">
+              <div className="flex justify-between items-center">
+                 <h3 className="text-xs font-black text-indigo-400 uppercase tracking-widest">Feature Management (Advanced)</h3>
+                 <span className="bg-indigo-600/20 text-indigo-400 text-[8px] font-black px-3 py-1 rounded-full uppercase">Global Controls</span>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                 {AVAILABLE_FEATURES.map(feature => {
+                   const isEnabled = (localSettings.enabledFeatures || []).includes(feature.id);
+                   return (
+                     <div 
+                       key={feature.id} 
+                       onClick={() => toggleFeature(feature.id)}
+                       className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col gap-2 ${
+                         isEnabled 
+                           ? 'bg-indigo-600/10 border-indigo-500/50' 
+                           : 'bg-white/5 border-white/10 opacity-60 grayscale hover:grayscale-0 hover:opacity-100'
+                       }`}
+                     >
+                       <div className="flex justify-between items-start">
+                         <span className="text-sm font-black text-white">{feature.name}</span>
+                         <div className={`w-8 h-4 rounded-full relative transition-all ${isEnabled ? 'bg-indigo-500' : 'bg-slate-700'}`}>
+                           <div className={`absolute top-1 w-2 h-2 bg-white rounded-full transition-all ${isEnabled ? 'right-1' : 'left-1'}`} />
+                         </div>
+                       </div>
+                       <p className="text-[9px] text-slate-400 font-medium leading-relaxed">{feature.description}</p>
+                     </div>
+                   );
+                 })}
+              </div>
+              <p className="text-[8px] text-slate-500 italic">* Features-ka aad damiso halkan kama muuqan doonaan menu-ga guud ee nidaamka.</p>
            </div>
         </div>
 

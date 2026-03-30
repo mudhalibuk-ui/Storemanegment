@@ -18,12 +18,16 @@ const HRMReports: React.FC<HRMReportsProps> = ({ employees, attendance, payrolls
   const presentCount = todayAttendance.filter(a => a.status === 'PRESENT').length;
   const absentCount = todayAttendance.filter(a => a.status === 'ABSENT').length;
   const lateCount = todayAttendance.filter(a => a.status === 'LATE').length;
+  const leaveCount = todayAttendance.filter(a => a.status === 'LEAVE').length;
+  const holidayCount = todayAttendance.filter(a => a.status === 'HOLIDAY').length;
   const otherCount = employees.length - todayAttendance.length;
 
   const attendancePieData = [
     { name: 'Yimid', value: presentCount, color: '#10b981' },
     { name: 'Maqan', value: absentCount, color: '#ef4444' },
     { name: 'Dahahay', value: lateCount, color: '#f59e0b' },
+    { name: 'Fasax', value: leaveCount, color: '#6366f1' },
+    { name: 'Ciid/Fasax Guud', value: holidayCount, color: '#f59e0b' },
     { name: 'Aan la calaamadin', value: otherCount, color: '#e2e8f0' },
   ];
 
@@ -137,7 +141,11 @@ const HRMReports: React.FC<HRMReportsProps> = ({ employees, attendance, payrolls
                     <td className="px-10 py-4">
                        {record ? (
                          <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                            record.status === 'PRESENT' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+                            record.status === 'PRESENT' ? 'bg-emerald-50 text-emerald-600' : 
+                            record.status === 'HOLIDAY' ? 'bg-amber-50 text-amber-600' :
+                            record.status === 'LEAVE' ? 'bg-indigo-50 text-indigo-600' :
+                            record.status === 'LATE' ? 'bg-orange-50 text-orange-600' :
+                            'bg-rose-50 text-rose-600'
                          }`}>
                            {record.status}
                          </span>

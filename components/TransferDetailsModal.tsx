@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { InventoryItem, Branch, User, Xarun, InterBranchTransferRequest, TransferStatus, UserRole } from '../../types';
+import { InventoryItem, Branch, User, Xarun, InterBranchTransferRequest, TransferStatus, UserRole } from '../types';
 import { format } from 'date-fns';
 import { XIcon, TruckIcon, CheckCircleIcon, HistoryIcon, XCircleIcon } from 'lucide-react';
-import { API } from '../../services/api';
+import { API } from '../services/api';
 
 interface TransferDetailsModalProps {
   transfer: InterBranchTransferRequest;

@@ -126,11 +126,11 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
 
         const isFriday = checkDate.getUTCDay() === 5;
         
-        if (isFriday) {
+        if (isFriday || employeeRecord?.status === 'HOLIDAY' || employeeRecord?.status === 'LEAVE') {
             if (employeeRecord?.status === 'PRESENT' || employeeRecord?.status === 'LATE') {
-                break; // Worked on Friday, streak broken
+                break; // Worked on Friday/Holiday, streak broken
             }
-            continue; // Skip Friday if absent/no-record
+            continue; // Skip Friday/Holiday/Leave if absent/no-record
         }
 
         if (employeeRecord?.status === 'ABSENT') {
@@ -203,6 +203,37 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
       loadAttendance();
   };
 
+  const handleMarkAsHoliday = async () => {
+      if (!window.confirm(`Ma hubtaa inaad maalintaan (${selectedDate}) ka dhigto fasax (Holiday) dhammaan shaqaalaha?`)) return;
+      
+      setLoading(true);
+      try {
+          // Create a HOLIDAY record for all active employees for the selected date
+          const promises = filteredEmployees.map(emp => {
+              // Check if record already exists
+              const existingRecord = attendanceData.find(a => a.employeeId === emp.id);
+              const newRecord: Partial<Attendance> = {
+                  id: existingRecord?.id,
+                  employeeId: emp.id,
+                  date: selectedDate,
+                  status: 'HOLIDAY',
+                  notes: 'Public Holiday / Ciid',
+                  deviceId: existingRecord?.deviceId || 'SYSTEM-HOLIDAY'
+              };
+              return API.attendance.save(newRecord);
+          });
+          
+          await Promise.all(promises);
+          await loadAttendance();
+          alert('Maalintaan waxaa loo diiwaan geliyay fasax (Holiday).');
+      } catch (error) {
+          console.error("Error marking holiday:", error);
+          alert('Cilad ayaa dhacday.');
+      } finally {
+          setLoading(false);
+      }
+  };
+
   const filteredEmployees = employees.filter(emp => 
     selectedXarunId === 'all' || emp.xarunId === selectedXarunId
   );
@@ -213,8 +244,9 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
   // 8:00 - 9:00 --> LATE
   // >= 9:00 AM --> ABSENT
   const getComputedStatus = (record: Attendance) => {
-      // If manually set to LEAVE, keep it
+      // If manually set to LEAVE or HOLIDAY, keep it
       if (record.status === 'LEAVE') return 'LEAVE';
+      if (record.status === 'HOLIDAY') return 'HOLIDAY';
       
       if (record.clockIn) {
           try {
@@ -245,6 +277,7 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
   }).length;
 
   const leaveCount = attendanceData.filter(a => filteredEmployees.some(e => e.id === a.employeeId) && a.status === 'LEAVE').length;
+  const holidayCount = attendanceData.filter(a => filteredEmployees.some(e => e.id === a.employeeId) && a.status === 'HOLIDAY').length;
   
   // Format Time to display accurately regardless of Browser Timezone
   const formatTime = (isoString?: string) => {
@@ -309,12 +342,21 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
 
           <div className="flex flex-col gap-1 flex-1 min-w-[150px]">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Taariikhda (Date)</label>
-            <input 
-              type="date" 
-              className="px-6 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 font-bold text-sm"
-              value={selectedDate}
-              onChange={e => setSelectedDate(e.target.value)}
-            />
+            <div className="flex gap-2">
+              <input 
+                type="date" 
+                className="flex-1 px-6 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 font-bold text-sm"
+                value={selectedDate}
+                onChange={e => setSelectedDate(e.target.value)}
+              />
+              <button 
+                onClick={handleMarkAsHoliday}
+                className="px-4 py-3 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-100 transition-all flex items-center justify-center whitespace-nowrap"
+                title="Mark this day as a Holiday for all employees"
+              >
+                🌴 Dhig Fasax
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -360,7 +402,7 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-center">
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Jooga (Present)</p>
             <p className="text-2xl font-black text-emerald-600">{presentCount}</p>
@@ -372,6 +414,10 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
         <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-center">
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Fasax (Leave)</p>
             <p className="text-2xl font-black text-indigo-600">{leaveCount}</p>
+        </div>
+        <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-center">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Ciid (Holiday)</p>
+            <p className="text-2xl font-black text-amber-500">{holidayCount}</p>
         </div>
         <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-center">
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total</p>
@@ -434,7 +480,8 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
                           displayStatus === 'PRESENT' ? 'bg-emerald-50 text-emerald-600' :
                           displayStatus === 'ABSENT' ? 'bg-rose-50 text-rose-600' : 
                           displayStatus === 'LEAVE' ? 'bg-indigo-50 text-indigo-600' : 
-                          displayStatus === 'LATE' ? 'bg-amber-50 text-amber-600' : 'bg-slate-50 text-slate-500'
+                          displayStatus === 'HOLIDAY' ? 'bg-amber-50 text-amber-600' : 
+                          displayStatus === 'LATE' ? 'bg-orange-50 text-orange-600' : 'bg-slate-50 text-slate-500'
                         }`}>
                           {displayStatus}
                         </span>
@@ -482,6 +529,7 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
                               <option value="ABSENT">❌ ABSENT (Maqan)</option>
                               <option value="LATE">⏰ LATE (Dahay)</option>
                               <option value="LEAVE">🏖️ LEAVE (Fasax)</option>
+                              <option value="HOLIDAY">🌴 HOLIDAY (Ciid/Fasax Guud)</option>
                           </select>
                       </div>
 

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { InventoryItem, Branch, User, Xarun, InterBranchTransferRequest, TransferStatus, UserRole, TransferAuditEntry } from '../../types';
+import { InventoryItem, Branch, User, Xarun, InterBranchTransferRequest, TransferStatus, UserRole, TransferAuditEntry } from '../types';
 import { format, differenceInMinutes } from 'date-fns';
 import { ArrowRightIcon, PlusIcon, TruckIcon, CheckCircleIcon, ClockIcon, XCircleIcon, HistoryIcon, BarChart2Icon } from 'lucide-react';
-import { API } from '../../services/api';
+import { API } from '../services/api';
 import TransferRequestForm from './TransferRequestForm';
 import TransferDetailsModal from './TransferDetailsModal';
 import TransferHistoryModal from './TransferHistoryModal';
@@ -300,7 +300,7 @@ const InterBranchTransferPage: React.FC<InterBranchTransferPageProps> = ({
           xarumo={xarumo}
           myBranches={myBranches}
           items={items}
-          onSave={async (newTransfer) => {
+          onSave={async (newTransfer: Partial<InterBranchTransferRequest>) => {
             setIsFormOpen(false);
             await onRefresh();
           }}
@@ -315,7 +315,7 @@ const InterBranchTransferPage: React.FC<InterBranchTransferPageProps> = ({
           items={items}
           user={user}
           onClose={() => setSelectedTransfer(null)}
-          onUpdateStatus={(transfer, newStatus, user, rackNumber, binLocation) => handleStatusUpdate(transfer, newStatus, user, rackNumber, binLocation)}
+          onUpdateStatus={(transfer: InterBranchTransferRequest, newStatus: TransferStatus, user: User, rackNumber?: string, binLocation?: string) => handleStatusUpdate(transfer, newStatus, user, rackNumber, binLocation)}
           onViewHistory={() => setIsHistoryModalOpen(true)}
           onDelete={onDeleteTransfer}
         />

@@ -8,6 +8,7 @@ interface InventoryListProps {
   user: User;
   items: InventoryItem[];
   branches: Branch[];
+  initialBranchFilter?: string;
   onAdd: () => void;
   onImport: () => void;
   onBulkAction: () => void;
@@ -20,10 +21,10 @@ interface InventoryListProps {
 }
 
 const InventoryList: React.FC<InventoryListProps> = ({ 
-  user, items, branches, onAdd, onImport, onBulkAction, onEdit, onTransaction, onViewHistory, onRefresh, onDeleteAll, onDelete
+  user, items, branches, initialBranchFilter = 'all', onAdd, onImport, onBulkAction, onEdit, onTransaction, onViewHistory, onRefresh, onDeleteAll, onDelete
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [branchFilter, setBranchFilter] = useState('all');
+  const [branchFilter, setBranchFilter] = useState(initialBranchFilter);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -32,9 +33,8 @@ const InventoryList: React.FC<InventoryListProps> = ({
   , [items]);
 
   const filteredBranches = useMemo(() => {
-    if (user.role === UserRole.SUPER_ADMIN) return branches;
-    return branches.filter(b => b.xarunId === user.xarunId);
-  }, [branches, user]);
+    return branches;
+  }, [branches]);
 
   // NIDAAMKA RAADINTA - (STRICT FILTERING & DEDUPLICATION)
   // GROUP BY SKU
@@ -44,21 +44,8 @@ const InventoryList: React.FC<InventoryListProps> = ({
     const groups = new Map<string, InventoryItem[]>();
 
     items.forEach(item => {
-      // 0. SCOPE CHECK: Only show items from user's xarun if not Super Admin
-      // If item.xarunId is missing, we check if it belongs to a branch in the user's xarun.
-      if (user.role !== UserRole.SUPER_ADMIN && user.xarunId) {
-          if (item.xarunId && item.xarunId !== user.xarunId) return;
-          
-          // Fallback: If xarunId is missing, check branch ownership
-          if (!item.xarunId) {
-             const foundBranch = branches.find(b => b.id === item.branchId);
-             if (foundBranch && foundBranch.xarunId !== user.xarunId) return;
-             // If branch not found or branch has no xarunId, maybe hide it? 
-             // Let's be safe and hide unless we are sure.
-             if (!foundBranch) return; 
-          }
-      }
-
+      // 0. SCOPE CHECK: Data is pre-filtered by App based on user.xarunId or selectedXarunId
+      
       const name = (item.name || '').toLowerCase();
       const sku = (item.sku || '').toLowerCase();
       const category = (item.category || '').toLowerCase();

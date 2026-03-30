@@ -10,9 +10,11 @@ interface BakhaarListProps {
   onAdd: () => void;
   onEdit: (branch: Branch) => void;
   onDelete: (id: string) => void;
+  onViewInventory: (branchId: string) => void;
+  onViewMap: (branchId: string) => void;
 }
 
-const BakhaarList: React.FC<BakhaarListProps> = ({ branches, xarumo, filterXarunId, onClearFilter, onAdd, onEdit, onDelete }) => {
+const BakhaarList: React.FC<BakhaarListProps> = ({ branches, xarumo, filterXarunId, onClearFilter, onAdd, onEdit, onDelete, onViewInventory, onViewMap }) => {
   const filteredBranches = filterXarunId 
     ? branches.filter(b => b.xarunId === filterXarunId)
     : branches;
@@ -34,7 +36,7 @@ const BakhaarList: React.FC<BakhaarListProps> = ({ branches, xarumo, filterXarun
             </h2>
           </div>
           <p className="text-sm text-slate-500 font-medium mt-1">
-            {currentXarun ? `Bakhaarada ku yaala ${currentXarun.location}.` : 'Halkan ka maamul dhamaan bakhaarada jira.'}
+            {currentXarun ? `Bakhaarada ku yaala ${currentXarun.location}.` : 'Halkan ka maamul dhamaan bakhaarada shirkadda.'}
           </p>
         </div>
         <div className="flex gap-3">
@@ -88,7 +90,7 @@ const BakhaarList: React.FC<BakhaarListProps> = ({ branches, xarumo, filterXarun
                        <span className="text-xs font-bold text-slate-600">{b.location}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Xarunta:</span>
+                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Shirkadda:</span>
                        <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${center ? 'bg-indigo-50 text-indigo-600' : 'bg-rose-50 text-rose-600'}`}>
                          {center ? center.name : 'Xarun lama xirin'}
                        </span>
@@ -102,6 +104,20 @@ const BakhaarList: React.FC<BakhaarListProps> = ({ branches, xarumo, filterXarun
                           <p className="text-[8px] font-black text-slate-300 uppercase">Godad</p>
                           <p className="font-black text-slate-700">{b.totalSections}</p>
                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mt-6">
+                      <button 
+                         onClick={() => onViewInventory(b.id)}
+                         className="py-3.5 bg-slate-900 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-lg active:scale-95"
+                      >
+                         Inventory
+                      </button>
+                      <button 
+                         onClick={() => onViewMap(b.id)}
+                         className="py-3.5 bg-indigo-600 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg active:scale-95"
+                      >
+                         Mappingka
+                      </button>
                     </div>
                  </div>
                </div>

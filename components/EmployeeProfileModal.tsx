@@ -49,9 +49,10 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
           // Merge Logic: Best Status & Widest Time Range
           let status = existing.status;
           
-          // Priority: PRESENT > LATE > LEAVE > ABSENT
+          // Priority: PRESENT > LATE > HOLIDAY > LEAVE > ABSENT
           if (record.status === 'PRESENT') status = 'PRESENT';
           else if (record.status === 'LATE' && status !== 'PRESENT') status = 'LATE';
+          else if (record.status === 'HOLIDAY' && status !== 'PRESENT' && status !== 'LATE') status = 'HOLIDAY';
           else if (record.status === 'LEAVE' && status === 'ABSENT') status = 'LEAVE';
           
           // Merge Times (Earliest IN, Latest OUT)
@@ -108,7 +109,9 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
           else if (a.status === 'ABSENT') { totalScore += 0; countableDays++; }
 
           // Hours Calculation
-          if (a.clockIn && a.clockOut) {
+          if (a.status === 'HOLIDAY') {
+              hoursWorkedThisMonth += 10;
+          } else if (a.clockIn && a.clockOut) {
               const start = new Date(a.clockIn).getTime();
               const end = new Date(a.clockOut).getTime();
               const hours = (end - start) / (1000 * 60 * 60);
@@ -357,6 +360,7 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                                             <span className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ${
                                                 isMissingOut ? 'bg-amber-50 text-amber-600 animate-pulse' :
                                                 a.status==='PRESENT'?'bg-emerald-50 text-emerald-600':
+                                                a.status==='HOLIDAY'?'bg-amber-50 text-amber-600':
                                                 a.status==='ABSENT'?'bg-rose-50 text-rose-600':
                                                 a.status==='LATE'?'bg-orange-50 text-orange-600':
                                                 'bg-indigo-50 text-indigo-600'

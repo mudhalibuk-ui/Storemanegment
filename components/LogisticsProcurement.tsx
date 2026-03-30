@@ -449,8 +449,8 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                        {pos.filter(p => p.status === POStatus.DRAFT).map(po => (
                            <div key={po.id} className="bg-white p-6 rounded-3xl border border-slate-100 flex justify-between items-center shadow-sm">
                                <div>
-                                   <h4 className="font-black text-slate-700">{po.title}</h4>
-                                   <p className="text-[10px] text-slate-400 uppercase">{po.items.length} Items • Created: {new Date(po.createdAt).toLocaleDateString()}</p>
+                                   <h4 className="font-black text-slate-700">{po.title || 'Untitled'}</h4>
+                                   <p className="text-[10px] text-slate-400 uppercase">{po.items.length} Items • Created: {po.createdAt ? new Date(po.createdAt).toLocaleDateString() : 'N/A'}</p>
                                </div>
                                <div className="flex gap-2">
                                    <button onClick={() => handleDeletePO(po.id)} className="p-3 text-rose-500 hover:bg-rose-50 rounded-xl transition-all">🗑️</button>
@@ -469,7 +469,7 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                 .filter(p => (!isBuyer || p.buyerId === user.id))
                 .filter(p => p.status !== POStatus.DRAFT) // Hide drafts from main list
                 .filter(p => showHistory ? (p.status === POStatus.COMPLETED || p.status === POStatus.ARRIVED) : (p.status !== POStatus.COMPLETED && p.status !== POStatus.ARRIVED))
-                .sort((a,b) => b.createdAt.localeCompare(a.createdAt))
+                .sort((a,b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
                 .map(po => {
                 const { estimatedTotal } = calculateFinance(po);
                 return (
@@ -492,8 +492,8 @@ const LogisticsProcurement: React.FC<LogisticsProcurementProps> = ({ user, maste
                                 </button>
                              )}
                           </div>
-                          <h3 className="text-2xl font-black text-slate-800 mt-3">{po.title}</h3>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Lagu abuuray: {new Date(po.createdAt).toLocaleDateString()}</p>
+                          <h3 className="text-2xl font-black text-slate-800 mt-3">{po.title || 'Untitled'}</h3>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Lagu abuuray: {po.createdAt ? new Date(po.createdAt).toLocaleDateString() : 'N/A'}</p>
                        </div>
 
                        <div className="flex flex-wrap gap-4 items-center">

@@ -1,7 +1,23 @@
 
 import React, { useState } from 'react';
-import { User, UserRole } from '../types';
+import { User, UserRole, Xarun } from '../types';
 import { isDbConnected } from '../services/supabaseClient';
+
+interface MenuItem {
+  id: string;
+  label: string;
+  icon: string;
+  roles: UserRole[];
+  badge?: number;
+  auditOnly?: boolean;
+  featureId?: string;
+}
+
+interface MenuSection {
+  section: string;
+  items: MenuItem[];
+  isCollapsible?: boolean;
+}
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -13,53 +29,143 @@ interface LayoutProps {
   interBranchTransferCount?: number; // New prop for inter-branch transfers
   user: User;
   onLogout: () => void;
+  isAuditMode?: boolean;
+  enabledFeatures?: string[];
+  xarumo?: Xarun[];
+  selectedXarunId?: string;
+  onSelectXarun?: (id: string | undefined) => void;
 }
 
 const Layout: React.FC<LayoutProps> = ({
-  children, activeTab, setActiveTab, systemName = "SmartStock Pro", lowStockCount = 0, pendingApprovalsCount = 0, interBranchTransferCount = 0, user, onLogout
+  children, activeTab, setActiveTab, systemName = "SmartStock Pro", lowStockCount = 0, pendingApprovalsCount = 0, interBranchTransferCount = 0, user, onLogout, isAuditMode = false, enabledFeatures = [],
+  xarumo = [], selectedXarunId, onSelectXarun
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<string[]>(['INVENTORY MANAGEMENT', 'HRM', 'SALES & CUSTOMERS', 'PURCHASING & VENDORS', 'FINANCE', 'CRM', 'MANUFACTURING', 'PROJECTS', 'FLEET & LOGISTICS', 'QUALITY & DOCUMENTS', 'SUPPORT']);
   const isCloud = isDbConnected();
+
+  const toggleSection = (sectionName: string) => {
+    setExpandedSections(prev => 
+      prev.includes(sectionName) 
+        ? prev.filter(s => s !== sectionName) 
+        : [...prev, sectionName]
+    );
+  };
   
-  const sections = [
+  const sections: MenuSection[] = [
+    { 
+      section: 'SAAS CONTROL', 
+      isCollapsible: false,
+      items: [
+        { id: 'saas-manager', label: 'SaaS Dashboard', icon: '🚀', roles: [UserRole.SUPER_ADMIN], auditOnly: false, badge: 0, featureId: 'saas' },
+      ]
+    },
     { 
       section: 'OVERVIEW', 
       items: [
-        { id: 'dashboard', label: 'Dashboard', icon: '📊', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF] },
+        { id: 'dashboard', label: 'Dashboard', icon: '📊', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], badge: 0, featureId: 'dashboard' },
       ]
     },
     { 
-      section: 'INVENTORY & STORES', 
+      section: 'CRM', 
+      isCollapsible: true,
       items: [
-        { id: 'inventory', label: 'Stock Items', icon: '📦', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF] },
-        { id: 'approvals', label: 'Ogolaanshaha', icon: '🛡️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], badge: pendingApprovalsCount },
-        { id: 'transactions', label: 'Dhaqdhaqaaqa', icon: '🔄', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF] },
-        { id: 'map', label: 'Warehouse Map', icon: '🗺️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF] },
-        { id: 'xarumo', label: 'Xarumaha (Centers)', icon: '📍', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
-        { id: 'bakhaarada', label: 'Bakhaarada', icon: '🏢', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
-        { id: 'inter-branch-transfers', label: 'Logistics & Transfers', icon: '🚚', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], badge: interBranchTransferCount }
+        { id: 'crm', label: 'Sales Pipeline', icon: '🎯', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'crm' },
       ]
     },
     { 
-      section: 'PROCUREMENT', 
+      section: 'MANUFACTURING', 
+      isCollapsible: true,
       items: [
-        { id: 'procurement', label: 'Logistics & Buying', icon: '🛒', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.BUYER] },
+        { id: 'mrp', label: 'Production', icon: '🏭', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], auditOnly: false, badge: 0, featureId: 'mrp' },
       ]
     },
     { 
-      section: 'HUMAN RESOURCES', 
+      section: 'PROJECTS', 
+      isCollapsible: true,
       items: [
-        { id: 'hr-employees', label: 'Shaqaalaha', icon: '👥', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
-        { id: 'hr-attendance', label: 'Iimaanshaha', icon: '📝', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
-        { id: 'hr-payroll', label: 'Mushaharka', icon: '💰', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
-        { id: 'hr-reports', label: 'HR Reports', icon: '📈', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER] },
+        { id: 'projects', label: 'Project Hub', icon: '📋', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'projects' },
+      ]
+    },
+    { 
+      section: 'FLEET & LOGISTICS', 
+      isCollapsible: true,
+      items: [
+        { id: 'fleet', label: 'Fleet Management', icon: '🚛', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], auditOnly: false, badge: 0, featureId: 'fleet' },
+      ]
+    },
+    { 
+      section: 'QUALITY & DOCUMENTS', 
+      isCollapsible: true,
+      items: [
+        { id: 'qc', label: 'Quality Control', icon: '🧪', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], auditOnly: false, badge: 0, featureId: 'qc' },
+        { id: 'dms', label: 'Documents (DMS)', icon: '📂', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'dms' },
+      ]
+    },
+    { 
+      section: 'SUPPORT', 
+      isCollapsible: true,
+      items: [
+        { id: 'helpdesk', label: 'Helpdesk', icon: '🎧', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'helpdesk' },
+      ]
+    },
+    { 
+      section: 'SALES & CUSTOMERS', 
+      isCollapsible: true,
+      items: [
+        { id: 'pos', label: 'POS Terminal', icon: '🛒', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'pos' },
+        { id: 'invoice', label: 'Invoices & Quotes', icon: '📄', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'pos' },
+        { id: 'customers', label: 'Customers', icon: '👥', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'pos' },
+      ]
+    },
+    { 
+      section: 'PURCHASING & VENDORS', 
+      isCollapsible: true,
+      items: [
+        { id: 'vendors', label: 'Vendors', icon: '🚚', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.BUYER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'purchases' },
+        { id: 'purchases', label: 'Purchase Orders', icon: '📦', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.BUYER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'purchases' },
+        { id: 'procurement', label: 'Logistics & Buying', icon: '🛒', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.BUYER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'procurement' },
+      ]
+    },
+    { 
+      section: 'FINANCE', 
+      isCollapsible: true,
+      items: [
+        { id: 'payments', label: 'Payments & Expenses', icon: '💸', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], auditOnly: false, badge: 0, featureId: 'financials' },
+        { id: 'financials', label: 'Financials', icon: '💰', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.AUDITOR], auditOnly: true, badge: 0, featureId: 'financials' },
+      ]
+    },
+    { 
+      section: 'INVENTORY MANAGEMENT', 
+      isCollapsible: true,
+      items: [
+        { id: 'inventory', label: 'Stock Items', icon: '📦', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'inventory' },
+        { id: 'stock-take', label: 'Year-End Audit', icon: '📋', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.AUDITOR], auditOnly: false, badge: 0, featureId: 'stock-take' },
+        { id: 'inventory-adjustment', label: 'Adjustment', icon: '⚙️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], auditOnly: false, badge: 0, featureId: 'inventory' },
+        { id: 'approvals', label: 'Ogolaanshaha', icon: '🛡️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], badge: pendingApprovalsCount, auditOnly: false, featureId: 'inventory' },
+        { id: 'transactions', label: 'Dhaqdhaqaaqa', icon: '🔄', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'inventory' },
+        { id: 'map', label: 'Mappingka (Map)', icon: '🗺️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'inventory' },
+        { id: 'bakhaarada', label: 'Bakhaarada (Warehouses)', icon: '🏠', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], auditOnly: false, badge: 0, featureId: 'inventory' },
+        { id: 'xarumo', label: 'Xarumaha (Centers)', icon: '📍', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], auditOnly: false, badge: 0, featureId: 'inventory' },
+        { id: 'inter-branch-transfers', label: 'Logistics & Transfers', icon: '🚚', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], badge: interBranchTransferCount, auditOnly: false, featureId: 'inter-branch' }
+      ]
+    },
+    { 
+      section: 'HRM', 
+      isCollapsible: true,
+      items: [
+        { id: 'hr-employees', label: 'Shaqaalaha', icon: '👥', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], auditOnly: false, badge: 0, featureId: 'hr' },
+        { id: 'hr-attendance', label: 'Iimaanshaha', icon: '📝', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], auditOnly: false, badge: 0, featureId: 'hr' },
+        { id: 'hr-payroll', label: 'Mushaharka', icon: '💰', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], auditOnly: false, badge: 0, featureId: 'hr' },
+        { id: 'hr-reports', label: 'HR Reports', icon: '📈', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], auditOnly: false, badge: 0, featureId: 'hr' },
       ]
     },
     { 
       section: 'SYSTEM CONTROL', 
       items: [
-        { id: 'users', label: 'User Control', icon: '🔐', roles: [UserRole.SUPER_ADMIN] },
-        { id: 'settings', label: 'Settings', icon: '⚙️', roles: [UserRole.SUPER_ADMIN] },
+        { id: 'company-setup', label: 'Company Setup', icon: '🏢', roles: [UserRole.SUPER_ADMIN], auditOnly: false, badge: 0 },
+        { id: 'users', label: 'User Control', icon: '🔐', roles: [UserRole.SUPER_ADMIN], auditOnly: false, badge: 0 },
+        { id: 'settings', label: 'Settings', icon: '⚙️', roles: [UserRole.SUPER_ADMIN], auditOnly: false, badge: 0 },
       ]
     }
   ];
@@ -91,30 +197,86 @@ const Layout: React.FC<LayoutProps> = ({
         </div>
 
         <nav className="flex-1 space-y-6 overflow-y-auto no-scrollbar pb-10">
+          {/* Back to SaaS Manager for Super Admin when in ERP mode */}
+          {user.role === UserRole.SUPER_ADMIN && activeTab !== 'saas-manager' && (
+            <div className="mb-6">
+              <button 
+                onClick={() => setActiveTab('saas-manager')}
+                className="w-full flex items-center gap-3 px-4 py-3 bg-indigo-600/10 text-indigo-400 border border-indigo-600/20 rounded-xl hover:bg-indigo-600 hover:text-white transition-all group font-black text-[10px] uppercase tracking-widest"
+              >
+                <span>🚀</span>
+                <span>Back to SaaS Manager</span>
+              </button>
+            </div>
+          )}
+
           {sections.map((section) => {
-            const visibleItems = section.items.filter(item => item.roles.includes(user.role));
+            // If in SaaS Manager tab, only show SAAS CONTROL section for Super Admin
+            if (activeTab === 'saas-manager' && section.section !== 'SAAS CONTROL' && user.role === UserRole.SUPER_ADMIN) {
+              return null;
+            }
+
+            // If NOT in SaaS Manager tab, hide SAAS CONTROL section
+            if (activeTab !== 'saas-manager' && section.section === 'SAAS CONTROL') {
+              return null;
+            }
+
+            const visibleItems = section.items.filter(item => {
+              // 0. Check if feature is enabled globally
+              if (enabledFeatures.length > 0 && item.featureId) {
+                if (!enabledFeatures.includes(item.featureId)) return false;
+              }
+
+              // 1. Check if user has explicit permission for this feature
+              // SUPER_ADMIN bypasses explicit permission check
+              if (user.role !== UserRole.SUPER_ADMIN && user.permissions && user.permissions.length > 0) {
+                if (!user.permissions.includes(item.id)) return false;
+              }
+
+              // 2. Fallback to role-based check
+              const hasRole = item.roles.includes(user.role) || user.role === UserRole.SUPER_ADMIN;
+              if (isAuditMode) {
+                return hasRole && (item.id === 'financials' || item.id === 'dashboard');
+              }
+              return hasRole;
+            });
             if (visibleItems.length === 0) return null;
             
+            const isExpanded = !section.isCollapsible || expandedSections.includes(section.section);
+
             return (
               <div key={section.section} className="space-y-1">
-                <p className="px-4 text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2 pt-2 border-t border-slate-800/50">{section.section}</p>
-                {visibleItems.map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
-                      activeTab === tab.id ? 'bg-indigo-600 shadow-lg text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-lg">{tab.icon}</span>
-                      <span className="font-bold text-xs tracking-tight">{tab.label}</span>
-                    </div>
-                    {tab.badge && tab.badge > 0 && (
-                      <span className="bg-rose-600 text-white text-[8px] font-black px-2 py-0.5 rounded-full animate-pulse">{tab.badge}</span>
-                    )}
-                  </button>
-                ))}
+                <button 
+                  onClick={() => section.isCollapsible && toggleSection(section.section)}
+                  className={`w-full flex items-center justify-between px-4 text-[9px] font-black uppercase tracking-[0.2em] mb-2 pt-2 border-t border-slate-800/50 group transition-colors ${section.isCollapsible ? 'cursor-pointer hover:text-indigo-400' : 'text-slate-500'}`}
+                >
+                  <span>{section.section}</span>
+                  {section.isCollapsible && (
+                    <span className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
+                  )}
+                </button>
+                
+                {isExpanded && (
+                  <div className="space-y-1 animate-in slide-in-from-top-2 duration-300">
+                    {visibleItems.map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
+                          activeTab === tab.id ? 'bg-indigo-600 shadow-lg text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-lg">{tab.icon}</span>
+                          <span className="font-bold text-xs tracking-tight">{tab.label}</span>
+                        </div>
+                        {tab.badge && tab.badge > 0 && (
+                          <span className="bg-rose-600 text-white text-[8px] font-black px-2 py-0.5 rounded-full animate-pulse">{tab.badge}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -143,13 +305,47 @@ const Layout: React.FC<LayoutProps> = ({
           <h1 className="hidden md:block text-lg md:text-xl font-black text-slate-800 tracking-tighter uppercase">{activeTab.replace('hr-', 'HR ').replace('-', ' ')}</h1>
           
           <div className="flex items-center gap-4">
-             {lowStockCount > 0 && (
-               <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-rose-50 text-rose-600 rounded-full border border-rose-100 text-[9px] font-black uppercase">
-                 ⚠️ {lowStockCount} Items Low
+             {/* Company Indicator for Super Admin */}
+             {user?.role === UserRole.SUPER_ADMIN && selectedXarunId && activeTab !== 'saas-manager' && (
+               <div className="hidden lg:flex items-center gap-3 px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-2xl shadow-sm">
+                 <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-xs">🏢</div>
+                 <div>
+                   <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Managing Company</p>
+                   <p className="text-xs font-black text-slate-900">{xarumo.find(x => x.id === selectedXarunId)?.name || 'Unknown'}</p>
+                 </div>
                </div>
              )}
-             <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${isCloud ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${isCloud ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+
+             {/* Company Switcher for Super Admin - Only show in SaaS Manager or if specifically needed */}
+             {user?.role === UserRole.SUPER_ADMIN && xarumo.length > 0 && activeTab === 'saas-manager' && (
+               <div className="hidden lg:flex items-center gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-100 shadow-sm">
+                 <button 
+                   onClick={() => onSelectXarun?.(undefined)}
+                   className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${!selectedXarunId ? 'bg-white text-indigo-600 shadow-sm border border-slate-100' : 'text-slate-400 hover:text-slate-600'}`}
+                 >
+                   All Companies
+                 </button>
+                 <div className="h-4 w-px bg-slate-200 mx-1"></div>
+                 <select 
+                   className={`bg-transparent text-[9px] font-black uppercase tracking-widest outline-none cursor-pointer pr-4 ${selectedXarunId ? 'text-indigo-600' : 'text-slate-400'}`}
+                   value={selectedXarunId || ''}
+                   onChange={(e) => onSelectXarun?.(e.target.value || undefined)}
+                 >
+                   <option value="" className="text-slate-900">Select Company...</option>
+                   {xarumo.map(x => (
+                     <option key={x.id} value={x.id} className="text-slate-900">{x.name}</option>
+                   ))}
+                 </select>
+               </div>
+             )}
+
+             {lowStockCount > 0 && (
+               <div className="hidden md:flex items-center gap-2 px-4 py-1.5 bg-rose-50 text-rose-600 rounded-full border border-rose-100 text-[9px] font-black uppercase shadow-sm">
+                 <span className="text-xs">⚠️</span> {lowStockCount} Items Low
+               </div>
+             )}
+             <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border shadow-sm ${isCloud ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                <span className={`w-2 h-2 rounded-full ${isCloud ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
                 <span className="hidden sm:inline">{isCloud ? 'Cloud Connected' : 'Local'}</span>
                 <span className="sm:hidden">{isCloud ? 'Cloud' : 'Local'}</span>
              </div>
@@ -204,7 +400,17 @@ const Layout: React.FC<LayoutProps> = ({
 
              <div className="flex-1 overflow-y-auto p-6 space-y-8">
                 {sections.map((section) => {
-                  const visibleItems = section.items.filter(item => item.roles.includes(user.role));
+                  const visibleItems = section.items.filter(item => {
+                    // 0. Check if feature is enabled globally
+                    if (enabledFeatures.length > 0 && item.featureId) {
+                      if (!enabledFeatures.includes(item.featureId)) return false;
+                    }
+
+                    if (user.permissions && user.permissions.length > 0) {
+                      if (!user.permissions.includes(item.id)) return false;
+                    }
+                    return item.roles.includes(user.role) || user.role === UserRole.SUPER_ADMIN;
+                  });
                   if (visibleItems.length === 0) return null;
                   
                   return (

@@ -9,16 +9,24 @@ interface WarehouseMapProps {
   user: User;
   items: InventoryItem[];
   branches: Branch[];
+  initialBranchId?: string;
   onRefresh?: () => void;
 }
 
-const WarehouseMap: React.FC<WarehouseMapProps> = ({ user, items, branches, onRefresh }) => {
+const WarehouseMap: React.FC<WarehouseMapProps> = ({ user, items, branches, initialBranchId, onRefresh }) => {
   const filteredBranches = useMemo(() => {
     if (user.role === UserRole.SUPER_ADMIN) return branches;
     return branches.filter(b => b.xarunId === user.xarunId);
   }, [branches, user]);
 
-  const [selectedBranchId, setSelectedBranchId] = useState(filteredBranches[0]?.id || '');
+  const [selectedBranchId, setSelectedBranchId] = useState(initialBranchId || filteredBranches[0]?.id || '');
+  
+  // Update selectedBranchId if initialBranchId changes
+  React.useEffect(() => {
+    if (initialBranchId) {
+      setSelectedBranchId(initialBranchId);
+    }
+  }, [initialBranchId]);
   const [selectedSlot, setSelectedSlot] = useState<{items: InventoryItem[], shelf: number, section: number} | null>(null);
   const [mapSearch, setMapSearch] = useState('');
   const [viewMode, setViewMode] = useState<'MAP' | 'LIST'>('MAP'); // Mobile Toggle State

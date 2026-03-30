@@ -99,6 +99,7 @@ def sync_users():
                     "id": str(uuid.uuid4()),
                     "name": device_name,
                     "employee_id_code": user_id_str,
+                    "finger_id": user.uid,
                     "position": "STAFF",
                     "status": "ACTIVE",
                     "joined_date": datetime.now().strftime("%Y-%m-%d"),
@@ -143,6 +144,15 @@ def sync_logs():
     ip = data.get('ip', DEFAULT_ZK_IP)
     port = int(data.get('port', DEFAULT_ZK_PORT))
 
+    # Get Device UUID from DB if possible
+    device_uuid = None
+    try:
+        dev_res = supabase.table('devices').select('id').eq('ip_address', ip).execute()
+        if dev_res.data:
+            device_uuid = dev_res.data[0]['id']
+    except Exception as e:
+        print(f"Device Lookup Error: {e}")
+
     zk = ZK(ip, port=port, timeout=10)
     conn = None
     inserted_count = 0
@@ -155,40 +165,107 @@ def sync_logs():
         logs = conn.get_attendance()
         print(f"Found {len(logs)} logs on device.")
 
-        employees = supabase.table('employees').select("id, employee_id_code").execute()
-        zk_id_to_uuid = {e['employee_id_code']: e['id'] for e in employees.data}
+        # Fetch employees for mapping ZK ID to Supabase UUID (using shift view)
+        employees_res = supabase.table('employee_shift_view').select("*").execute()
+        zk_id_to_emp = {e['employee_id_code']: e for e in employees_res.data}
 
-        for log in logs:
+        # Fetch existing attendance for today to avoid duplicates and handle clock_out
+        # We might need to fetch more than just today if we want to sync historical logs
+        # For simplicity, let's fetch all attendance records that might be relevant
+        # or just handle them one by one. Handling one by one is safer for large datasets
+        # but slower. Let's optimize by grouping logs by date.
+        
+        inserted_count = 0
+        updated_count = 0
+
+        # Sort logs by timestamp to ensure we process them in order
+        sorted_logs = sorted(logs, key=lambda x: x.timestamp)
+
+        for log in sorted_logs:
             user_id_str = str(log.user_id)
             
-            if user_id_str not in zk_id_to_uuid:
+            if user_id_str not in zk_id_to_emp:
                 continue
 
-            emp_uuid = zk_id_to_uuid[user_id_str]
+            emp = zk_id_to_emp[user_id_str]
+            emp_uuid = emp['id']
             log_date = log.timestamp.strftime("%Y-%m-%d")
+            log_time_iso = log.timestamp.isoformat()
             
+            # Check if record exists for this employee on this date
             check = supabase.table('attendance') \
-                .select("id") \
+                .select("*") \
                 .eq("employee_id", emp_uuid) \
                 .eq("date", log_date) \
                 .execute()
 
             if not check.data:
+                # === CLOCK IN ===
+                check_in_time = log.timestamp.strftime("%H:%M:%S")
+                status = 'PRESENT'
+                notes = 'On Time'
+                
+                # Dynamic Thresholds
+                late_time = emp.get('late_threshold', '08:00:00')
+                absent_time = emp.get('absent_threshold', '09:00:00')
+
+                if check_in_time >= absent_time:
+                    status = 'LATE'
+                    notes = 'Very Late (After Absent Threshold)'
+                elif check_in_time >= late_time:
+                    status = 'LATE'
+                    notes = 'Late Arrival'
+
                 new_attendance = {
                     "id": str(uuid.uuid4()),
-                    "employee_id": emp_uuid,
+                    "employee_id": emp['employee_id'],
                     "date": log_date,
-                    "status": "PRESENT",
-                    "clock_in": log.timestamp.isoformat(),
-                    "notes": "Auto-Synced from Device"
+                    "status": status,
+                    "clock_in": log_time_iso,
+                    "device_id": f"ZK Device ({ip})",
+                    "device_uuid": device_uuid,
+                    "notes": notes
                 }
-                supabase.table('attendance').insert(new_attendance).execute()
-                inserted_count += 1
+                try:
+                    supabase.table('attendance').insert(new_attendance).execute()
+                    inserted_count += 1
+                    print(f"Clock In: {emp['name']} at {log.timestamp}")
+                except Exception as e:
+                    print(f"Error inserting log for {emp['name']}: {e}")
+            else:
+                # === CLOCK OUT (Update) ===
+                record = check.data[0]
+                record_id = record['id']
+                
+                # Update clock_out if this log is later than current clock_in
+                # and later than current clock_out (if any)
+                current_clock_in = record.get('clock_in')
+                current_clock_out = record.get('clock_out')
+                
+                should_update = False
+                if current_clock_in:
+                    # Convert to comparable format if needed, but isoformat is usually fine for string comparison if same timezone
+                    if log_time_iso > current_clock_in:
+                        if not current_clock_out or log_time_iso > current_clock_out:
+                            should_update = True
+                
+                if should_update:
+                    try:
+                        update_data = {
+                            "clock_out": log_time_iso,
+                            "device_id": f"ZK Device ({ip})",
+                            "device_uuid": device_uuid
+                        }
+                        supabase.table('attendance').update(update_data).eq('id', record_id).execute()
+                        updated_count += 1
+                        print(f"Clock Out Updated: {emp['name']} at {log.timestamp}")
+                    except Exception as e:
+                        print(f"Error updating clock_out for {emp['name']}: {e}")
 
         conn.enable_device()
         return jsonify({
             "success": True, 
-            "message": f"Processed {len(logs)} logs. Created {inserted_count} new attendance records."
+            "message": f"Processed {len(logs)} logs. Created {inserted_count} new, Updated {updated_count} clock-outs."
         })
 
     except Exception as e:

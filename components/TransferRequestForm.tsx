@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { InventoryItem, Branch, User, Xarun, TransferStatus, InterBranchTransferRequest, UserRole } from '../../types';
-import { API } from '../../services/api';
+import { InventoryItem, Branch, User, Xarun, TransferStatus, InterBranchTransferRequest, UserRole } from '../types';
+import { API } from '../services/api';
 import { X, Search, Plus, Trash2, Truck, Package, Building2, FileText, AlertCircle } from 'lucide-react';
 
 interface SelectedItem {

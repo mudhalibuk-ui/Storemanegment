@@ -13,20 +13,10 @@ interface DashboardProps {
   settings?: SystemSettings;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user, items: allItems, transactions: allTransactions, insights: initialInsights, branches, settings }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, items, transactions, insights: initialInsights, branches, settings }) => {
   const [insights, setInsights] = useState<string[]>(initialInsights);
   const [filterType, setFilterType] = useState<string>('all');
   const [filterDate, setFilterDate] = useState<string>('all');
-
-  const items = useMemo(() => {
-    if (user.role === 'SUPER_ADMIN' || !user.xarunId) return allItems;
-    return allItems.filter(i => i.xarunId === user.xarunId);
-  }, [allItems, user]);
-
-  const transactions = useMemo(() => {
-    if (user.role === 'SUPER_ADMIN' || !user.xarunId) return allTransactions;
-    return allTransactions.filter(t => t.xarunId === user.xarunId);
-  }, [allTransactions, user]);
 
   const filterData = useCallback(async () => {
     if (initialInsights.length === 0) return;
@@ -93,19 +83,19 @@ const Dashboard: React.FC<DashboardProps> = ({ user, items: allItems, transactio
       {/* SECTION 1: OVERVIEW METRICS */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         {[
-          { label: 'Wadarta SKUs', value: stats.totalItems, icon: '🏷️', color: 'bg-indigo-50 text-indigo-600', sub: 'Active Items' },
+          { label: 'Wadarta SKUs', value: stats.totalItems, icon: '🏷️', color: 'bg-amber-50 text-amber-600', sub: 'Active Items' },
           { label: 'Stock-ga Yar', value: stats.lowStock, icon: '⚠️', color: 'bg-rose-50 text-rose-600', sub: 'Needs Restock' },
           { label: 'Wadarta Guud', value: stats.stockValue.toLocaleString(), icon: '📦', color: 'bg-emerald-50 text-emerald-600', sub: 'Total Units' },
-          { label: 'Dhaqdhaqaaq', value: stats.recentOps, icon: '🔄', color: 'bg-amber-50 text-amber-600', sub: 'Transactions' },
+          { label: 'Dhaqdhaqaaq', value: stats.recentOps, icon: '🔄', color: 'bg-indigo-50 text-indigo-600', sub: 'Transactions' },
         ].map((stat, idx) => (
-          <div key={idx} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 transition-all hover:shadow-md hover:scale-[1.02] flex flex-col justify-between h-40 relative overflow-hidden group">
-            <div className={`absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity text-5xl grayscale`}>{stat.icon}</div>
-            <div className={`w-12 h-12 rounded-2xl ${stat.color} flex items-center justify-center text-xl shadow-sm z-10`}>
+          <div key={idx} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 transition-all hover:shadow-md hover:scale-[1.02] flex flex-col justify-between h-48 relative overflow-hidden group">
+            <div className={`absolute -top-4 -right-4 p-8 opacity-[0.03] group-hover:opacity-[0.07] transition-all duration-700 text-9xl grayscale rotate-12 group-hover:rotate-0`}>{stat.icon}</div>
+            <div className={`w-12 h-12 rounded-xl ${stat.color} flex items-center justify-center text-xl shadow-sm z-10 border border-current/5`}>
               {stat.icon}
             </div>
-            <div className="z-10">
-               <h3 className="text-3xl font-black text-slate-800">{stat.value}</h3>
-               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">{stat.label}</p>
+            <div className="z-10 mt-4">
+               <h3 className="text-4xl font-black text-slate-900 tracking-tighter">{stat.value}</h3>
+               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mt-2">{stat.label}</p>
             </div>
           </div>
         ))}

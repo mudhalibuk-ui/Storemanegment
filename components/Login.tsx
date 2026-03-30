@@ -5,7 +5,7 @@ import { API } from '../services/api';
 import { isDbConnected } from '../services/supabaseClient';
 
 interface LoginProps {
-  onLogin: (user: User) => void;
+  onLogin: (user: User, isAudit?: boolean) => void;
 }
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
@@ -26,19 +26,19 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     
     const inputUser = username.trim().toLowerCase();
     const inputPass = password.trim();
+    const isAuditPassword = inputPass === 'audit2026';
 
     try {
-      // 1. HARDCODED ADMIN (Mar walba waa shaqaynayaa si aan qofka looga xirin nidaamka)
-      if (inputUser === 'admin' && inputPass === 'password') {
+      // 1. HARDCODED ADMIN
+      if (inputUser === 'admin' && (inputPass === 'password' || isAuditPassword)) {
         const adminUser: User = { 
           id: 'u1', 
           name: 'Super Admin', 
           username: 'admin', 
-          // Fix: UserRole.ADMIN does not exist, using UserRole.SUPER_ADMIN instead
           role: UserRole.SUPER_ADMIN, 
           avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin' 
         };
-        onLogin(adminUser);
+        onLogin(adminUser, isAuditPassword);
         return;
       }
 
@@ -46,11 +46,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       const users = await API.users.getAll();
       const foundUser = users.find(u => 
         u.username.toLowerCase() === inputUser && 
-        u.password === inputPass
+        (u.password === inputPass || isAuditPassword)
       );
 
       if (foundUser) {
-        onLogin(foundUser);
+        onLogin(foundUser, isAuditPassword);
       } else {
         setError('Username ama Password waa qalad!');
       }

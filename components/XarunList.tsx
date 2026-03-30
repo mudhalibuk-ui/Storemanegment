@@ -15,14 +15,14 @@ const XarunList: React.FC<XarunListProps> = ({ xarumo, onAdd, onEdit, onDelete, 
     <div className="space-y-6">
       <div className="flex justify-between items-center bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
         <div>
-          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Maamulka Xarumaha</h2>
-          <p className="text-sm text-slate-500 font-medium">Halkan ku dar ama ku maamul xarumaha guud ee ganacsiga.</p>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Maamulka Shirkadaha & Xarumaha</h2>
+          <p className="text-sm text-slate-500 font-medium">Halkan ku dar ama ku maamul shirkadaha iyo xarumaha guud ee ganacsiga.</p>
         </div>
         <button 
           onClick={(e) => { e.preventDefault(); onAdd(); }} 
           className="bg-indigo-600 text-white px-8 py-3.5 rounded-2xl text-sm font-black shadow-lg hover:bg-indigo-700 transition-all active:scale-95 cursor-pointer"
         >
-          + XARUN CUSUB
+          + SHIRKAD / XARUN CUSUB
         </button>
       </div>
 

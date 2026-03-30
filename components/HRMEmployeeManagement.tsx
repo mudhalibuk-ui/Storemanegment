@@ -28,8 +28,8 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
   const [isSyncing, setIsSyncing] = useState(false);
 
   const filtered = employees.filter(e => 
-    e.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    e.employeeIdCode.toLowerCase().includes(searchTerm.toLowerCase())
+    (e.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (e.employeeIdCode || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getAbsentCount = (employeeId: string) => {

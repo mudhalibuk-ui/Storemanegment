@@ -224,16 +224,20 @@ def push_attendance(user_id, timestamp, device_info):
         
         if not existing.data:
             # === CLOCK IN (First Scan of the Day) ===
-            check_in_hour = timestamp.hour
+            check_in_time = timestamp.strftime("%H:%M:%S")
             status = 'PRESENT'
             notes = 'On Time'
 
-            if 8 <= check_in_hour < 9: 
+            # Dynamic Thresholds from Cache
+            late_time = emp.get('late_threshold', '08:00:00')
+            absent_time = emp.get('absent_threshold', '09:00:00')
+
+            if check_in_time >= absent_time:
+                status = 'LATE'
+                notes = 'Very Late (After Absent Threshold)'
+            elif check_in_time >= late_time:
                 status = 'LATE'
                 notes = 'Late Arrival'
-            elif check_in_hour >= 9: 
-                status = 'LATE' 
-                notes = 'Very Late'
 
             data = {
                 "id": str(uuid.uuid4()),
@@ -242,6 +246,7 @@ def push_attendance(user_id, timestamp, device_info):
                 "status": status,
                 "clock_in": iso_time,
                 "device_id": f"{dev_name} ({ip_addr})",
+                "device_uuid": device_info.get('id'),
                 "notes": notes
             }
             supabase.table('attendance').insert(data).execute()
@@ -268,7 +273,9 @@ def push_attendance(user_id, timestamp, device_info):
                 except: pass
 
             update_payload = {
-                "clock_out": iso_time
+                "clock_out": iso_time,
+                "device_id": f"{dev_name} ({ip_addr})",
+                "device_uuid": device_info.get('id')
             }
             
             supabase.table('attendance').update(update_payload).eq('id', record_id).execute()
@@ -283,11 +290,17 @@ def refresh_employee_cache():
     if not supabase: return
     global employee_cache
     try:
-        response = supabase.table('employees').select("id, employee_id_code, name").execute()
+        # Use the view that includes shift info
+        response = supabase.table('employee_shift_view').select("*").execute()
         new_cache = {}
         for row in response.data:
             key_code = str(row.get('employee_id_code'))
-            new_cache[key_code] = {'uuid': row['id'], 'name': row['name']}
+            new_cache[key_code] = {
+                'uuid': row['employee_id'], 
+                'name': row['name'],
+                'late_threshold': row.get('late_threshold', '08:00:00'),
+                'absent_threshold': row.get('absent_threshold', '09:00:00')
+            }
         employee_cache = new_cache
         logging.info(f"🔄 Cache Refreshed: {len(employee_cache)} employees.")
     except Exception as e:
@@ -332,6 +345,7 @@ def sync_device_users(conn, device_info):
                         "id": str(uuid.uuid4()),
                         "name": display_name,
                         "employee_id_code": raw_id,
+                        "finger_id": user.uid,
                         "position": "STAFF",
                         "status": "ACTIVE",
                         "joined_date": datetime.now().strftime("%Y-%m-%d"),

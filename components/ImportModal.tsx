@@ -1,33 +1,41 @@
 
 import React, { useState } from 'react';
 import * as XLSX from 'xlsx';
-import { InventoryItem, Branch } from '../types';
+import { InventoryItem, Branch, Customer, Vendor, Xarun } from '../types';
 import { letterToNumber } from '../services/mappingUtils';
 
 interface ImportModalProps {
+  type: 'inventory' | 'customer' | 'vendor';
   branches: Branch[];
+  xarumo: Xarun[];
   userXarunId?: string;
-  onImport: (items: Partial<InventoryItem>[]) => Promise<boolean>;
+  onImport: (items: any[]) => Promise<boolean>;
   onCancel: () => void;
 }
 
-const ImportModal: React.FC<ImportModalProps> = ({ branches, userXarunId, onImport, onCancel }) => {
+const ImportModal: React.FC<ImportModalProps> = ({ type, branches, xarumo, userXarunId, onImport, onCancel }) => {
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<'IDLE' | 'SAVING' | 'SUCCESS' | 'ERROR'>('IDLE');
   const [errorMessage, setErrorMessage] = useState('');
   const [importedCount, setImportedCount] = useState(0);
   const [selectedDefaultBranch, setSelectedDefaultBranch] = useState(branches[0]?.id || '');
+  const [selectedDefaultXarun, setSelectedDefaultXarun] = useState(userXarunId || xarumo[0]?.id || '');
 
   const MAPPINGS = {
-    name: ['Name', 'Magaca', 'Product', 'Alaabta', 'Shayga', 'Mudo', 'Item', 'Product Name', 'Description', 'Alaab', 'Magaca Alaabta'],
+    name: ['Name', 'Magaca', 'Product', 'Alaabta', 'Shayga', 'Mudo', 'Item', 'Product Name', 'Description', 'Alaab', 'Magaca Alaabta', 'Customer', 'Vendor', 'Supplier'],
     sku: ['SKU', 'Code', 'Barcode', 'Sumadda', 'Id Code', 'Lambar', 'Suku', 'Sku Code', 'Part Number', 'Item Code', 'Lambarka'],
     category: ['Category', 'Nooca', 'Cat', 'Qaybta Alaabta', 'Qaybta', 'Type', 'Nooca Shayga', 'Caynka'],
     quantity: ['Quantity', 'Tirada', 'Qty', 'Stock', 'Maduushada', 'Tira', 'Amount', 'Count', 'Available', 'Tirada Guud', 'Xaddiga'],
     shelf: ['Shelf', 'Iskafalo', 'Iskafalada', 'Iska', 'Shelf Number', 'Safaxad', 'Rack', 'Shelf Name', 'Booska'],
     section: ['Section', 'Godka', 'God', 'Go', 'Slot', 'Qaybta', 'Bin', 'Godka Iskafalada', 'Qolka'],
     branch: ['Branch', 'Bakhaar', 'Bakhaarka', 'Branch Name', 'Warehouse', 'Goobta', 'BranchId', 'Store', 'Magaalada'],
-    minThreshold: ['MinThreshold', 'Halis', 'Alert', 'Alert Level', 'Heerka Digniinta', 'Minimum', 'Low Stock', 'Min', 'Tirada Halista']
+    minThreshold: ['MinThreshold', 'Halis', 'Alert', 'Alert Level', 'Heerka Digniinta', 'Minimum', 'Low Stock', 'Min', 'Tirada Halista'],
+    phone: ['Phone', 'Tel', 'Mobile', 'Telefoon', 'Lambarka Telefoonka', 'Nambarka', 'Contact'],
+    email: ['Email', 'E-mail', 'Imeel'],
+    address: ['Address', 'Cinwaanka', 'Goobta', 'Degmada'],
+    balance: ['Balance', 'Haraaga', 'Lacagta', 'Amount Due', 'Owed'],
+    xarun: ['Xarun', 'Xarunta', 'Center', 'Xarun Name', 'Company', 'XarunId']
   };
 
   const findVal = (row: any, mappingKeys: string[]) => {
@@ -89,59 +97,111 @@ const ImportModal: React.FC<ImportModalProps> = ({ branches, userXarunId, onImpo
     setErrorMessage('');
     
     try {
-      const processedItems: InventoryItem[] = previewData.map((row, index) => {
-        const branchNameInput = (findVal(row, MAPPINGS.branch) || '').toString().toLowerCase().trim();
-        let branchMatch = branches.find(b => 
-          b.name.toLowerCase().trim() === branchNameInput || 
-          b.id.toLowerCase().trim() === branchNameInput
-        );
-        
-        const finalBranchId = branchMatch?.id || selectedDefaultBranch;
-        const targetBranch = branches.find(b => b.id === finalBranchId);
-        const itemXarunId = targetBranch?.xarunId || userXarunId;
+      let processedData: any[] = [];
 
-        if (!itemXarunId) {
-          throw new Error(`Cilad: Ma aanan helin Xarun ID loo xiro alaabta: ${findVal(row, MAPPINGS.name) || 'Unknown'}`);
-        }
+      if (type === 'inventory') {
+        processedData = previewData.map((row, index) => {
+          const branchNameInput = (findVal(row, MAPPINGS.branch) || '').toString().toLowerCase().trim();
+          let branchMatch = branches.find(b => 
+            b.name.toLowerCase().trim() === branchNameInput || 
+            b.id.toLowerCase().trim() === branchNameInput
+          );
+          
+          const finalBranchId = branchMatch?.id || selectedDefaultBranch;
+          const targetBranch = branches.find(b => b.id === finalBranchId);
+          const itemXarunId = targetBranch?.xarunId || userXarunId;
 
-        const name = (findVal(row, MAPPINGS.name) || `Item ${index + 1}`).toString().trim();
-        const category = (findVal(row, MAPPINGS.category) || 'General').toString().trim();
-        let sku = (findVal(row, MAPPINGS.sku) || '').toString().trim();
-        
-        if (!sku) {
-          sku = generateAutoSKU(name, category);
-        }
+          if (!itemXarunId) {
+            throw new Error(`Cilad: Ma aanan helin Xarun ID loo xiro alaabta: ${findVal(row, MAPPINGS.name) || 'Unknown'}`);
+          }
 
-        const quantity = parseInt(findVal(row, MAPPINGS.quantity)) || 0;
-        const minThreshold = parseInt(findVal(row, MAPPINGS.minThreshold)) || 5;
-        const rawShelf = (findVal(row, MAPPINGS.shelf) || '1').toString();
-        const rawSection = (findVal(row, MAPPINGS.section) || '1').toString();
+          const name = (findVal(row, MAPPINGS.name) || `Item ${index + 1}`).toString().trim();
+          const category = (findVal(row, MAPPINGS.category) || 'General').toString().trim();
+          let sku = (findVal(row, MAPPINGS.sku) || '').toString().trim();
+          
+          if (!sku) {
+            sku = generateAutoSKU(name, category);
+          }
 
-        return {
-          name,
-          category,
-          sku,
-          shelves: letterToNumber(rawShelf),
-          sections: parseInt(rawSection) || 1,
-          quantity,
-          branchId: finalBranchId,
-          lastUpdated: new Date().toISOString(),
-          minThreshold,
-          xarunId: itemXarunId
-        } as any;
-      });
+          const quantity = parseInt(findVal(row, MAPPINGS.quantity)) || 0;
+          const minThreshold = parseInt(findVal(row, MAPPINGS.minThreshold)) || 5;
+          const rawShelf = (findVal(row, MAPPINGS.shelf) || '1').toString();
+          const rawSection = (findVal(row, MAPPINGS.section) || '1').toString();
 
-      const success = await onImport(processedItems);
+          return {
+            name,
+            category,
+            sku,
+            shelves: letterToNumber(rawShelf),
+            sections: parseInt(rawSection) || 1,
+            quantity,
+            branchId: finalBranchId,
+            lastUpdated: new Date().toISOString(),
+            minThreshold,
+            xarunId: itemXarunId
+          } as Partial<InventoryItem>;
+        });
+      } else if (type === 'customer' || type === 'vendor') {
+        processedData = previewData.map((row, index) => {
+          const xarunNameInput = (findVal(row, MAPPINGS.xarun) || '').toString().toLowerCase().trim();
+          let xarunMatch = xarumo.find(x => 
+            x.name.toLowerCase().trim() === xarunNameInput || 
+            x.id.toLowerCase().trim() === xarunNameInput
+          );
+          
+          const finalXarunId = xarunMatch?.id || selectedDefaultXarun;
+
+          const name = (findVal(row, MAPPINGS.name) || `${type === 'customer' ? 'Customer' : 'Vendor'} ${index + 1}`).toString().trim();
+          const phone = (findVal(row, MAPPINGS.phone) || '').toString().trim();
+          const email = (findVal(row, MAPPINGS.email) || '').toString().trim();
+          const address = (findVal(row, MAPPINGS.address) || '').toString().trim();
+          const balance = parseFloat(findVal(row, MAPPINGS.balance)) || 0;
+
+          if (type === 'customer') {
+            return {
+              name,
+              phone,
+              email,
+              address,
+              balance,
+              xarunId: finalXarunId
+            } as Partial<Customer>;
+          } else {
+            return {
+              name,
+              contactName: (findVal(row, MAPPINGS.name) || '').toString().trim(),
+              phone,
+              email,
+              address,
+              category: (findVal(row, MAPPINGS.category) || 'General').toString().trim(),
+              balance,
+              xarunId: finalXarunId
+            } as Partial<Vendor>;
+          }
+        });
+      }
+
+      const success = await onImport(processedData);
       if (success) {
-        setImportedCount(processedItems.length);
+        setImportedCount(processedData.length);
         setStatus('SUCCESS');
       } else {
-        throw new Error("Database-ka ayaa diiday inuu keydiyo xogta. Hubi SKU-yada.");
+        throw new Error("Database-ka ayaa diiday inuu keydiyo xogta. Hubi xogtaada.");
       }
     } catch (err: any) {
       console.error("Import Failure:", err);
       setErrorMessage(err.message || "Cilad ayaa dhacday markii xogta la habaynayay.");
       setStatus('ERROR');
+    }
+  };
+
+  const getTemplateData = () => {
+    if (type === 'inventory') {
+      return [{'Magaca': 'Tusaale', 'Tirada': 10, 'Nooca': 'Hardware', 'SKU': '', 'Bakhaar': ''}];
+    } else if (type === 'customer') {
+      return [{'Magaca': 'Macmiil Tusaale', 'Telefoon': '252615000000', 'Haraaga': 0, 'Xarunta': ''}];
+    } else {
+      return [{'Magaca': 'Vendor Tusaale', 'Telefoon': '252615000000', 'Haraaga': 0, 'Xarunta': '', 'Nooca': 'General'}];
     }
   };
 
@@ -157,10 +217,10 @@ const ImportModal: React.FC<ImportModalProps> = ({ branches, userXarunId, onImpo
             </div>
             <div>
               <h2 className="text-2xl font-black tracking-tight uppercase">
-                {status === 'SUCCESS' ? 'WAAR LAGU GUULEYSTAY!' : status === 'ERROR' ? 'CILAD AYAA DHACDAY' : 'AUTOMATIC IMPORT 🚀'}
+                {status === 'SUCCESS' ? 'WAAR LAGU GUULEYSTAY!' : status === 'ERROR' ? 'CILAD AYAA DHACDAY' : `IMPORT ${type.toUpperCase()} 🚀`}
               </h2>
               <p className="text-[10px] font-bold uppercase opacity-70 tracking-widest">
-                {status === 'SUCCESS' ? `${importedCount} Alaab ah ayaa la galiyay` : 'Excel Mapping & Auto-SKU Generator'}
+                {status === 'SUCCESS' ? `${importedCount} ${type === 'inventory' ? 'Alaab' : type === 'customer' ? 'Macaamiil' : 'Ganacsato'} ah ayaa la galiyay` : 'Excel Mapping & Auto-Generator'}
               </p>
             </div>
           </div>
@@ -173,11 +233,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ branches, userXarunId, onImpo
                <div className="w-24 h-24 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-5xl shadow-xl shadow-emerald-100">✔</div>
                <div>
                  <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Xogta waa la keydiyey</h3>
-                 <p className="text-slate-500 font-medium mt-2">Dhammaan {importedCount} alaabta ah waxay hadda ku jiraan database-kaaga.</p>
-                 <div className="mt-4 p-4 bg-indigo-50 border border-indigo-100 rounded-2xl">
-                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">💡 TALO MUHIIM AH:</p>
-                    <p className="text-[11px] text-indigo-700 font-bold mt-1">Haddii aadan arkin alaabtaada, fadlan nadiifi Filter-ka (Bakhaarada ama Noocyada) ee ku yaala Inventory Tab.</p>
-                 </div>
+                 <p className="text-slate-500 font-medium mt-2">Dhammaan {importedCount} xogta ah waxay hadda ku jiraan database-kaaga.</p>
                </div>
                <button onClick={onCancel} className="px-12 py-5 bg-emerald-600 text-white rounded-2xl font-black shadow-xl hover:bg-emerald-700 transition-all uppercase text-xs tracking-widest">HADA XIR FOOMKA</button>
             </div>
@@ -202,10 +258,10 @@ const ImportModal: React.FC<ImportModalProps> = ({ branches, userXarunId, onImpo
                     <p className="text-sm text-indigo-700 mt-2 font-medium">Hubi in magacyada tiirarka (Columns) ay sax yihiin si system-ka u aqoonsado.</p>
                   </div>
                   <button onClick={() => {
-                    const ws = XLSX.utils.json_to_sheet([{'Magaca': 'Tusaale', 'Tirada': 10, 'Nooca': 'Hardware', 'SKU': ''}]);
+                    const ws = XLSX.utils.json_to_sheet(getTemplateData());
                     const wb = XLSX.utils.book_new();
                     XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-                    XLSX.writeFile(wb, "SmartStock_Template.xlsx");
+                    XLSX.writeFile(wb, `SmartStock_${type.charAt(0).toUpperCase() + type.slice(1)}_Template.xlsx`);
                   }} className="bg-white text-indigo-600 px-10 py-5 rounded-2xl font-black shadow-xl shadow-indigo-100 flex items-center gap-3 uppercase text-[11px] tracking-widest border border-indigo-100">
                     📄 Template
                   </button>
@@ -214,10 +270,18 @@ const ImportModal: React.FC<ImportModalProps> = ({ branches, userXarunId, onImpo
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
                 <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Default Bakhaar (Hadii Excel-ka lagu xusin)</label>
-                    <select className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-indigo-500 transition-all" value={selectedDefaultBranch} onChange={(e) => setSelectedDefaultBranch(e.target.value)} disabled={status === 'SAVING'}>
-                      {branches.map(b => <option key={b.id} value={b.id}>{b.name} ({b.location})</option>)}
-                    </select>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">
+                      {type === 'inventory' ? 'Default Bakhaar' : 'Default Xarun'} (Hadii Excel-ka lagu xusin)
+                    </label>
+                    {type === 'inventory' ? (
+                      <select className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-indigo-500 transition-all" value={selectedDefaultBranch} onChange={(e) => setSelectedDefaultBranch(e.target.value)} disabled={status === 'SAVING'}>
+                        {branches.map(b => <option key={b.id} value={b.id}>{b.name} ({b.location})</option>)}
+                      </select>
+                    ) : (
+                      <select className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-indigo-500 transition-all" value={selectedDefaultXarun} onChange={(e) => setSelectedDefaultXarun(e.target.value)} disabled={status === 'SAVING'}>
+                        {xarumo.map(x => <option key={x.id} value={x.id}>{x.name} ({x.location})</option>)}
+                      </select>
+                    )}
                 </div>
                 {!previewData.length ? (
                   <label className="bg-indigo-600 hover:bg-indigo-700 text-white px-10 py-5 rounded-2xl font-black cursor-pointer shadow-xl transition-all active:scale-95 text-[11px] uppercase tracking-[0.2em] text-center border-b-4 border-indigo-800">
@@ -236,35 +300,68 @@ const ImportModal: React.FC<ImportModalProps> = ({ branches, userXarunId, onImpo
                     <table className="w-full text-left border-collapse">
                       <thead className="sticky top-0 bg-white shadow-sm z-10">
                         <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                          <th className="px-8 py-5">Alaabta</th>
-                          <th className="px-8 py-5">SKU Status</th>
-                          <th className="px-8 py-5">Bakhaarka</th>
-                          <th className="px-8 py-5 text-center">Tirada</th>
+                          <th className="px-8 py-5">Magaca</th>
+                          {type === 'inventory' ? (
+                            <>
+                              <th className="px-8 py-5">SKU Status</th>
+                              <th className="px-8 py-5">Bakhaarka</th>
+                              <th className="px-8 py-5 text-center">Tirada</th>
+                            </>
+                          ) : (
+                            <>
+                              <th className="px-8 py-5">Telefoon</th>
+                              <th className="px-8 py-5">Xarunta</th>
+                              <th className="px-8 py-5 text-center">Haraaga</th>
+                            </>
+                          )}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {previewData.slice(0, 100).map((row, i) => {
-                          const providedSku = (findVal(row, MAPPINGS.sku) || '').toString().trim();
-                          const bNameInput = (findVal(row, MAPPINGS.branch) || '').toString();
-                          const bMatch = branches.find(b => b.name.toLowerCase().trim() === bNameInput.toLowerCase().trim());
-                          const finalBName = bMatch ? bMatch.name : branches.find(b => b.id === selectedDefaultBranch)?.name || 'Default';
+                          const name = (findVal(row, MAPPINGS.name) || 'N/A').toString();
+                          const phone = (findVal(row, MAPPINGS.phone) || '').toString();
+                          const balance = findVal(row, MAPPINGS.balance) || '0';
+                          
+                          const xarunNameInput = (findVal(row, MAPPINGS.xarun) || '').toString();
+                          const xMatch = xarumo.find(x => x.name.toLowerCase().trim() === xarunNameInput.toLowerCase().trim());
+                          const finalXName = xMatch ? xMatch.name : xarumo.find(x => x.id === selectedDefaultXarun)?.name || 'Default';
+
+                          if (type === 'inventory') {
+                            const providedSku = (findVal(row, MAPPINGS.sku) || '').toString().trim();
+                            const bNameInput = (findVal(row, MAPPINGS.branch) || '').toString();
+                            const bMatch = branches.find(b => b.name.toLowerCase().trim() === bNameInput.toLowerCase().trim());
+                            const finalBName = bMatch ? bMatch.name : branches.find(b => b.id === selectedDefaultBranch)?.name || 'Default';
+                            
+                            return (
+                              <tr key={i} className={`text-sm font-bold text-slate-700 hover:bg-indigo-50/50 ${status === 'SAVING' ? 'opacity-50' : ''}`}>
+                                <td className="px-8 py-4">{name}</td>
+                                <td className="px-8 py-4">
+                                  {providedSku ? (
+                                    <span className="font-mono text-xs text-slate-400">{providedSku}</span>
+                                  ) : (
+                                    <span className="text-[9px] font-black text-indigo-500 bg-indigo-50 px-2 py-1 rounded border border-indigo-100 uppercase">AUTO ✨</span>
+                                  )}
+                                </td>
+                                <td className="px-8 py-4">
+                                  <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${bMatch ? 'bg-indigo-50 text-indigo-600' : 'bg-amber-50 text-amber-600'}`}>
+                                    {finalBName}
+                                  </span>
+                                </td>
+                                <td className="px-8 py-4 text-center font-black">{findVal(row, MAPPINGS.quantity) || '0'}</td>
+                              </tr>
+                            );
+                          }
 
                           return (
                             <tr key={i} className={`text-sm font-bold text-slate-700 hover:bg-indigo-50/50 ${status === 'SAVING' ? 'opacity-50' : ''}`}>
-                              <td className="px-8 py-4">{findVal(row, MAPPINGS.name) || 'N/A'}</td>
+                              <td className="px-8 py-4">{name}</td>
+                              <td className="px-8 py-4">{phone || 'N/A'}</td>
                               <td className="px-8 py-4">
-                                {providedSku ? (
-                                  <span className="font-mono text-xs text-slate-400">{providedSku}</span>
-                                ) : (
-                                  <span className="text-[9px] font-black text-indigo-500 bg-indigo-50 px-2 py-1 rounded border border-indigo-100 uppercase">AUTO ✨</span>
-                                )}
-                              </td>
-                              <td className="px-8 py-4">
-                                <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${bMatch ? 'bg-indigo-50 text-indigo-600' : 'bg-amber-50 text-amber-600'}`}>
-                                  {finalBName}
+                                <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${xMatch ? 'bg-indigo-50 text-indigo-600' : 'bg-amber-50 text-amber-600'}`}>
+                                  {finalXName}
                                 </span>
                               </td>
-                              <td className="px-8 py-4 text-center font-black">{findVal(row, MAPPINGS.quantity) || '0'}</td>
+                              <td className="px-8 py-4 text-center font-black">${balance}</td>
                             </tr>
                           );
                         })}

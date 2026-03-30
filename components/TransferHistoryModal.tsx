@@ -1,5 +1,5 @@
 import React from 'react';
-import { InterBranchTransferRequest, TransferStatus } from '../../types';
+import { InterBranchTransferRequest, TransferStatus } from '../types';
 import { format, differenceInMinutes, differenceInHours, differenceInDays } from 'date-fns';
 import { XIcon } from 'lucide-react';
 

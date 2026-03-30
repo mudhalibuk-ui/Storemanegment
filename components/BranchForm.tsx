@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Branch, Xarun } from '../types';
+import { Branch, Xarun, UserRole } from '../types';
 import { numberToLetter } from '../services/mappingUtils';
 
 interface BranchFormProps {
@@ -8,16 +8,17 @@ interface BranchFormProps {
   editingBranch: Branch | null;
   onSave: (branch: Partial<Branch>) => void;
   onCancel: () => void;
+  user: any; // Add user to props
 }
 
-const BranchForm: React.FC<BranchFormProps> = ({ xarumo, editingBranch, onSave, onCancel }) => {
+const BranchForm: React.FC<BranchFormProps> = ({ xarumo, editingBranch, onSave, onCancel, user }) => {
   const [formData, setFormData] = useState<Partial<Branch>>({
     name: '',
     location: '',
     totalShelves: 5,
     totalSections: 10,
     customSections: {},
-    xarunId: ''
+    xarunId: user.role === UserRole.SUPER_ADMIN ? '' : user.xarunId
   });
 
   useEffect(() => {
@@ -26,19 +27,23 @@ const BranchForm: React.FC<BranchFormProps> = ({ xarumo, editingBranch, onSave, 
         ...editingBranch,
         customSections: editingBranch.customSections || {}
       });
-    } else if (xarumo.length > 0) {
+    } else if (user.role === UserRole.SUPER_ADMIN && xarumo.length > 0) {
+      // For Super Admin, default to the first xarun if not editing
       setFormData(prev => ({ ...prev, xarunId: xarumo[0].id }));
+    } else if (user.role !== UserRole.SUPER_ADMIN) {
+      // For Managers, always use their xarunId
+      setFormData(prev => ({ ...prev, xarunId: user.xarunId }));
     }
-  }, [editingBranch, xarumo]);
+  }, [editingBranch, xarumo, user]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.xarunId) {
-      alert("CILAD: Fadlan marka hore abuur Xarun.");
+      alert("CILAD: Fadlan marka hore abuur Shirkad.");
       return;
     }
     if (!formData.name?.trim()) {
-      alert("Fadlan qor magaca bakhaarka.");
+      alert("Fadlan qor magaca xarunta.");
       return;
     }
     onSave(formData);
@@ -88,14 +93,15 @@ const BranchForm: React.FC<BranchFormProps> = ({ xarumo, editingBranch, onSave, 
               <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest px-1">Xogta Guud</h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 px-1">Xarunta (Center)</label>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 px-1">Shirkadda (Company)</label>
                   <select 
                     required
-                    className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 focus:bg-white outline-none font-bold text-slate-800 transition-all"
+                    disabled={user.role !== UserRole.SUPER_ADMIN}
+                    className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 focus:bg-white outline-none font-bold text-slate-800 transition-all disabled:opacity-70"
                     value={formData.xarunId}
                     onChange={e => setFormData({...formData, xarunId: e.target.value})}
                   >
-                    <option value="">Dooro Xarun...</option>
+                    <option value="">Dooro Shirkad...</option>
                     {xarumo.map(x => (
                       <option key={x.id} value={x.id}>{x.name} ({x.location})</option>
                     ))}
@@ -103,12 +109,12 @@ const BranchForm: React.FC<BranchFormProps> = ({ xarumo, editingBranch, onSave, 
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 px-1">Magaca Bakhaarka</label>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 px-1">Magaca Xarunta (Center Name)</label>
                   <input 
                     required
                     type="text" 
                     className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 focus:bg-white outline-none font-bold text-slate-800 transition-all"
-                    placeholder="e.g. Bakhaarka 01"
+                    placeholder="e.g. Xarunta Bakaaro"
                     value={formData.name}
                     onChange={e => setFormData({...formData, name: e.target.value})}
                   />

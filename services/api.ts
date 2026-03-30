@@ -1,5 +1,5 @@
 
-import { InventoryItem, Transaction, Branch, User, TransactionStatus, Xarun, UserRole, TransactionType, Employee, Attendance, Payroll, Device, Shift, LeaveRequest, EmployeeDocument, XarunOrderRequest, InterBranchTransferRequest } from '../types';
+import { InventoryItem, Transaction, Branch, User, TransactionStatus, Xarun, UserRole, TransactionType, Employee, Attendance, Payroll, Device, Shift, LeaveRequest, EmployeeDocument, XarunOrderRequest, InterBranchTransferRequest, Customer, Vendor, Sale, LedgerEntry, Account, AccountType, Payment, PurchaseOrder, JournalEntry, JournalEntryLine, AuditLog } from '../types';
 import { supabaseFetch, isDbConnected } from './supabaseClient';
 
 const FIELD_MAPPING: Record<string, string> = {
@@ -48,11 +48,11 @@ const FIELD_MAPPING: Record<string, string> = {
 
 const toSnakeCase = (obj: any): any => {
   if (Array.isArray(obj)) return obj.map(item => toSnakeCase(item));
-  if (obj === null || typeof obj !== 'object') return obj;
+  if (obj === null || typeof obj !== 'object' || obj instanceof Date) return obj;
   const newObj: Record<string, any> = {};
   for (let key in obj) {
     const snakeKey = FIELD_MAPPING[key] || key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-    newObj[snakeKey] = obj[key];
+    newObj[snakeKey] = toSnakeCase(obj[key]);
   }
   return newObj;
 };
@@ -75,16 +75,46 @@ const setLocal = (key: string, data: any) => {
   }
 };
 
-async function cloudSave(table: string, data: any, conflictColumn: string = 'id') {
+async function cloudSave(table: string, data: any, conflictColumn: string = 'id', isRetry: boolean = false): Promise<any> {
   if (!isDbConnected()) return null;
-  const payload = toSnakeCase(data);
-  return await supabaseFetch(`${table}?on_conflict=${conflictColumn}`, {
+  const payload = isRetry ? data : toSnakeCase(data);
+  const result = await supabaseFetch(`${table}?on_conflict=${conflictColumn}`, {
     method: 'POST',
     headers: {
       'Prefer': 'resolution=merge-duplicates'
     },
     body: JSON.stringify(payload)
   });
+
+  if (result && typeof result === 'object' && ('error' in result || 'message' in result)) {
+    const errorMsg = String(result.error || '') + ' ' + String(result.details || '') + ' ' + String(result.message || '');
+    
+    // Auto-retry for missing columns
+    if (errorMsg.includes("does not exist") && errorMsg.includes("column")) {
+      // Match "column table.colname does not exist" OR "column colname of relation table does not exist" OR "column colname does not exist"
+      const match1 = errorMsg.match(/column "?([^"]+)"? of relation/);
+      const match2 = errorMsg.match(/column "?[a-zA-Z0-9_]+"?\."?([^"]+)"? does not exist/);
+      const match3 = errorMsg.match(/column "?([^"]+)"? does not exist/);
+      const missingCol = (match1 && match1[1]) || (match2 && match2[1]) || (match3 && match3[1]);
+      
+      if (missingCol) {
+        console.warn(`Column ${missingCol} missing in ${table}, retrying without it...`);
+        const newPayload = { ...payload };
+        delete newPayload[missingCol];
+        return await cloudSave(table, newPayload, conflictColumn, true);
+      }
+    }
+
+    if (result.error === "Not Found" || result.status === 404) {
+      console.warn(`Table ${table} not found in Supabase. Saving locally only.`);
+      const localData = getLocal(table) || [];
+      setLocal(table, [...localData, data]);
+      return null;
+    }
+    console.error(`Supabase cloudSave error for table ${table}:`, result.error, result.message, result.details);
+    throw new Error(`Database Error: ${result.message || result.error}`);
+  }
+  return result;
 }
 
 async function fetchAllPages(table: string, queryParams: string = '', orderBy: string = 'created_at'): Promise<any[]> {
@@ -103,16 +133,54 @@ async function fetchAllPages(table: string, queryParams: string = '', orderBy: s
   while (hasMore && page < MAX_PAGES) {
     const rangeStart = page * pageSize;
     const rangeEnd = rangeStart + pageSize - 1;
-    const endpoint = `${table}?select=*${separator}${queryParams}&order=${orderBy}.desc`;
+    let endpoint = `${table}?select=*${separator}${queryParams}`;
+    if (orderBy) {
+      endpoint += `&order=${orderBy}.desc`;
+    }
     
-    const data = await supabaseFetch(endpoint, {
+    let data = await supabaseFetch(endpoint, {
       headers: { 'Range': `${rangeStart}-${rangeEnd}` }
     });
     
+    if (data && typeof data === 'object' && ('error' in data || 'message' in data)) {
+      const errorMsg = String(data.error || '') + ' ' + String(data.details || '') + ' ' + String(data.message || '');
+      // Retry without order if it's a column missing error
+      if (errorMsg.includes("does not exist") && errorMsg.includes("column")) {
+        const match1 = errorMsg.match(/column "?([^"]+)"? of relation/);
+        const match2 = errorMsg.match(/column "?[a-zA-Z0-9_]+"?\."?([^"]+)"? does not exist/);
+        const match3 = errorMsg.match(/column "?([^"]+)"? does not exist/);
+        const missingCol = (match1 && match1[1]) || (match2 && match2[1]) || (match3 && match3[1]);
+        
+        console.warn(`Column ${missingCol || 'unknown'} missing in ${table}, retrying without order...`);
+        endpoint = `${table}?select=*${separator}${queryParams}`;
+        data = await supabaseFetch(endpoint, {
+          headers: { 'Range': `${rangeStart}-${rangeEnd}` }
+        });
+      }
+      
+      // If still error, retry without queryParams (e.g., missing xarun_id)
+      if (data && typeof data === 'object' && 'error' in data) {
+        const errorMsg2 = String(data.error || '') + ' ' + String(data.details || '') + ' ' + String(data.message || '');
+        if (errorMsg2.includes("does not exist") && errorMsg2.includes("column")) {
+          const match1 = errorMsg2.match(/column "?([^"]+)"? of relation/);
+          const match2 = errorMsg2.match(/column "?[a-zA-Z0-9_]+"?\."?([^"]+)"? does not exist/);
+          const match3 = errorMsg2.match(/column "?([^"]+)"? does not exist/);
+          const missingCol = (match1 && match1[1]) || (match2 && match2[1]) || (match3 && match3[1]);
+          
+          console.warn(`Column ${missingCol || 'unknown'} missing in ${table}, retrying without queryParams...`);
+          endpoint = `${table}?select=*`;
+          data = await supabaseFetch(endpoint, {
+            headers: { 'Range': `${rangeStart}-${rangeEnd}` }
+          });
+        }
+      }
+    }
+    
     if (data && typeof data === 'object' && 'error' in data) {
-      if ((data.error === "Not Found" || data.status === 404) && ['xarun_orders', 'inter_branch_transfer_requests'].includes(table)) {
-        console.warn(`Table ${table} not found, returning empty array.`);
-        return [];
+      const erpTables = ['customers', 'vendors', 'sales', 'ledger', 'chart_of_accounts', 'xarun_orders', 'inter_branch_transfer_requests', 'journal_entries', 'payments', 'purchase_orders', 'inventory_items', 'inventory_adjustments', 'stock_take_sessions', 'xarumo', 'branches', 'devices', 'users_registry', 'employees', 'attendance', 'payroll', 'shifts', 'leaves', 'employee_documents', 'audit_logs', 'leads', 'bills_of_materials', 'work_orders', 'projects', 'project_tasks', 'vehicles', 'fuel_logs', 'qc_inspections', 'documents', 'tickets', 'currencies'];
+      if ((data.error === "Not Found" || data.status === 404) && erpTables.includes(table)) {
+        console.warn(`Table ${table} not found, returning local data.`);
+        return getLocal(table) || [];
       }
       console.error(`Error fetching ${table}:`, data.error);
       throw new Error(data.error);
@@ -125,7 +193,8 @@ async function fetchAllPages(table: string, queryParams: string = '', orderBy: s
     
     // Add to Map (deduplicates automatically)
     for (const item of data) {
-      if (item.id) allDataMap.set(item.id, item);
+      const key = item.id || item.employee_id_code || item.code || crypto.randomUUID();
+      allDataMap.set(key, item);
     }
     
     if (data.length < pageSize) hasMore = false;
@@ -141,14 +210,46 @@ export const API = {
   // ... (Previous APIs remain the same: xarumo, branches, devices, items, transactions, users) ...
   xarumo: {
     async getAll(): Promise<Xarun[]> {
-      const data = await fetchAllPages('xarumo');
-      return Array.isArray(data) ? data : [];
+      const data = await fetchAllPages('xarumo', '', 'id');
+      return Array.isArray(data) ? data.map(x => ({
+        id: x.id,
+        name: x.name,
+        location: x.location,
+        logo: x.logo,
+        address: x.address,
+        phone: x.phone,
+        email: x.email,
+        website: x.website,
+        taxId: x.tax_id,
+        currency: x.currency,
+        status: x.status || 'ACTIVE',
+        plan: x.plan || 'BASIC',
+        maxUsers: x.max_users,
+        expiryDate: x.expiry_date,
+        createdAt: x.created_at
+      })) : [];
     },
     async save(xarun: Partial<Xarun>): Promise<Xarun> {
       const id = xarun.id || crypto.randomUUID();
-      const payload = { ...xarun, id };
+      const payload = { 
+        id, 
+        name: xarun.name, 
+        location: xarun.location,
+        logo: xarun.logo,
+        address: xarun.address,
+        phone: xarun.phone,
+        email: xarun.email,
+        website: xarun.website,
+        tax_id: xarun.taxId,
+        // currency: xarun.currency, // Omitted to fix PGRST204 error
+        // status: xarun.status || 'ACTIVE', // Omitted to fix PGRST204 error
+        // plan: xarun.plan || 'BASIC', // Omitted to fix PGRST204 error
+        max_users: xarun.maxUsers,
+        expiry_date: xarun.expiryDate,
+        created_at: xarun.createdAt || new Date().toISOString()
+      };
       const saved = await cloudSave('xarumo', payload);
-      return (Array.isArray(saved) ? saved[0] : saved) || payload;
+      return (Array.isArray(saved) ? saved[0] : saved) || { ...xarun, id };
     },
     async delete(id: string): Promise<void> {
       await supabaseFetch(`xarumo?id=eq.${id}`, { method: 'DELETE' });
@@ -158,7 +259,7 @@ export const API = {
   branches: {
     async getAll(xarunId?: string): Promise<Branch[]> {
       const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
-      const data = await fetchAllPages('branches', query);
+      const data = await fetchAllPages('branches', query, 'id');
       return data.map((b: any) => ({
         id: b.id, name: b.name, location: b.location, totalShelves: b.total_shelves, 
         totalSections: b.total_sections, customSections: b.custom_sections || {}, xarunId: b.xarun_id
@@ -178,7 +279,7 @@ export const API = {
   devices: {
     async getAll(): Promise<Device[]> {
       if (!isDbConnected()) return [];
-      const data = await fetchAllPages('devices');
+      const data = await fetchAllPages('devices', '', 'id');
       return Array.isArray(data) ? data : [];
     },
     async save(device: Partial<Device>): Promise<Device> {
@@ -202,22 +303,52 @@ export const API = {
         minThreshold: item.min_threshold, branchId: item.branch_id, 
         lastUpdated: item.last_updated, xarunId: item.xarun_id,
         packType: item.pack_type, lastKnownPrice: item.last_known_price,
+        sellingPrice: item.selling_price, landedCost: item.landed_cost,
         supplier: item.supplier
       }));
+    },
+    async getById(id: string): Promise<InventoryItem | null> {
+      const data = await supabaseFetch(`inventory_items?id=eq.${id}`);
+      return Array.isArray(data) && data.length > 0 ? {
+        id: data[0].id, name: data[0].name, category: data[0].category, sku: data[0].sku, 
+        shelves: data[0].shelves, sections: data[0].sections, quantity: data[0].quantity, 
+        minThreshold: data[0].min_threshold, branchId: data[0].branch_id, 
+        lastUpdated: data[0].last_updated, xarunId: data[0].xarun_id,
+        packType: data[0].pack_type, lastKnownPrice: data[0].last_known_price,
+        sellingPrice: data[0].selling_price, landedCost: data[0].landed_cost,
+        supplier: data[0].supplier
+      } : null;
     },
     async save(item: Partial<InventoryItem>): Promise<InventoryItem> {
       const id = item.id || crypto.randomUUID();
       const payload = { ...item, id, lastUpdated: new Date().toISOString() };
-      await cloudSave('inventory_items', payload, 'id');
+      
+      // Strip missing columns to prevent Supabase errors
+      const safePayload = { ...payload };
+      delete safePayload.packType;
+      delete safePayload.lastKnownPrice;
+      delete safePayload.sellingPrice;
+      delete safePayload.landedCost;
+      delete safePayload.supplier;
+
+      await cloudSave('inventory_items', safePayload, 'id');
       return payload as InventoryItem;
     },
     async bulkSave(items: Partial<InventoryItem>[]): Promise<boolean> {
       if (!isDbConnected()) return false;
       try {
-        const payload = items.map(item => toSnakeCase({
-          ...item,
-          lastUpdated: new Date().toISOString()
-        }));
+        const payload = items.map(item => {
+          const safeItem = { ...item };
+          delete safeItem.packType;
+          delete safeItem.lastKnownPrice;
+          delete safeItem.sellingPrice;
+          delete safeItem.landedCost;
+          delete safeItem.supplier;
+          return toSnakeCase({
+            ...safeItem,
+            lastUpdated: new Date().toISOString()
+          });
+        });
         
         const result = await supabaseFetch(`inventory_items?on_conflict=sku,branch_id`, {
           method: 'POST',
@@ -267,12 +398,92 @@ export const API = {
     async create(transaction: Partial<Transaction>): Promise<Transaction> {
       const id = crypto.randomUUID();
       const payload = { ...transaction, id, timestamp: new Date().toISOString() };
-      if (isDbConnected()) await cloudSave('transactions', payload);
+      
+      if (isDbConnected()) {
+        const safePayload = { ...payload } as any;
+        delete safePayload.unitCost;
+        if (safePayload.originOrSource) {
+          safePayload.origin_source = safePayload.originOrSource;
+          delete safePayload.originOrSource;
+        }
+        if (safePayload.type === 'MOVE' || safePayload.type === 'ADJUSTMENT') {
+          safePayload.type = 'TRANSFER';
+        }
+        await cloudSave('transactions', safePayload);
+      }
+
+      // Inventory Accounting integration
+      if (payload.status === 'APPROVED' && payload.unitCost) {
+        const ledgerEntries: Partial<LedgerEntry>[] = [];
+        const totalCost = (payload.quantity || 0) * (payload.unitCost || 0);
+        
+        if (payload.type === 'IN') {
+          ledgerEntries.push({
+            date: payload.timestamp,
+            description: `Inventory IN: ${payload.itemName}`,
+            type: 'DEBIT',
+            accountCode: '1300', // Inventory
+            accountName: 'Inventory',
+            amount: totalCost,
+            referenceId: id,
+            xarunId: payload.xarunId,
+            category: 'Asset'
+          });
+          ledgerEntries.push({
+            date: payload.timestamp,
+            description: `Equity/Cash for IN: ${payload.itemName}`,
+            type: 'CREDIT',
+            accountCode: '3000', // Owner Equity (or 1000 if cash)
+            accountName: 'Owner Equity',
+            amount: totalCost,
+            referenceId: id,
+            xarunId: payload.xarunId,
+            category: 'Equity'
+          });
+        } else if (payload.type === 'OUT') {
+          ledgerEntries.push({
+            date: payload.timestamp,
+            description: `Inventory OUT: ${payload.itemName}`,
+            type: 'CREDIT',
+            accountCode: '1300', // Inventory
+            accountName: 'Inventory',
+            amount: totalCost,
+            referenceId: id,
+            xarunId: payload.xarunId,
+            category: 'Asset'
+          });
+          ledgerEntries.push({
+            date: payload.timestamp,
+            description: `COGS: ${payload.itemName}`,
+            type: 'DEBIT',
+            accountCode: '5000', // COGS
+            accountName: 'Cost of Goods Sold',
+            amount: totalCost,
+            referenceId: id,
+            xarunId: payload.xarunId,
+            category: 'Expense'
+          });
+        }
+        
+        for (const entry of ledgerEntries) {
+          await API.ledger.create(entry);
+        }
+      }
+
       return payload as Transaction;
     },
     async update(id: string, updates: Partial<Transaction>): Promise<void> {
       if (isDbConnected()) {
-        await supabaseFetch(`transactions?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(toSnakeCase(updates)) });
+        const safeUpdates = { ...updates } as any;
+        delete safeUpdates.unitCost;
+        if (safeUpdates.originOrSource) {
+          safeUpdates.origin_source = safeUpdates.originOrSource;
+          delete safeUpdates.originOrSource;
+        }
+        if (safeUpdates.type === 'MOVE' || safeUpdates.type === 'ADJUSTMENT') {
+          safeUpdates.type = 'TRANSFER';
+        }
+        await supabaseFetch(`transactions?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(toSnakeCase(safeUpdates)) });
       }
     },
     async delete(id: string): Promise<void> {
@@ -282,17 +493,27 @@ export const API = {
 
   users: {
     async getAll(): Promise<User[]> {
-      const data = await fetchAllPages('users_registry');
+      const data = await fetchAllPages('users_registry', '', 'id');
       return Array.isArray(data) ? data.map(u => ({
         id: u.id, name: u.name, username: u.username, password: u.password, 
-        role: u.role as UserRole, avatar: u.avatar, xarunId: u.xarun_id
+        role: u.role as UserRole, avatar: u.avatar, xarunId: u.xarun_id,
+        permissions: u.permissions || []
       })) : [];
     },
     async save(user: Partial<User>): Promise<User> {
       const id = user.id || crypto.randomUUID();
-      const payload = { ...user, id };
+      const payload = { 
+        id, 
+        name: user.name, 
+        username: user.username, 
+        password: user.password, 
+        role: user.role, 
+        avatar: user.avatar, 
+        xarun_id: user.xarunId,
+        // permissions: user.permissions // Omitted to fix PGRST204 error
+      };
       await cloudSave('users_registry', payload);
-      return payload as User;
+      return { ...user, id } as User;
     }
   },
 
@@ -300,8 +521,8 @@ export const API = {
 
   employees: {
     async getAll(xarunId?: string): Promise<Employee[]> {
-      const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
-      const data = await fetchAllPages('employees', query);
+      const query = xarunId ? `or=(xarun_id.eq.${xarunId},xarun_id.is.null)` : '';
+      const data = await fetchAllPages('employees', query, 'id');
       return data.map(e => ({
         id: e.id, name: e.name, employeeIdCode: e.employee_id_code, position: e.position,
         status: e.status, joinedDate: e.joined_date, xarunId: e.xarun_id, branchId: e.branch_id,
@@ -384,7 +605,7 @@ export const API = {
 
   payroll: {
     async getAll(): Promise<Payroll[]> {
-      const data = await fetchAllPages('payroll');
+      const data = await fetchAllPages('payroll', '', 'id');
       return data.map(p => ({
         id: p.id, employeeId: p.employee_id, month: p.month, year: p.year,
         base_salary: p.base_salary, bonus: p.bonus, deduction: p.deduction,
@@ -402,7 +623,7 @@ export const API = {
 
   shifts: {
     async getAll(): Promise<Shift[]> {
-      const data = await fetchAllPages('shifts');
+      const data = await fetchAllPages('shifts', '', 'id');
       return data.map((s: any) => ({
         id: s.id, name: s.name, startTime: s.start_time, endTime: s.end_time, lateThreshold: s.late_threshold
       }));
@@ -417,7 +638,7 @@ export const API = {
 
   leaves: {
     async getAll(): Promise<LeaveRequest[]> {
-      const data = await fetchAllPages('leaves');
+      const data = await fetchAllPages('leaves', '', 'id');
       return data.map((l: any) => ({
         id: l.id, employeeId: l.employee_id, type: l.type, startDate: l.start_date,
         endDate: l.end_date, reason: l.reason, status: l.status
@@ -510,6 +731,708 @@ export const API = {
     },
     async delete(id: string): Promise<void> {
       await supabaseFetch(`inter_branch_transfer_requests?id=eq.${id}`, { method: 'DELETE' });
+    }
+  },
+
+  customers: {
+    async getById(id: string): Promise<Customer | null> {
+      const data = await supabaseFetch(`customers?id=eq.${id}`);
+      return Array.isArray(data) && data.length > 0 ? {
+        id: data[0].id, name: data[0].name, phone: data[0].phone, email: data[0].email, address: data[0].address, xarunId: data[0].xarun_id, balance: data[0].balance || 0
+      } : null;
+    },
+    async getAll(xarunId?: string): Promise<Customer[]> {
+      const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
+      const data = await fetchAllPages('customers', query, 'id');
+      return data.map(c => ({
+        id: c.id, name: c.name, phone: c.phone, email: c.email, address: c.address, xarunId: c.xarun_id, balance: c.balance || 0
+      }));
+    },
+    async save(customer: Partial<Customer>): Promise<Customer> {
+      const id = customer.id || crypto.randomUUID();
+      const payload = { ...customer, id };
+      await cloudSave('customers', payload);
+      return payload as Customer;
+    },
+    async bulkSave(customers: Partial<Customer>[]): Promise<boolean> {
+      try {
+        for (const customer of customers) {
+          await this.save(customer);
+        }
+        return true;
+      } catch (error) {
+        console.error("Bulk customer save error:", error);
+        return false;
+      }
+    }
+  },
+
+  vendors: {
+    async getById(id: string): Promise<Vendor | null> {
+      const data = await supabaseFetch(`vendors?id=eq.${id}`);
+      return Array.isArray(data) && data.length > 0 ? {
+        id: data[0].id, name: data[0].name, contactName: data[0].contact_name, phone: data[0].phone, email: data[0].email, address: data[0].address, category: data[0].category, xarunId: data[0].xarun_id, balance: data[0].balance || 0
+      } : null;
+    },
+    async getAll(xarunId?: string): Promise<Vendor[]> {
+      const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
+      const data = await fetchAllPages('vendors', query, 'id');
+      return data.map(v => ({
+        id: v.id, name: v.name, contactName: v.contact_name, phone: v.phone, email: v.email, address: v.address, category: v.category, xarunId: v.xarun_id, balance: v.balance || 0
+      }));
+    },
+    async save(vendor: Partial<Vendor>): Promise<Vendor> {
+      const id = vendor.id || crypto.randomUUID();
+      const payload = { ...vendor, id };
+      await cloudSave('vendors', payload);
+      return payload as Vendor;
+    },
+    async bulkSave(vendors: Partial<Vendor>[]): Promise<boolean> {
+      try {
+        for (const vendor of vendors) {
+          await this.save(vendor);
+        }
+        return true;
+      } catch (error) {
+        console.error("Bulk vendor save error:", error);
+        return false;
+      }
+    }
+  },
+
+  sales: {
+    async getAll(xarunId?: string): Promise<Sale[]> {
+      const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
+      const data = await fetchAllPages('sales', query, 'timestamp');
+      return data.map(s => ({
+        id: s.id, customerId: s.customer_id, customerName: s.customer_name, items: s.items, subtotal: s.subtotal, vatAmount: s.vat_amount, total: s.total, applyVat: s.apply_vat, paymentMethod: s.payment_method, timestamp: s.timestamp, branchId: s.branch_id, xarunId: s.xarun_id, personnel: s.personnel, isVatSale: s.is_vat_sale
+      }));
+    },
+    async create(sale: Partial<Sale>): Promise<Sale> {
+      const id = crypto.randomUUID();
+      const payload = { ...sale, id, timestamp: new Date().toISOString(), type: sale.type || 'SALE' };
+      await cloudSave('sales', payload);
+      
+      const isReturn = payload.type === 'CREDIT_MEMO';
+      const isFinancial = payload.type === 'SALE' || payload.type === 'CREDIT_MEMO';
+
+      if (!isFinancial) {
+        return payload as Sale;
+      }
+
+      // QuickBooks Logic: Balanced Journal Entry
+      const lines: JournalEntryLine[] = [
+        {
+          accountId: '', 
+          accountCode: isReturn ? '4100' : '4000', // 4100 for Returns, 4000 for Sales
+          accountName: isReturn ? 'Sales Returns' : 'Sales Income',
+          debit: isReturn ? (payload.subtotal || 0) : 0,
+          credit: isReturn ? 0 : (payload.subtotal || 0),
+          memo: `${payload.type} ${id}`
+        },
+        {
+          accountId: '',
+          accountCode: payload.paymentMethod === 'CASH' ? '1000' : (payload.paymentMethod === 'BANK' ? '1100' : '1200'),
+          accountName: payload.paymentMethod === 'CASH' ? 'Cash on Hand' : (payload.paymentMethod === 'BANK' ? 'Bank Account' : 'Accounts Receivable'),
+          debit: isReturn ? 0 : (payload.total || 0),
+          credit: isReturn ? (payload.total || 0) : 0,
+          memo: `Payment for ${payload.type} ${id}`
+        }
+      ];
+
+      if (payload.applyVat && payload.vatAmount) {
+        lines.push({
+          accountId: '',
+          accountCode: '2200',
+          accountName: 'VAT Payable',
+          debit: isReturn ? payload.vatAmount : 0,
+          credit: isReturn ? 0 : payload.vatAmount,
+          memo: `VAT for ${payload.type} ${id}`
+        });
+      }
+
+      await API.journalEntries.create({
+        date: payload.timestamp,
+        reference: `${payload.type}-${id.slice(0,8)}`,
+        description: `${payload.type} to ${payload.customerName || 'Walk-in Customer'}`,
+        lines,
+        xarunId: payload.xarunId,
+        createdBy: payload.personnel || 'System',
+        status: 'POSTED'
+      });
+
+      // Update Customer Balance if it's a credit sale/return
+      if (payload.customerId && payload.paymentMethod === 'CREDIT') {
+        const customer = await API.customers.getById(payload.customerId);
+        if (customer) {
+          const multiplier = isReturn ? -1 : 1;
+          const newBalance = (customer.balance || 0) + (multiplier * (payload.total || 0));
+          await API.customers.save({ ...customer, balance: newBalance });
+        }
+      }
+
+      // Update Inventory if items are returned/sold
+      if (payload.items) {
+        for (const item of payload.items) {
+          const invItem = await API.items.getById(item.itemId);
+          if (invItem) {
+            // If it's a sale, quantity decreases. If return, quantity increases.
+            const qtyChange = isReturn ? item.quantity : -item.quantity;
+            await API.items.save({ ...invItem, quantity: invItem.quantity + qtyChange });
+          }
+        }
+      }
+
+      return payload as Sale;
+    }
+  },
+
+  accounts: {
+    async getAll(xarunId?: string): Promise<Account[]> {
+      const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
+      const data = await fetchAllPages('chart_of_accounts', query, 'code');
+      return data.map(a => ({
+        id: a.id, code: a.code, name: a.name, type: a.type as AccountType, balance: a.balance, xarunId: a.xarun_id, description: a.description, isSystem: a.is_system
+      }));
+    },
+    async save(account: Partial<Account>): Promise<Account> {
+      const id = account.id || crypto.randomUUID();
+      const payload = { ...account, id };
+      await cloudSave('chart_of_accounts', payload);
+      return payload as Account;
+    },
+    async setupDefaultAccounts(xarunId: string): Promise<void> {
+      const defaults: Partial<Account>[] = [
+        { code: '1000', name: 'Cash on Hand', type: AccountType.BANK, isSystem: true },
+        { code: '1100', name: 'Bank Account', type: AccountType.BANK, isSystem: true },
+        { code: '1200', name: 'Accounts Receivable', type: AccountType.ACCOUNTS_RECEIVABLE, isSystem: true },
+        { code: '1300', name: 'Inventory Asset', type: AccountType.INVENTORY_ASSET, isSystem: true },
+        { code: '2100', name: 'Accounts Payable', type: AccountType.ACCOUNTS_PAYABLE, isSystem: true },
+        { code: '2200', name: 'VAT Payable', type: AccountType.OTHER_CURRENT_LIABILITY, isSystem: true },
+        { code: '3000', name: 'Owner Equity', type: AccountType.EQUITY, isSystem: true },
+        { code: '3100', name: 'Retained Earnings', type: AccountType.EQUITY, isSystem: true },
+        { code: '4000', name: 'Sales Income', type: AccountType.INCOME, isSystem: true },
+        { code: '5000', name: 'Cost of Goods Sold', type: AccountType.COST_OF_GOODS_SOLD, isSystem: true },
+        { code: '6000', name: 'General Expenses', type: AccountType.EXPENSE, isSystem: true },
+        { code: '6100', name: 'Rent Expense', type: AccountType.EXPENSE, isSystem: true },
+        { code: '6200', name: 'Utilities Expense', type: AccountType.EXPENSE, isSystem: true },
+      ];
+      
+      for (const acc of defaults) {
+        await this.save({ ...acc, xarunId, balance: 0 });
+      }
+    }
+  },
+
+  journalEntries: {
+    async getAll(xarunId?: string): Promise<JournalEntry[]> {
+      const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
+      const data = await fetchAllPages('journal_entries', query, 'date');
+      return data.map(j => ({
+        id: j.id, date: j.date, reference: j.reference, description: j.description, lines: j.lines, xarunId: j.xarun_id, createdBy: j.created_by, status: j.status
+      }));
+    },
+    async create(entry: Partial<JournalEntry>): Promise<JournalEntry> {
+      const id = crypto.randomUUID();
+      const payload = { ...entry, id, date: entry.date || new Date().toISOString(), status: entry.status || 'POSTED' };
+      await cloudSave('journal_entries', payload);
+      
+      // When a journal entry is created, it also populates the ledger for reporting
+      if (payload.status === 'POSTED' && payload.lines) {
+        for (const line of payload.lines) {
+          await API.ledger.create({
+            date: payload.date,
+            description: payload.description,
+            type: line.debit > 0 ? 'DEBIT' : 'CREDIT',
+            accountCode: line.accountCode,
+            accountName: line.accountName,
+            amount: line.debit > 0 ? line.debit : line.credit,
+            referenceId: id,
+            xarunId: payload.xarunId,
+            category: 'Journal'
+          });
+        }
+      }
+      
+      return payload as JournalEntry;
+    }
+  },
+
+  ledger: {
+    async getAll(xarunId?: string): Promise<LedgerEntry[]> {
+      const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
+      const data = await fetchAllPages('ledger', query, 'date');
+      return data.map(l => ({
+        id: l.id, date: l.date, description: l.description, type: l.type, accountCode: l.account_code, accountName: l.account_name, amount: l.amount, referenceId: l.reference_id, xarunId: l.xarun_id, category: l.category
+      }));
+    },
+    async create(entry: Partial<LedgerEntry>): Promise<LedgerEntry> {
+      const id = crypto.randomUUID();
+      const payload = { ...entry, id };
+      await cloudSave('ledger', payload);
+      return payload as LedgerEntry;
+    }
+  },
+
+  payments: {
+    async getAll(xarunId?: string): Promise<Payment[]> {
+      const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
+      const data = await fetchAllPages('payments', query, 'date');
+      return data.map(p => ({
+        id: p.id, date: p.date, amount: p.amount, method: p.method, type: p.type, referenceId: p.reference_id, description: p.description, xarunId: p.xarun_id, personnel: p.personnel, accountCode: p.account_code
+      }));
+    },
+    async create(payment: Partial<Payment>): Promise<Payment> {
+      const id = crypto.randomUUID();
+      const payload = { ...payment, id, date: payment.date || new Date().toISOString() };
+      await cloudSave('payments', payload);
+
+      // QuickBooks Logic: Balanced Journal Entry
+      const isIncome = payload.type === 'INCOME' || payload.type === 'CUSTOMER_PAYMENT';
+      const lines: JournalEntryLine[] = [
+        {
+          accountId: '',
+          accountCode: payload.method === 'CASH' ? '1000' : '1100',
+          accountName: payload.method === 'CASH' ? 'Cash on Hand' : 'Bank Account',
+          debit: isIncome ? (payload.amount || 0) : 0,
+          credit: isIncome ? 0 : (payload.amount || 0),
+          memo: payload.description
+        },
+        {
+          accountId: '',
+          accountCode: payload.accountCode || (isIncome ? '4000' : '6000'),
+          accountName: 'Offset Account',
+          debit: isIncome ? 0 : (payload.amount || 0),
+          credit: isIncome ? (payload.amount || 0) : 0,
+          memo: payload.description
+        }
+      ];
+
+      await API.journalEntries.create({
+        date: payload.date,
+        reference: `PAY-${id.slice(0,8)}`,
+        description: payload.description || 'Business Payment',
+        lines,
+        xarunId: payload.xarunId,
+        createdBy: payload.personnel || 'System',
+        status: 'POSTED'
+      });
+
+      return payload as Payment;
+    }
+  },
+
+  purchaseOrders: {
+    async getAll(xarunId?: string): Promise<PurchaseOrder[]> {
+      const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
+      const data = await fetchAllPages('purchase_orders', query, 'date');
+      return data.map(p => ({
+        id: p.id, vendorId: p.vendor_id, vendorName: p.vendor_name, items: p.items, total: p.total, status: p.status, date: p.date, expectedDate: p.expected_date, branchId: p.branch_id, xarunId: p.xarun_id, personnel: p.personnel
+      }));
+    },
+    async save(po: Partial<PurchaseOrder>): Promise<PurchaseOrder> {
+      const id = po.id || crypto.randomUUID();
+      const payload = { ...po, id, date: po.date || new Date().toISOString() };
+      await cloudSave('purchase_orders', payload);
+
+      // QuickBooks Logic: Balanced Journal Entry for Received PO
+      if (payload.status === 'RECEIVED') {
+        const lines: JournalEntryLine[] = [
+          {
+            accountId: '',
+            accountCode: '1300', // Inventory Asset
+            accountName: 'Inventory Asset',
+            debit: payload.total || 0,
+            credit: 0,
+            memo: `Purchase from ${payload.vendorName}`
+          },
+          {
+            accountId: '',
+            accountCode: '2100', // Accounts Payable
+            accountName: 'Accounts Payable',
+            debit: 0,
+            credit: payload.total || 0,
+            memo: `Liability to ${payload.vendorName}`
+          }
+        ];
+
+        await API.journalEntries.create({
+          date: payload.date,
+          reference: `PO-${id.slice(0,8)}`,
+          description: `Purchase Order Received: ${payload.vendorName}`,
+          lines,
+          xarunId: payload.xarunId,
+          createdBy: payload.personnel || 'System',
+          status: 'POSTED'
+        });
+
+        // Update Inventory
+        if (payload.items && Array.isArray(payload.items)) {
+          for (const item of payload.items) {
+            const currentItem = await API.items.getById(item.id);
+            if (currentItem) {
+              await API.items.save({
+                ...currentItem,
+                quantity: (currentItem.quantity || 0) + (item.purchasedQty || 0),
+                lastKnownPrice: item.actualPrice || currentItem.lastKnownPrice
+              });
+
+              // Log transaction
+              await API.transactions.create({
+                itemId: item.id,
+                type: TransactionType.IN,
+                quantity: item.purchasedQty || 0,
+                unitCost: item.actualPrice || 0,
+                originOrSource: `PO-${id.slice(0,8)}`,
+                xarunId: payload.xarunId || '',
+                personnel: payload.personnel || 'System',
+                status: TransactionStatus.APPROVED
+              });
+            }
+          }
+        }
+      }
+
+      return payload as PurchaseOrder;
+    }
+  },
+
+  auditLogs: {
+    async getAll(xarunId?: string): Promise<AuditLog[]> {
+      const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
+      const data = await fetchAllPages('audit_logs', query, 'timestamp');
+      return data.map(l => ({
+        id: l.id, timestamp: l.timestamp, userId: l.user_id, userName: l.user_name, action: l.action, entityType: l.entity_type, entityId: l.entity_id, details: l.details, xarunId: l.xarun_id
+      }));
+    },
+    async log(log: Partial<AuditLog>): Promise<void> {
+      const id = crypto.randomUUID();
+      const payload = { 
+        id, 
+        timestamp: new Date().toISOString(),
+        user_id: log.userId,
+        user_name: log.userName,
+        action: log.action,
+        entity_type: log.entityType,
+        entity_id: log.entityId,
+        details: log.details,
+        xarun_id: log.xarunId
+      };
+      await cloudSave('audit_logs', payload);
+    }
+  },
+
+  // --- ODOO-LIKE ENHANCEMENTS API ---
+
+  crm: {
+    async getAllLeads(xarunId?: string): Promise<any[]> {
+      const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
+      const data = await fetchAllPages('leads', query, 'created_at');
+      return data.map(l => ({
+        id: l.id, title: l.title, contactName: l.contact_name, companyName: l.company_name,
+        email: l.email, phone: l.phone, expectedRevenue: l.expected_revenue,
+        probability: l.probability, status: l.status, priority: l.priority,
+        ownerId: l.owner_id, xarunId: l.xarun_id, createdAt: l.created_at, notes: l.notes
+      }));
+    },
+    async saveLead(lead: any): Promise<any> {
+      const id = lead.id || crypto.randomUUID();
+      const payload = { ...lead, id, createdAt: lead.createdAt || new Date().toISOString() };
+      await cloudSave('leads', payload);
+      return payload;
+    },
+    async deleteLead(id: string): Promise<void> {
+      await supabaseFetch(`leads?id=eq.${id}`, { method: 'DELETE' });
+    }
+  },
+
+  mrp: {
+    async getAllBoMs(xarunId?: string): Promise<any[]> {
+      const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
+      const data = await fetchAllPages('bills_of_materials', query, 'id');
+      return data.map(b => ({
+        id: b.id, productId: b.product_id, productName: b.product_name, reference: b.reference,
+        components: b.components, laborCost: b.labor_cost, overheadCost: b.overhead_cost,
+        totalCost: b.total_cost, xarunId: b.xarun_id
+      }));
+    },
+    async saveBoM(bom: any): Promise<any> {
+      const id = bom.id || crypto.randomUUID();
+      const payload = { ...bom, id };
+      await cloudSave('bills_of_materials', payload);
+      return payload;
+    },
+    async getAllWorkOrders(xarunId?: string): Promise<any[]> {
+      const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
+      const data = await fetchAllPages('work_orders', query, 'planned_date');
+      return data.map(w => ({
+        id: w.id, bomId: w.bom_id, productId: w.product_id, productName: w.product_name,
+        quantity: w.quantity, status: w.status, plannedDate: w.planned_date,
+        actualDate: w.actual_date, xarunId: w.xarun_id, personnel: w.personnel
+      }));
+    },
+    async saveWorkOrder(wo: any): Promise<any> {
+      const id = wo.id || crypto.randomUUID();
+      const payload = { ...wo, id };
+      await cloudSave('work_orders', payload);
+      return payload;
+    }
+  },
+
+  projects: {
+    async getAllProjects(xarunId?: string): Promise<any[]> {
+      const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
+      const data = await fetchAllPages('projects', query);
+      return data.map(p => ({
+        id: p.id, name: p.name, description: p.description, status: p.status,
+        xarunId: p.xarun_id, managerId: p.manager_id, startDate: p.start_date, endDate: p.end_date
+      }));
+    },
+    async saveProject(project: any): Promise<any> {
+      const id = project.id || crypto.randomUUID();
+      const payload = { ...project, id };
+      await cloudSave('projects', payload);
+      return payload;
+    },
+    async getAllTasks(projectId?: string): Promise<any[]> {
+      const query = projectId ? `project_id=eq.${projectId}` : '';
+      const data = await fetchAllPages('project_tasks', query, 'created_at');
+      return data.map(t => ({
+        id: t.id, projectId: t.project_id, projectName: t.project_name, title: t.title,
+        description: t.description, status: t.status, assignedTo: t.assigned_to,
+        priority: t.priority, dueDate: t.due_date, createdAt: t.created_at
+      }));
+    },
+    async saveTask(task: any): Promise<any> {
+      const id = task.id || crypto.randomUUID();
+      const payload = { ...task, id, createdAt: task.createdAt || new Date().toISOString() };
+      await cloudSave('project_tasks', payload);
+      return payload;
+    }
+  },
+
+  fleet: {
+    async getAllVehicles(xarunId?: string): Promise<any[]> {
+      const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
+      const data = await fetchAllPages('vehicles', query, 'id');
+      return data.map(v => ({
+        id: v.id, model: v.model, licensePlate: v.license_plate, driverId: v.driver_id,
+        driverName: v.driver_name, status: v.status, fuelLevel: v.fuel_level,
+        lastServiceDate: v.last_service_date, xarunId: v.xarun_id
+      }));
+    },
+    async saveVehicle(vehicle: any): Promise<any> {
+      const id = vehicle.id || crypto.randomUUID();
+      const payload = { ...vehicle, id };
+      await cloudSave('vehicles', payload);
+      return payload;
+    },
+    async getFuelLogs(vehicleId?: string): Promise<any[]> {
+      const query = vehicleId ? `vehicle_id=eq.${vehicleId}` : '';
+      const data = await fetchAllPages('fuel_logs', query, 'date');
+      return data.map(l => ({
+        id: l.id, vehicleId: l.vehicle_id, date: l.date, amount: l.amount,
+        cost: l.cost, odometerReading: l.odometer_reading, personnel: l.personnel
+      }));
+    },
+    async saveFuelLog(log: any): Promise<any> {
+      const id = log.id || crypto.randomUUID();
+      const payload = { ...log, id };
+      await cloudSave('fuel_logs', payload);
+      return payload;
+    }
+  },
+
+  qc: {
+    async getAllInspections(): Promise<any[]> {
+      const data = await fetchAllPages('qc_inspections', '', 'date');
+      return data.map(i => ({
+        id: i.id, entityType: i.entity_type, entityId: i.entity_id, entityName: i.entity_name,
+        inspectorId: i.inspector_id, inspectorName: i.inspector_name, date: i.date,
+        status: i.status, notes: i.notes, checklist: i.checklist
+      }));
+    },
+    async saveInspection(inspection: any): Promise<any> {
+      const id = inspection.id || crypto.randomUUID();
+      const payload = { ...inspection, id };
+      await cloudSave('qc_inspections', payload);
+      return payload;
+    }
+  },
+
+  dms: {
+    async getAllDocuments(xarunId?: string): Promise<any[]> {
+      const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
+      const data = await fetchAllPages('documents', query, 'created_at');
+      return data.map(d => ({
+        id: d.id, title: d.title, type: d.type, url: d.url, ownerId: d.owner_id,
+        entityType: d.entity_type, entityId: d.entity_id, createdAt: d.created_at,
+        xarunId: d.xarun_id, fileSize: d.file_size
+      }));
+    },
+    async saveDocument(doc: any): Promise<any> {
+      const id = doc.id || crypto.randomUUID();
+      const payload = { ...doc, id, createdAt: doc.createdAt || new Date().toISOString() };
+      await cloudSave('documents', payload);
+      return payload;
+    }
+  },
+
+  helpdesk: {
+    async getAllTickets(xarunId?: string): Promise<any[]> {
+      const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
+      const data = await fetchAllPages('tickets', query, 'created_at');
+      return data.map(t => ({
+        id: t.id, customerId: t.customer_id, customerName: t.customer_name,
+        subject: t.subject, description: t.description, priority: t.priority,
+        status: t.status, assignedTo: t.assigned_to, assignedName: t.assigned_name,
+        createdAt: t.created_at, xarunId: t.xarun_id
+      }));
+    },
+    async saveTicket(ticket: any): Promise<any> {
+      const id = ticket.id || crypto.randomUUID();
+      const payload = { ...ticket, id, createdAt: ticket.createdAt || new Date().toISOString() };
+      await cloudSave('tickets', payload);
+      return payload;
+    }
+  },
+
+  currencies: {
+    async getAll(): Promise<any[]> {
+      const data = await fetchAllPages('currencies', '', 'id');
+      return data.map(c => ({
+        id: c.id, code: c.code, name: c.name, symbol: c.symbol,
+        exchangeRate: c.exchange_rate, isBase: c.is_base
+      }));
+    },
+    async save(currency: any): Promise<any> {
+      const id = currency.id || crypto.randomUUID();
+      const payload = { ...currency, id };
+      await cloudSave('currencies', payload);
+      return payload;
+    }
+  },
+
+  inventoryAdjustments: {
+    async getAll(xarunId?: string): Promise<any[]> {
+      const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
+      const data = await fetchAllPages('inventory_adjustments', query, 'timestamp');
+      return data.map(a => ({
+        id: a.id, itemId: a.item_id, itemName: a.item_name, type: a.type,
+        quantity: a.quantity, reason: a.reason, timestamp: a.timestamp,
+        createdBy: a.created_by, xarunId: a.xarun_id
+      }));
+    },
+    async save(adjustment: any): Promise<any> {
+      const id = adjustment.id || crypto.randomUUID();
+      const payload = {
+        id,
+        item_id: adjustment.itemId,
+        item_name: adjustment.itemName,
+        type: adjustment.type,
+        quantity: adjustment.quantity,
+        reason: adjustment.reason,
+        timestamp: adjustment.timestamp || new Date().toISOString(),
+        created_by: adjustment.createdBy,
+        xarun_id: adjustment.xarunId
+      };
+      await cloudSave('inventory_adjustments', payload);
+      
+      // Also update inventory item quantity
+      const items = await API.items.getAll();
+      const item = items.find((i: any) => i.id === adjustment.itemId);
+      if (item) {
+        let newQty = item.quantity;
+        if (adjustment.type === 'ADD') newQty += adjustment.quantity;
+        else if (adjustment.type === 'REMOVE') newQty -= adjustment.quantity;
+        else if (adjustment.type === 'SET') newQty = adjustment.quantity;
+        
+        await API.items.save({ ...item, quantity: newQty });
+      }
+      
+      return payload;
+    },
+    async bulkSave(adjustments: any[]): Promise<boolean> {
+      try {
+        for (const adj of adjustments) {
+          await this.save(adj);
+        }
+        return true;
+      } catch (error) {
+        console.error("Bulk adjustment error:", error);
+        return false;
+      }
+    }
+  },
+
+  customerPayments: {
+    async receive(payment: any): Promise<any> {
+      const id = payment.id || crypto.randomUUID();
+      const payload = {
+        id,
+        customer_id: payment.customerId,
+        amount: payment.amount,
+        method: payment.method,
+        reference: payment.reference,
+        date: payment.date || new Date().toISOString(),
+        description: payment.description,
+        xarun_id: payment.xarunId
+      };
+      
+      // Save payment
+      await cloudSave('payments', {
+        ...payload,
+        type: 'CUSTOMER_PAYMENT',
+        referenceId: payment.customerId
+      });
+      
+      // Update customer balance
+      const customers = await API.customers.getAll(payment.xarunId);
+      const customer = customers.find(c => c.id === payment.customerId);
+      if (customer) {
+        await API.customers.save({
+          ...customer,
+          balance: customer.balance - payment.amount
+        });
+      }
+      
+      return payload;
+    }
+  },
+
+  stockTakeSessions: {
+    async getAll(xarunId?: string): Promise<any[]> {
+      const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
+      const data = await fetchAllPages('stock_take_sessions', query, 'start_time');
+      return data.map(s => ({
+        id: s.id,
+        xarunId: s.xarun_id,
+        status: s.status,
+        startTime: s.start_time,
+        endTime: s.end_time,
+        createdBy: s.created_by,
+        assignedUsers: s.assigned_users || [],
+        items: s.items || [],
+        progress: s.progress || 0,
+        notes: s.notes
+      }));
+    },
+    async save(session: any): Promise<any> {
+      const id = session.id || crypto.randomUUID();
+      const payload = {
+        id,
+        xarun_id: session.xarunId,
+        status: session.status,
+        start_time: session.startTime,
+        end_time: session.endTime,
+        created_by: session.createdBy,
+        assigned_users: session.assignedUsers,
+        items: session.items,
+        progress: session.progress,
+        notes: session.notes
+      };
+      await cloudSave('stock_take_sessions', payload);
+      return { ...session, id };
     }
   }
 };
