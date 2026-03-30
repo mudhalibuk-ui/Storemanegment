@@ -233,6 +233,39 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
       }
   };
 
+  const handleRemoveHoliday = async () => {
+      if (!window.confirm(`Ma hubtaa inaad fasaxa ka qaaddo maalintaan (${selectedDate})?`)) return;
+      
+      setLoading(true);
+      try {
+          for (const emp of filteredEmployees) {
+              const record = attendanceData.find(a => a.employeeId === emp.id);
+              if (record && record.status === 'HOLIDAY') {
+                  if (record.clockIn) {
+                      // Revert to PRESENT if they had clocked in
+                      await API.attendance.save({
+                          ...record,
+                          status: 'PRESENT',
+                          notes: record.notes?.replace('HOLIDAY - Public Holiday / Ciid', '')?.replace('HOLIDAY - ', '')?.replace('HOLIDAY', '')?.trim() || ''
+                      });
+                  } else {
+                      // Delete the record if they didn't clock in
+                      if (record.id) {
+                          await API.attendance.delete(record.id);
+                      }
+                  }
+              }
+          }
+          await loadAttendance();
+          alert('Fasaxii waa laga qaaday maalintaan.');
+      } catch (error: any) {
+          console.error("Error removing holiday:", error);
+          alert(`Cilad ayaa dhacday: ${error.message || error}`);
+      } finally {
+          setLoading(false);
+      }
+  };
+
   const filteredEmployees = employees.filter(emp => 
     selectedXarunId === 'all' || emp.xarunId === selectedXarunId
   );
@@ -354,6 +387,13 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
                 title="Mark this day as a Holiday for all employees"
               >
                 🌴 Dhig Fasax
+              </button>
+              <button 
+                onClick={handleRemoveHoliday}
+                className="px-4 py-3 bg-rose-50 text-rose-600 border border-rose-100 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-100 transition-all flex items-center justify-center whitespace-nowrap"
+                title="Remove Holiday status for this day"
+              >
+                ❌ Ka Qaad Fasaxa
               </button>
             </div>
           </div>

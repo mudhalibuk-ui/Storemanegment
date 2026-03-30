@@ -595,9 +595,28 @@ export const API = {
         if (status === 'LEAVE' && a.notes?.includes('HOLIDAY')) {
           status = 'HOLIDAY';
         }
+        
+        // Auto-checkout logic for missing clockOuts past 17:00
+        let clockOut = a.clock_out;
+        if (a.clock_in && !a.clock_out && status !== 'ABSENT' && status !== 'LEAVE' && status !== 'HOLIDAY') {
+          const now = new Date();
+          const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+          const currentHour = now.getHours();
+          
+          const isPastDate = a.date < todayStr;
+          const isTodayPast17 = a.date === todayStr && currentHour >= 17;
+          
+          if (isPastDate || isTodayPast17) {
+            const clockInTime = new Date(a.clock_in);
+            if (clockInTime.getUTCHours() < 17) {
+              clockOut = `${a.date}T17:00:00+00:00`;
+            }
+          }
+        }
+
         return {
           id: a.id, employeeId: a.employee_id, date: a.date, status: status,
-          clockIn: a.clock_in, clockOut: a.clock_out, overtimeIn: a.overtime_in,
+          clockIn: a.clock_in, clockOut: clockOut, overtimeIn: a.overtime_in,
           overtimeOut: a.overtime_out, notes: a.notes, deviceId: a.device_id
         };
       });
@@ -610,9 +629,28 @@ export const API = {
         if (status === 'LEAVE' && a.notes?.includes('HOLIDAY')) {
           status = 'HOLIDAY';
         }
+        
+        // Auto-checkout logic for missing clockOuts past 17:00
+        let clockOut = a.clock_out;
+        if (a.clock_in && !a.clock_out && status !== 'ABSENT' && status !== 'LEAVE' && status !== 'HOLIDAY') {
+          const now = new Date();
+          const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+          const currentHour = now.getHours();
+          
+          const isPastDate = a.date < todayStr;
+          const isTodayPast17 = a.date === todayStr && currentHour >= 17;
+          
+          if (isPastDate || isTodayPast17) {
+            const clockInTime = new Date(a.clock_in);
+            if (clockInTime.getUTCHours() < 17) {
+              clockOut = `${a.date}T17:00:00+00:00`;
+            }
+          }
+        }
+
         return {
           id: a.id, employeeId: a.employee_id, date: a.date, status: status,
-          clockIn: a.clock_in, clockOut: a.clock_out, overtimeIn: a.overtime_in,
+          clockIn: a.clock_in, clockOut: clockOut, overtimeIn: a.overtime_in,
           overtimeOut: a.overtime_out, notes: a.notes, deviceId: a.device_id
         };
       });
@@ -633,6 +671,9 @@ export const API = {
       await cloudSave('attendance', payload);
       
       return { ...payload, status: record.status } as Attendance;
+    },
+    async delete(id: string): Promise<void> {
+      await supabaseFetch(`attendance?id=eq.${id}`, { method: 'DELETE' });
     }
   },
 
