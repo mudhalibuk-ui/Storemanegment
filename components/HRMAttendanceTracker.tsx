@@ -209,7 +209,7 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
       setLoading(true);
       try {
           // Create a HOLIDAY record for all active employees for the selected date
-          const promises = filteredEmployees.map(emp => {
+          for (const emp of filteredEmployees) {
               // Check if record already exists
               const existingRecord = attendanceData.find(a => a.employeeId === emp.id);
               const newRecord: Partial<Attendance> = {
@@ -220,15 +220,14 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
                   notes: 'Public Holiday / Ciid',
                   deviceId: existingRecord?.deviceId || 'SYSTEM-HOLIDAY'
               };
-              return API.attendance.save(newRecord);
-          });
+              await API.attendance.save(newRecord);
+          }
           
-          await Promise.all(promises);
           await loadAttendance();
           alert('Maalintaan waxaa loo diiwaan geliyay fasax (Holiday).');
-      } catch (error) {
+      } catch (error: any) {
           console.error("Error marking holiday:", error);
-          alert('Cilad ayaa dhacday.');
+          alert(`Cilad ayaa dhacday: ${error.message || error}`);
       } finally {
           setLoading(false);
       }

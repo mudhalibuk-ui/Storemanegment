@@ -46,6 +46,16 @@ const FIELD_MAPPING: Record<string, string> = {
   expectedArrivalDate: 'expected_arrival_date'
 };
 
+const generateId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
 const toSnakeCase = (obj: any): any => {
   if (Array.isArray(obj)) return obj.map(item => toSnakeCase(item));
   if (obj === null || typeof obj !== 'object' || obj instanceof Date) return obj;
@@ -193,7 +203,7 @@ async function fetchAllPages(table: string, queryParams: string = '', orderBy: s
     
     // Add to Map (deduplicates automatically)
     for (const item of data) {
-      const key = item.id || item.employee_id_code || item.code || crypto.randomUUID();
+      const key = item.id || item.employee_id_code || item.code || generateId();
       allDataMap.set(key, item);
     }
     
@@ -230,7 +240,7 @@ export const API = {
       })) : [];
     },
     async save(xarun: Partial<Xarun>): Promise<Xarun> {
-      const id = xarun.id || crypto.randomUUID();
+      const id = xarun.id || generateId();
       const payload = { 
         id, 
         name: xarun.name, 
@@ -266,7 +276,7 @@ export const API = {
       }));
     },
     async save(branch: Partial<Branch>): Promise<Branch> {
-      const id = branch.id || crypto.randomUUID();
+      const id = branch.id || generateId();
       const payload = { ...branch, id };
       await cloudSave('branches', payload);
       return payload as Branch;
@@ -283,7 +293,7 @@ export const API = {
       return Array.isArray(data) ? data : [];
     },
     async save(device: Partial<Device>): Promise<Device> {
-      const id = device.id || crypto.randomUUID();
+      const id = device.id || generateId();
       const payload = { ...device, id };
       await cloudSave('devices', payload);
       return payload as Device;
@@ -320,7 +330,7 @@ export const API = {
       } : null;
     },
     async save(item: Partial<InventoryItem>): Promise<InventoryItem> {
-      const id = item.id || crypto.randomUUID();
+      const id = item.id || generateId();
       const payload = { ...item, id, lastUpdated: new Date().toISOString() };
       
       // Strip missing columns to prevent Supabase errors
@@ -396,7 +406,7 @@ export const API = {
       }));
     },
     async create(transaction: Partial<Transaction>): Promise<Transaction> {
-      const id = crypto.randomUUID();
+      const id = generateId();
       const payload = { ...transaction, id, timestamp: new Date().toISOString() };
       
       if (isDbConnected()) {
@@ -501,7 +511,7 @@ export const API = {
       })) : [];
     },
     async save(user: Partial<User>): Promise<User> {
-      const id = user.id || crypto.randomUUID();
+      const id = user.id || generateId();
       const payload = { 
         id, 
         name: user.name, 
@@ -549,7 +559,7 @@ export const API = {
         return null;
     },
     async save(employee: Partial<Employee>): Promise<Employee> {
-      const id = employee.id || crypto.randomUUID();
+      const id = employee.id || generateId();
       // Clean up empty strings for optional fields that might have foreign key constraints
       const cleanEmployee = { ...employee };
       if (cleanEmployee.branchId === '') delete cleanEmployee.branchId;
@@ -608,7 +618,7 @@ export const API = {
       });
     },
     async save(record: Partial<Attendance>): Promise<Attendance> {
-      const id = record.id || crypto.randomUUID();
+      const id = record.id || generateId();
       let statusToSave = record.status;
       let notesToSave = record.notes;
       
@@ -637,7 +647,7 @@ export const API = {
       }));
     },
     async save(record: Partial<Payroll>): Promise<Payroll> {
-      const id = record.id || crypto.randomUUID();
+      const id = record.id || generateId();
       const payload = { ...record, id };
       await cloudSave('payroll', payload);
       return payload as Payroll;
@@ -652,7 +662,7 @@ export const API = {
       }));
     },
     async save(shift: Partial<Shift>): Promise<Shift> {
-      const id = shift.id || crypto.randomUUID();
+      const id = shift.id || generateId();
       const payload = { ...shift, id };
       await cloudSave('shifts', payload);
       return payload as Shift;
@@ -668,7 +678,7 @@ export const API = {
       }));
     },
     async save(leave: Partial<LeaveRequest>): Promise<LeaveRequest> {
-      const id = leave.id || crypto.randomUUID();
+      const id = leave.id || generateId();
       const payload = { ...leave, id };
       await cloudSave('leaves', payload);
       return payload as LeaveRequest;
@@ -685,7 +695,7 @@ export const API = {
       }));
     },
     async save(doc: Partial<EmployeeDocument>): Promise<EmployeeDocument> {
-      const id = doc.id || crypto.randomUUID();
+      const id = doc.id || generateId();
       const payload = { ...doc, id };
       await cloudSave('employee_documents', payload);
       return payload as EmployeeDocument;
@@ -703,7 +713,7 @@ export const API = {
       }));
     },
     async create(order: Partial<XarunOrderRequest>): Promise<XarunOrderRequest> {
-      const id = crypto.randomUUID();
+      const id = generateId();
       const payload = { ...order, id, createdAt: new Date().toISOString() };
       await cloudSave('xarun_orders', payload);
       return payload as XarunOrderRequest;
@@ -743,7 +753,7 @@ export const API = {
       }));
     },
     async create(request: Partial<InterBranchTransferRequest>): Promise<InterBranchTransferRequest> {
-      const id = crypto.randomUUID();
+      const id = generateId();
       const payload = { ...request, id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), auditTrail: request.auditTrail || [] };
       await cloudSave('inter_branch_transfer_requests', payload);
       return payload as InterBranchTransferRequest;
@@ -772,7 +782,7 @@ export const API = {
       }));
     },
     async save(customer: Partial<Customer>): Promise<Customer> {
-      const id = customer.id || crypto.randomUUID();
+      const id = customer.id || generateId();
       const payload = { ...customer, id };
       await cloudSave('customers', payload);
       return payload as Customer;
@@ -805,7 +815,7 @@ export const API = {
       }));
     },
     async save(vendor: Partial<Vendor>): Promise<Vendor> {
-      const id = vendor.id || crypto.randomUUID();
+      const id = vendor.id || generateId();
       const payload = { ...vendor, id };
       await cloudSave('vendors', payload);
       return payload as Vendor;
@@ -832,7 +842,7 @@ export const API = {
       }));
     },
     async create(sale: Partial<Sale>): Promise<Sale> {
-      const id = crypto.randomUUID();
+      const id = generateId();
       const payload = { ...sale, id, timestamp: new Date().toISOString(), type: sale.type || 'SALE' };
       await cloudSave('sales', payload);
       
@@ -919,7 +929,7 @@ export const API = {
       }));
     },
     async save(account: Partial<Account>): Promise<Account> {
-      const id = account.id || crypto.randomUUID();
+      const id = account.id || generateId();
       const payload = { ...account, id };
       await cloudSave('chart_of_accounts', payload);
       return payload as Account;
@@ -956,7 +966,7 @@ export const API = {
       }));
     },
     async create(entry: Partial<JournalEntry>): Promise<JournalEntry> {
-      const id = crypto.randomUUID();
+      const id = generateId();
       const payload = { ...entry, id, date: entry.date || new Date().toISOString(), status: entry.status || 'POSTED' };
       await cloudSave('journal_entries', payload);
       
@@ -990,7 +1000,7 @@ export const API = {
       }));
     },
     async create(entry: Partial<LedgerEntry>): Promise<LedgerEntry> {
-      const id = crypto.randomUUID();
+      const id = generateId();
       const payload = { ...entry, id };
       await cloudSave('ledger', payload);
       return payload as LedgerEntry;
@@ -1006,7 +1016,7 @@ export const API = {
       }));
     },
     async create(payment: Partial<Payment>): Promise<Payment> {
-      const id = crypto.randomUUID();
+      const id = generateId();
       const payload = { ...payment, id, date: payment.date || new Date().toISOString() };
       await cloudSave('payments', payload);
 
@@ -1054,7 +1064,7 @@ export const API = {
       }));
     },
     async save(po: Partial<PurchaseOrder>): Promise<PurchaseOrder> {
-      const id = po.id || crypto.randomUUID();
+      const id = po.id || generateId();
       const payload = { ...po, id, date: po.date || new Date().toISOString() };
       await cloudSave('purchase_orders', payload);
 
@@ -1129,7 +1139,7 @@ export const API = {
       }));
     },
     async log(log: Partial<AuditLog>): Promise<void> {
-      const id = crypto.randomUUID();
+      const id = generateId();
       const payload = { 
         id, 
         timestamp: new Date().toISOString(),
@@ -1159,7 +1169,7 @@ export const API = {
       }));
     },
     async saveLead(lead: any): Promise<any> {
-      const id = lead.id || crypto.randomUUID();
+      const id = lead.id || generateId();
       const payload = { ...lead, id, createdAt: lead.createdAt || new Date().toISOString() };
       await cloudSave('leads', payload);
       return payload;
@@ -1180,7 +1190,7 @@ export const API = {
       }));
     },
     async saveBoM(bom: any): Promise<any> {
-      const id = bom.id || crypto.randomUUID();
+      const id = bom.id || generateId();
       const payload = { ...bom, id };
       await cloudSave('bills_of_materials', payload);
       return payload;
@@ -1195,7 +1205,7 @@ export const API = {
       }));
     },
     async saveWorkOrder(wo: any): Promise<any> {
-      const id = wo.id || crypto.randomUUID();
+      const id = wo.id || generateId();
       const payload = { ...wo, id };
       await cloudSave('work_orders', payload);
       return payload;
@@ -1212,7 +1222,7 @@ export const API = {
       }));
     },
     async saveProject(project: any): Promise<any> {
-      const id = project.id || crypto.randomUUID();
+      const id = project.id || generateId();
       const payload = { ...project, id };
       await cloudSave('projects', payload);
       return payload;
@@ -1227,7 +1237,7 @@ export const API = {
       }));
     },
     async saveTask(task: any): Promise<any> {
-      const id = task.id || crypto.randomUUID();
+      const id = task.id || generateId();
       const payload = { ...task, id, createdAt: task.createdAt || new Date().toISOString() };
       await cloudSave('project_tasks', payload);
       return payload;
@@ -1245,7 +1255,7 @@ export const API = {
       }));
     },
     async saveVehicle(vehicle: any): Promise<any> {
-      const id = vehicle.id || crypto.randomUUID();
+      const id = vehicle.id || generateId();
       const payload = { ...vehicle, id };
       await cloudSave('vehicles', payload);
       return payload;
@@ -1259,7 +1269,7 @@ export const API = {
       }));
     },
     async saveFuelLog(log: any): Promise<any> {
-      const id = log.id || crypto.randomUUID();
+      const id = log.id || generateId();
       const payload = { ...log, id };
       await cloudSave('fuel_logs', payload);
       return payload;
@@ -1276,7 +1286,7 @@ export const API = {
       }));
     },
     async saveInspection(inspection: any): Promise<any> {
-      const id = inspection.id || crypto.randomUUID();
+      const id = inspection.id || generateId();
       const payload = { ...inspection, id };
       await cloudSave('qc_inspections', payload);
       return payload;
@@ -1294,7 +1304,7 @@ export const API = {
       }));
     },
     async saveDocument(doc: any): Promise<any> {
-      const id = doc.id || crypto.randomUUID();
+      const id = doc.id || generateId();
       const payload = { ...doc, id, createdAt: doc.createdAt || new Date().toISOString() };
       await cloudSave('documents', payload);
       return payload;
@@ -1313,7 +1323,7 @@ export const API = {
       }));
     },
     async saveTicket(ticket: any): Promise<any> {
-      const id = ticket.id || crypto.randomUUID();
+      const id = ticket.id || generateId();
       const payload = { ...ticket, id, createdAt: ticket.createdAt || new Date().toISOString() };
       await cloudSave('tickets', payload);
       return payload;
@@ -1329,7 +1339,7 @@ export const API = {
       }));
     },
     async save(currency: any): Promise<any> {
-      const id = currency.id || crypto.randomUUID();
+      const id = currency.id || generateId();
       const payload = { ...currency, id };
       await cloudSave('currencies', payload);
       return payload;
@@ -1347,7 +1357,7 @@ export const API = {
       }));
     },
     async save(adjustment: any): Promise<any> {
-      const id = adjustment.id || crypto.randomUUID();
+      const id = adjustment.id || generateId();
       const payload = {
         id,
         item_id: adjustment.itemId,
@@ -1390,7 +1400,7 @@ export const API = {
 
   customerPayments: {
     async receive(payment: any): Promise<any> {
-      const id = payment.id || crypto.randomUUID();
+      const id = payment.id || generateId();
       const payload = {
         id,
         customer_id: payment.customerId,
@@ -1441,7 +1451,7 @@ export const API = {
       }));
     },
     async save(session: any): Promise<any> {
-      const id = session.id || crypto.randomUUID();
+      const id = session.id || generateId();
       const payload = {
         id,
         xarun_id: session.xarunId,
