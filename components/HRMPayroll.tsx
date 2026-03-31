@@ -43,15 +43,11 @@ const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo }) => {
         return d.getMonth() === monthIndex && d.getFullYear() === selectedYear;
     });
 
-    // Calculate working days in the month (excluding Fridays)
+    // Calculate working days in the month (including Fridays)
     const daysInMonth = new Date(selectedYear, monthIndex + 1, 0).getDate();
-    let workingDays = 0;
-    for (let d = 1; d <= daysInMonth; d++) {
-        if (new Date(selectedYear, monthIndex, d).getDay() !== 5) { // 5 is Friday
-            workingDays++;
-        }
-    }
-    const STANDARD_MONTHLY_HOURS = workingDays * 10;
+    const STANDARD_MONTHLY_HOURS = daysInMonth * 10;
+    
+    const todayStr = new Date().toISOString().split('T')[0];
 
     for (const emp of employees) {
       const existing = payrolls.find(p => p.employeeId === emp.id);
@@ -61,29 +57,54 @@ const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo }) => {
       let totalWorkedHours = 0;
       let totalOvertimeHours = 0;
 
-      empLogs.forEach(log => {
-          const logDate = new Date(log.date);
-          const isFriday = logDate.getDay() === 5;
+      // Auto-mark absent and calculate hours for each day
+      for (let d = 1; d <= daysInMonth; d++) {
+          // Use local time to avoid timezone issues with date strings
+          const dateObj = new Date(selectedYear, monthIndex, d);
+          // Format as YYYY-MM-DD
+          const dateStr = `${selectedYear}-${String(monthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          
+          const isFriday = dateObj.getDay() === 5;
+          const isPastOrCurrent = dateStr <= todayStr;
+          
+          const log = empLogs.find(a => a.date === dateStr);
 
-          if (log.status === 'HOLIDAY') {
-              if (!isFriday) {
-                  totalWorkedHours += 10; // Standard 10 hours for a paid holiday on a regular working day
-              }
-          } else if (log.clockIn && log.clockOut) {
-              const hours = calculateHours(log.clockIn, log.clockOut);
-              totalWorkedHours += hours;
+          if (isFriday) {
+              // Friday is a paid day off, add 10 hours automatically
+              totalWorkedHours += 10;
               
-              if (isFriday) {
-                  // All hours worked on a Friday are considered overtime
+              // If they worked on Friday, it's overtime
+              if (log && log.clockIn && log.clockOut) {
+                  const hours = calculateHours(log.clockIn, log.clockOut);
                   totalOvertimeHours += hours;
-              } else {
-                  // DAILY OVERTIME LOGIC: If worked > 10 hours in a single regular day
-                  if (hours > 10) {
-                      totalOvertimeHours += (hours - 10);
+              }
+          } else {
+              // Non-Friday
+              if (log) {
+                  if (log.status === 'HOLIDAY') {
+                      totalWorkedHours += 10; // Standard 10 hours for a paid holiday
+                  } else if (log.status === 'ABSENT') {
+                      // 0 hours
+                  } else if (log.clockIn && log.clockOut) {
+                      const hours = calculateHours(log.clockIn, log.clockOut);
+                      totalWorkedHours += hours;
+                      
+                      // DAILY OVERTIME LOGIC: If worked > 10 hours in a single regular day
+                      if (hours > 10) {
+                          totalOvertimeHours += (hours - 10);
+                      }
                   }
+              } else if (isPastOrCurrent) {
+                  // No log for a past/current non-Friday -> Auto-mark ABSENT
+                  await API.attendance.save({
+                      employeeId: emp.id,
+                      date: dateStr,
+                      status: 'ABSENT'
+                  });
+                  // 0 hours added
               }
           }
-      });
+      }
       
       // Hourly Rate based on salary
       const hourlyRate = emp.salary / STANDARD_MONTHLY_HOURS;

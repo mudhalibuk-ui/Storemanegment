@@ -145,8 +145,8 @@ const Layout: React.FC<LayoutProps> = ({
         { id: 'approvals', label: 'Ogolaanshaha', icon: '🛡️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], badge: pendingApprovalsCount, auditOnly: false, featureId: 'inventory' },
         { id: 'transactions', label: 'Dhaqdhaqaaqa', icon: '🔄', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'inventory' },
         { id: 'map', label: 'Mappingka (Map)', icon: '🗺️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'inventory' },
-        { id: 'bakhaarada', label: 'Bakhaarada (Warehouses)', icon: '🏠', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], auditOnly: false, badge: 0, featureId: 'inventory' },
-        { id: 'xarumo', label: 'Xarumaha (Centers)', icon: '📍', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], auditOnly: false, badge: 0, featureId: 'inventory' },
+        { id: 'xarumaha', label: 'Xarumaha (Branches)', icon: '🏢', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], auditOnly: false, badge: 0, featureId: 'inventory' },
+        { id: 'bakhaarada', label: 'Bakhaarada (Stores)', icon: '🏠', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], auditOnly: false, badge: 0, featureId: 'inventory' },
         { id: 'inter-branch-transfers', label: 'Logistics & Transfers', icon: '🚚', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], badge: interBranchTransferCount, auditOnly: false, featureId: 'inter-branch' }
       ]
     },

@@ -284,18 +284,37 @@ const POS: React.FC<POSProps> = ({ mode = 'pos', user, items, customers, branche
             </div>
           ) : (
             cart.map(item => (
-              <div key={item.itemId} className="flex gap-4 items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                <div className="flex-1">
+              <div key={item.itemId} className="flex flex-col gap-2 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <div className="flex justify-between items-start">
                   <h5 className="font-black text-slate-800 text-sm uppercase leading-tight">{item.name}</h5>
-                  <p className="text-[10px] font-bold text-slate-400 mt-1">${item.unitPrice} x {item.quantity}</p>
+                  <button onClick={() => removeFromCart(item.itemId)} className="text-rose-400 hover:text-rose-600">✕</button>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => updateCartQuantity(item.itemId, item.quantity - 1)} className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center font-black text-slate-600 hover:bg-slate-100">-</button>
-                  <span className="w-8 text-center font-black text-slate-800 text-sm">{item.quantity}</span>
-                  <button onClick={() => updateCartQuantity(item.itemId, item.quantity + 1)} className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center font-black text-slate-600 hover:bg-slate-100">+</button>
-                </div>
-                <div className="text-right min-w-[60px]">
-                  <p className="font-black text-slate-900 text-sm">${item.total.toFixed(2)}</p>
+                <div className="flex items-center gap-4 mt-2">
+                  <div className="flex-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Price ($)</label>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm font-bold text-slate-800 outline-none focus:border-indigo-500"
+                      value={item.unitPrice}
+                      onChange={(e) => {
+                        const newPrice = parseFloat(e.target.value) || 0;
+                        setCart(cart.map(c => c.itemId === item.itemId ? { ...c, unitPrice: newPrice, total: newPrice * c.quantity } : c));
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block text-center">Qty</label>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => updateCartQuantity(item.itemId, item.quantity - 1)} className="w-7 h-7 bg-white border border-slate-200 rounded-md flex items-center justify-center font-black text-slate-600 hover:bg-slate-100">-</button>
+                      <span className="w-8 text-center font-black text-slate-800 text-sm">{item.quantity}</span>
+                      <button onClick={() => updateCartQuantity(item.itemId, item.quantity + 1)} className="w-7 h-7 bg-white border border-slate-200 rounded-md flex items-center justify-center font-black text-slate-600 hover:bg-slate-100">+</button>
+                    </div>
+                  </div>
+                  <div className="text-right min-w-[60px] flex flex-col justify-end h-full">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Total</label>
+                    <p className="font-black text-slate-900 text-sm">${item.total.toFixed(2)}</p>
+                  </div>
                 </div>
               </div>
             ))

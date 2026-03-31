@@ -199,6 +199,7 @@ const InventoryList: React.FC<InventoryListProps> = ({
               <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">
                 <th className="px-6 md:px-10 py-6">Product & Details</th>
                 <th className="px-6 md:px-10 py-6">Stock Locations</th>
+                <th className="px-6 md:px-10 py-6 text-center">Price</th>
                 <th className="px-6 md:px-10 py-6 text-center">Total Qty</th>
                 <th className="px-6 md:px-10 py-6 text-center">Controls</th>
                 <th className="px-6 md:px-10 py-6 text-right">Action</th>
@@ -244,6 +245,9 @@ const InventoryList: React.FC<InventoryListProps> = ({
                             );
                           })}
                         </div>
+                      </td>
+                      <td className="px-6 md:px-10 py-6 text-center align-top">
+                        <span className="text-lg md:text-xl font-black text-emerald-600">${(item.sellingPrice || item.lastKnownPrice || 0).toFixed(2)}</span>
                       </td>
                       <td className="px-6 md:px-10 py-6 text-center align-top">
                         <span className={`text-2xl md:text-3xl font-black ${isLow ? 'text-rose-600' : 'text-slate-900'}`}>{totalQty}</span>

@@ -14,7 +14,7 @@ async function testAll() {
     
     for (const emp of employees) {
       const existingRecord = attendanceData.find(a => a.employeeId === emp.id);
-      const newRecord = {
+      const newRecord: any = {
           id: existingRecord?.id,
           employeeId: emp.id,
           date: selectedDate,
@@ -27,7 +27,7 @@ async function testAll() {
         await API.attendance.save(newRecord);
         successCount++;
       } catch (e) {
-        console.error(`Failed for employee ${emp.id}:`, e.message);
+        console.error(`Failed for employee ${emp.id}:`, (e as Error).message);
         failCount++;
       }
     }

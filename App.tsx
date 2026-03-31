@@ -12,8 +12,6 @@ import Settings from './components/Settings';
 import Login from './components/Login';
 import StockAdjustmentModal from './components/StockAdjustmentModal';
 import LogisticsProcurement from './components/LogisticsProcurement';
-import XarunList from './components/XarunList';
-import XarunForm from './components/XarunForm';
 import BakhaarList from './components/BakhaarList';
 import BranchForm from './components/BranchForm';
 import ItemMovementHistoryModal from './components/ItemMovementHistoryModal';
@@ -90,10 +88,9 @@ const App: React.FC = () => {
   const [isItemFormOpen, setIsItemFormOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isUserFormOpen, setIsUserFormOpen] = useState(false);
-  const [editingXarun, setEditingXarun] = useState<Xarun | null>(null);
-  const [isXarunFormOpen, setIsXarunFormOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
   const [isBranchFormOpen, setIsBranchFormOpen] = useState(false);
+  const [branchFormType, setBranchFormType] = useState<'BRANCH' | 'STORE'>('BRANCH');
   const [filterXarunId, setFilterXarunId] = useState<string | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [isEmployeeFormOpen, setIsEmployeeFormOpen] = useState(false);
@@ -313,69 +310,6 @@ const App: React.FC = () => {
     }
   }, [user, refreshAllData, selectedXarunId]);
 
-  // One-time migration for Bariire Hierarchy
-  useEffect(() => {
-    const runMigration = async () => {
-      if (user?.role !== UserRole.SUPER_ADMIN || xarumo.length === 0) return;
-      
-      const bariireLocations = [
-        "Bariire Bakaaro",
-        "Ramadan Zoope",
-        "Bakharka x,jajab",
-        "Bin Ramadan",
-        "Bariire Xamar weyne"
-      ];
-
-      const foundLocations = xarumo.filter(x => 
-        bariireLocations.some(loc => loc.toLowerCase() === x.name.toLowerCase())
-      );
-
-      if (foundLocations.length > 0) {
-        console.log("Running Bariire Hierarchy Migration...");
-        try {
-          let bariireCompany = xarumo.find(x => x.name.toLowerCase() === "bariire");
-          if (!bariireCompany) {
-            bariireCompany = await API.xarumo.save({
-              name: "Bariire",
-              location: "Mogadishu",
-              status: 'ACTIVE',
-              plan: 'PRO',
-              currency: 'USD',
-              createdAt: new Date().toISOString()
-            } as Xarun);
-          }
-
-          const bariireId = bariireCompany.id;
-
-          for (const loc of foundLocations) {
-            // Create branch
-            await API.branches.save({
-              name: loc.name,
-              location: loc.location || "Mogadishu",
-              xarunId: bariireId,
-              totalShelves: 10,
-              totalSections: 5
-            });
-
-            // Update users
-            const companyUsers = users.filter(u => u.xarunId === loc.id);
-            for (const u of companyUsers) {
-              await API.users.save({ ...u, xarunId: bariireId });
-            }
-
-            // Delete separate company
-            await API.xarumo.delete(loc.id);
-          }
-          refreshAllData(true);
-        } catch (e) {
-          console.error("Migration failed:", e);
-        }
-      }
-    };
-
-    runMigration();
-  }, [user, xarumo, users, refreshAllData]);
-
   const handleApprove = async (t: Transaction) => {
     const item = items.find(i => i.id === t.itemId);
     if (!item) return;
@@ -527,16 +461,24 @@ const App: React.FC = () => {
             onRefresh={refreshAllData}
           />
         );
-      case 'xarumo':
+      case 'xarumaha':
         return (
-          <XarunList 
-            xarumo={xarumo}
-            onAdd={() => { setEditingXarun(null); setIsXarunFormOpen(true); }}
-            onEdit={(x) => { setEditingXarun(x); setIsXarunFormOpen(true); }}
-            onDelete={async (id) => { await API.xarumo.delete(id); refreshAllData(); }}
-            onSelectXarun={(id) => {
-              setSelectedXarunId(id);
-              setActiveTab('bakhaarada');
+          <BakhaarList 
+            branches={user.role === UserRole.SUPER_ADMIN ? branches : branches.filter(b => b.xarunId === user.xarunId)} 
+            xarumo={xarumo} 
+            filterXarunId={selectedXarunId || null} 
+            filterType="BRANCH"
+            onClearFilter={() => setSelectedXarunId(undefined)} 
+            onAdd={() => { setEditingBranch(null); setBranchFormType('BRANCH'); setIsBranchFormOpen(true); }} 
+            onEdit={(b) => { setEditingBranch(b); setBranchFormType('BRANCH'); setIsBranchFormOpen(true); }} 
+            onDelete={async (id) => { await API.branches.delete(id); refreshAllData(); }} 
+            onViewInventory={(branchId) => {
+              setSelectedBranchId(branchId);
+              setActiveTab('inventory');
+            }}
+            onViewMap={(branchId) => {
+              setSelectedBranchId(branchId);
+              setActiveTab('map');
             }}
           />
         );
@@ -546,9 +488,10 @@ const App: React.FC = () => {
             branches={user.role === UserRole.SUPER_ADMIN ? branches : branches.filter(b => b.xarunId === user.xarunId)} 
             xarumo={xarumo} 
             filterXarunId={selectedXarunId || null} 
+            filterType="STORE"
             onClearFilter={() => setSelectedXarunId(undefined)} 
-            onAdd={() => { setEditingBranch(null); setIsBranchFormOpen(true); }} 
-            onEdit={(b) => { setEditingBranch(b); setIsBranchFormOpen(true); }} 
+            onAdd={() => { setEditingBranch(null); setBranchFormType('STORE'); setIsBranchFormOpen(true); }} 
+            onEdit={(b) => { setEditingBranch(b); setBranchFormType('STORE'); setIsBranchFormOpen(true); }} 
             onDelete={async (id) => { await API.branches.delete(id); refreshAllData(); }} 
             onViewInventory={(branchId) => {
               setSelectedBranchId(branchId);
@@ -713,16 +656,7 @@ const App: React.FC = () => {
 
       {/* FORM MODALS */}
       {isUserFormOpen && <UserForm xarumo={xarumo} editingUser={editingUser} onSave={async (u) => { await API.users.save(u); setIsUserFormOpen(false); refreshAllData(); }} onCancel={() => setIsUserFormOpen(false)} />}
-      {isXarunFormOpen && <XarunForm editingXarun={editingXarun} onSave={async (x) => { 
-        try {
-          await API.xarumo.save(x); 
-          setIsXarunFormOpen(false); 
-          refreshAllData(); 
-        } catch (err: any) {
-          alert("Khalad ayaa dhacay markii la kaydinayay xarunta: " + err.message);
-        }
-      }} onCancel={() => setIsXarunFormOpen(false)} />}
-      {isBranchFormOpen && <BranchForm xarumo={xarumo} user={user} editingBranch={editingBranch} onSave={async (b) => { await API.branches.save(b); setIsBranchFormOpen(false); refreshAllData(); }} onCancel={() => setIsBranchFormOpen(false)} />}
+      {isBranchFormOpen && <BranchForm xarumo={xarumo} branches={branches} user={user} editingBranch={editingBranch} defaultType={branchFormType} onSave={async (b) => { await API.branches.save(b); setIsBranchFormOpen(false); refreshAllData(); }} onCancel={() => setIsBranchFormOpen(false)} />}
       {isItemFormOpen && <InventoryForm branches={branches} editingItem={editingItem} onSave={async (item, updateAll) => { 
         // FIX: Ensure xarunId is set based on the selected branch
         const selectedBranch = branches.find(b => b.id === item.branchId);

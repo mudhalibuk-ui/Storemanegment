@@ -3,9 +3,9 @@ import { InventoryItem, Branch, TransactionType, Transaction, TransactionStatus 
 
 // Initial branches with required xarunId
 export const INITIAL_BRANCHES: Branch[] = [
-  { id: 'b1', name: 'Main Warehouse', location: 'Mogadishu', totalShelves: 50, totalSections: 20, xarunId: 'x1' },
-  { id: 'b2', name: 'North Branch', location: 'Hargeisa', totalShelves: 30, totalSections: 15, xarunId: 'x1' },
-  { id: 'b3', name: 'South Hub', location: 'Kismayo', totalShelves: 20, totalSections: 10, xarunId: 'x1' },
+  { id: 'b1', name: 'Main Warehouse', type: 'STORE', location: 'Mogadishu', totalShelves: 50, totalSections: 20, xarunId: 'x1' },
+  { id: 'b2', name: 'North Branch', type: 'BRANCH', location: 'Hargeisa', totalShelves: 30, totalSections: 15, xarunId: 'x1' },
+  { id: 'b3', name: 'South Hub', type: 'BRANCH', location: 'Kismayo', totalShelves: 20, totalSections: 10, xarunId: 'x1' },
 ];
 
 // Initial items with required xarunId

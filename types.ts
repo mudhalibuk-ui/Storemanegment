@@ -172,10 +172,13 @@ export interface User {
 export interface Branch {
   id: string;
   name: string;
+  type: 'BRANCH' | 'STORE';
   location: string;
+  district?: string;
   totalShelves: number; 
   totalSections: number; 
   xarunId: string; 
+  parentBranchId?: string;
   customSections?: Record<number, number>;
   isMainStore?: boolean;
 }

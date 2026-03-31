@@ -66,164 +66,159 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ type, data, settings, b
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-      <div className="bg-white rounded-[2.5rem] w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl border border-white/20 flex flex-col">
+      <div className="bg-white rounded-xl w-full max-w-5xl max-h-[95vh] overflow-hidden shadow-2xl border border-slate-200 flex flex-col">
         {/* Header / Controls */}
-        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-          <div className="flex gap-4">
+        <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+          <div className="flex gap-3">
             <button 
               onClick={handlePrint}
-              className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg flex items-center gap-2"
+              className="bg-blue-600 text-white px-5 py-2 rounded-lg font-semibold text-sm hover:bg-blue-700 transition-all shadow-sm flex items-center gap-2"
             >
-              <span>🖨️</span> Print Document
+              <span>🖨️</span> Print
             </button>
             <button 
-              className="bg-white text-slate-800 border border-slate-200 px-6 py-2 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm flex items-center gap-2"
+              className="bg-white text-slate-700 border border-slate-300 px-5 py-2 rounded-lg font-semibold text-sm hover:bg-slate-50 transition-all shadow-sm flex items-center gap-2"
             >
               <span>📄</span> Download PDF
             </button>
           </div>
-          <button onClick={onClose} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors shadow-sm">✕</button>
+          <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors">✕</button>
         </div>
 
         {/* Document Content */}
-        <div className="flex-1 overflow-y-auto p-12 no-scrollbar bg-white" ref={printRef}>
-          <div className="max-w-3xl mx-auto">
+        <div className="flex-1 overflow-y-auto p-10 no-scrollbar bg-white" ref={printRef}>
+          <div className="max-w-4xl mx-auto font-sans text-slate-800">
             {/* Top Header */}
-            <div className="flex justify-between items-start mb-12">
-              <div className="flex gap-6 items-center">
+            <div className="flex justify-between items-start mb-10">
+              <div className="flex flex-col gap-2">
                 {settings.companyLogo ? (
-                  <img src={settings.companyLogo} alt="Logo" className="w-24 h-24 object-contain rounded-2xl" />
+                  <img src={settings.companyLogo} alt="Logo" className="w-32 h-auto object-contain mb-2" />
                 ) : (
-                  <div className={`w-24 h-24 bg-${accentColor}-100 text-${accentColor}-600 rounded-2xl flex items-center justify-center text-4xl font-black`}>
-                    {settings.systemName.charAt(0)}
-                  </div>
+                  <h1 className="text-2xl font-bold text-slate-900 mb-2">{settings.systemName}</h1>
                 )}
-                <div>
-                  <h1 className={`text-4xl font-black text-slate-900 mb-1 tracking-tighter`}>{settings.systemName}</h1>
-                  <div className="text-slate-500 text-xs font-bold uppercase tracking-widest space-y-0.5">
-                    <p>{branch?.name || 'Main Branch'}</p>
-                    {settings.companyAddress && <p>{settings.companyAddress}</p>}
-                    {settings.companyPhone && <p>Tel: {settings.companyPhone}</p>}
-                    {settings.companyEmail && <p>Email: {settings.companyEmail}</p>}
-                    {settings.companyWebsite && <p>{settings.companyWebsite}</p>}
-                    {settings.companyTaxId && <p>Tax ID: {settings.companyTaxId}</p>}
-                  </div>
+                <div className="text-sm text-slate-600 space-y-0.5">
+                  <p className="font-semibold">{branch?.name || 'Main Branch'}</p>
+                  {settings.companyAddress && <p>{settings.companyAddress}</p>}
+                  {settings.companyPhone && <p>{settings.companyPhone}</p>}
+                  {settings.companyEmail && <p>{settings.companyEmail}</p>}
+                  {settings.companyWebsite && <p>{settings.companyWebsite}</p>}
+                  {settings.companyTaxId && <p>Tax ID: {settings.companyTaxId}</p>}
                 </div>
               </div>
               <div className="text-right">
-                <h2 className={`text-5xl font-black text-${accentColor}-600 tracking-tight uppercase mb-4`}>{title}</h2>
-                <div className="space-y-1">
-                  <div className="flex justify-end gap-4">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Document #</span>
-                    <span className="text-sm font-black text-slate-800">{data.id || 'DRAFT'}</span>
-                  </div>
-                  <div className="flex justify-end gap-4">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</span>
-                    <span className="text-sm font-black text-slate-800">{new Date(date).toLocaleDateString()}</span>
-                  </div>
+                <h2 className="text-4xl font-normal text-slate-400 uppercase tracking-widest mb-6">{title}</h2>
+                <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+                  <div className="text-slate-500 font-medium text-right">Date</div>
+                  <div className="text-slate-900 text-right">{new Date(date).toLocaleDateString()}</div>
+                  
+                  <div className="text-slate-500 font-medium text-right">{type === 'INVOICE' ? 'Invoice #' : 'Document #'}</div>
+                  <div className="text-slate-900 text-right">{data.id || 'DRAFT'}</div>
+                  
+                  {type === 'INVOICE' && (
+                    <>
+                      <div className="text-slate-500 font-medium text-right">Due Date</div>
+                      <div className="text-slate-900 text-right">{new Date(Date.now() + 30*24*60*60*1000).toLocaleDateString()}</div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
 
             {/* Bill To / Info */}
-            <div className="grid grid-cols-2 gap-12 mb-12 pb-12 border-b border-slate-100">
-              <div>
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">{customerLabel}</h3>
-                <p className="text-lg font-black text-slate-900 uppercase">{customerName}</p>
-                <p className="text-sm font-bold text-slate-500 mt-1">{type === 'PURCHASE_ORDER' ? 'Vendor ID' : 'Customer ID'}: {(data as any).customerId || (data as any).vendorId || 'N/A'}</p>
-              </div>
-              <div className="text-right">
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Payment Info</h3>
-                <p className="text-sm font-black text-slate-800 uppercase">{paymentMethod}</p>
-                <p className="text-sm font-bold text-slate-500 mt-1">Status: {type === 'QUOTATION' ? 'PENDING' : (type === 'PURCHASE_ORDER' ? (data as any).status : 'PAID')}</p>
+            <div className="mb-10">
+              <div className="bg-slate-50 p-4 border border-slate-200 rounded-lg inline-block min-w-[300px]">
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">{customerLabel}</h3>
+                <p className="text-base font-bold text-slate-900">{customerName}</p>
+                <p className="text-sm text-slate-600 mt-1">ID: {(data as any).customerId || (data as any).vendorId || 'N/A'}</p>
               </div>
             </div>
 
             {/* Items Table */}
-            <table className="w-full mb-12">
+            <table className="w-full mb-8 border-collapse">
               <thead>
-                <tr className="border-b-2 border-slate-900">
-                  <th className="text-left py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Description</th>
-                  <th className="text-center py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Qty</th>
-                  <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Unit Price</th>
-                  <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</th>
+                <tr className="bg-slate-800 text-white text-sm">
+                  <th className="text-left py-3 px-4 font-semibold border border-slate-800">Item</th>
+                  <th className="text-left py-3 px-4 font-semibold border border-slate-800">Description</th>
+                  <th className="text-right py-3 px-4 font-semibold border border-slate-800 w-24">Qty</th>
+                  <th className="text-right py-3 px-4 font-semibold border border-slate-800 w-32">Rate</th>
+                  <th className="text-right py-3 px-4 font-semibold border border-slate-800 w-32">Amount</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {items.map((item: any, idx: number) => (
-                  <tr key={idx}>
-                    <td className="py-4">
-                      <p className="font-black text-slate-800 uppercase text-sm">{item.name}</p>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.sku}</p>
+                  <tr key={idx} className="border-b border-slate-200 hover:bg-slate-50">
+                    <td className="py-3 px-4 text-sm text-slate-900 align-top border-x border-slate-200">
+                      {item.sku}
                     </td>
-                    <td className="py-4 text-center font-bold text-slate-700">{item.quantity}</td>
-                    <td className="py-4 text-right font-bold text-slate-700">${item.unitPrice.toFixed(2)}</td>
-                    <td className="py-4 text-right font-black text-slate-900">${item.total.toFixed(2)}</td>
+                    <td className="py-3 px-4 text-sm text-slate-900 align-top border-r border-slate-200">
+                      {item.name}
+                    </td>
+                    <td className="py-3 px-4 text-sm text-slate-900 text-right align-top border-r border-slate-200">
+                      {item.quantity}
+                    </td>
+                    <td className="py-3 px-4 text-sm text-slate-900 text-right align-top border-r border-slate-200">
+                      ${item.unitPrice.toFixed(2)}
+                    </td>
+                    <td className="py-3 px-4 text-sm text-slate-900 text-right align-top border-r border-slate-200">
+                      ${item.total.toFixed(2)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
 
             {/* Totals & Footer Info */}
-            <div className="grid grid-cols-2 gap-12">
-              <div className="space-y-6">
-                <div>
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Bank Details</h4>
-                  <div className="text-[10px] font-bold text-slate-600 space-y-1">
-                    <p>Bank: {settings.systemName} Finance</p>
-                    <p>Account Name: {settings.systemName} General</p>
-                    <p>Account Number: 1234567890 (Placeholder)</p>
-                    <p>SWIFT/IBAN: ERP-SOM-01</p>
+            <div className="flex justify-between items-start pt-4">
+              <div className="w-1/2 pr-8 space-y-6">
+                {type === 'INVOICE' && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-800 mb-2">Payment Details</h4>
+                    <div className="text-sm text-slate-600 space-y-1">
+                      <p>Payment Method: <span className="font-medium text-slate-900">{paymentMethod}</span></p>
+                      <p>Bank: {settings.systemName} Finance</p>
+                      <p>Account Name: {settings.systemName} General</p>
+                      <p>Account Number: 1234567890</p>
+                    </div>
                   </div>
-                </div>
+                )}
                 <div>
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Terms & Conditions</h4>
-                  <p className="text-[9px] text-slate-400 leading-relaxed">
-                    1. Payment is due within 30 days unless otherwise specified.<br/>
-                    2. Goods once sold are not returnable after 7 days.<br/>
-                    3. This is a system generated document and does not require a physical signature.
+                  <h4 className="text-sm font-semibold text-slate-800 mb-2">Notes / Terms</h4>
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    Thank you for your business.<br/>
+                    Payment is due within 30 days.
                   </p>
                 </div>
               </div>
-              <div className="flex justify-end">
-                <div className="w-64 space-y-3">
-                  <div className="flex justify-between text-sm font-bold text-slate-500 uppercase">
-                    <span>Subtotal</span>
-                    <span>${subtotal.toFixed(2)}</span>
+              
+              <div className="w-1/3">
+                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                  <div className="flex justify-between py-3 px-4 border-b border-slate-200 bg-slate-50 text-sm">
+                    <span className="text-slate-600 font-medium">Subtotal</span>
+                    <span className="text-slate-900 font-medium">${subtotal.toFixed(2)}</span>
                   </div>
                   {vatAmount > 0 && (
-                    <div className="flex justify-between text-sm font-bold text-slate-500 uppercase">
-                      <span>VAT (15%)</span>
-                      <span>${vatAmount.toFixed(2)}</span>
+                    <div className="flex justify-between py-3 px-4 border-b border-slate-200 bg-slate-50 text-sm">
+                      <span className="text-slate-600 font-medium">Tax (15%)</span>
+                      <span className="text-slate-900 font-medium">${vatAmount.toFixed(2)}</span>
                     </div>
                   )}
-                  <div className={`flex justify-between text-xl font-black text-white bg-${accentColor}-600 p-4 rounded-2xl uppercase tracking-tighter`}>
-                    <span>Total</span>
-                    <span>${total.toFixed(2)}</span>
+                  <div className="flex justify-between py-4 px-4 bg-slate-100 text-lg">
+                    <span className="text-slate-900 font-bold">Total</span>
+                    <span className="text-slate-900 font-bold">${total.toFixed(2)}</span>
                   </div>
+                  {type === 'INVOICE' && (
+                    <div className="flex justify-between py-4 px-4 bg-slate-800 text-white text-lg">
+                      <span className="font-bold">Balance Due</span>
+                      <span className="font-bold">${total.toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
             {/* Footer */}
-            <div className="mt-24 pt-12 border-t border-slate-100 text-center">
-              <div className="flex justify-between items-end mb-8">
-                <div className="text-left">
-                  <div className="w-32 h-32 bg-slate-50 rounded-2xl flex items-center justify-center border-2 border-dashed border-slate-200">
-                    <span className="text-[10px] font-black text-slate-300 uppercase">QR CODE</span>
-                  </div>
-                </div>
-                <div className="flex gap-12">
-                  <div className="w-40 border-t border-slate-900 pt-2">
-                    <p className="text-[8px] font-black text-slate-900 uppercase">Authorized Signature</p>
-                  </div>
-                  <div className="w-40 border-t border-slate-900 pt-2">
-                    <p className="text-[8px] font-black text-slate-900 uppercase">Customer Signature</p>
-                  </div>
-                </div>
-              </div>
-              <p className="text-sm font-black text-slate-800 uppercase tracking-widest mb-2">Thank you for your business!</p>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">This is a system generated {type.toLowerCase().replace('_', ' ')}</p>
+            <div className="mt-16 pt-8 border-t border-slate-200 text-center text-sm text-slate-500">
+              <p>This is a computer-generated document. No signature is required.</p>
             </div>
           </div>
         </div>

@@ -100,12 +100,13 @@ async function cloudSave(table: string, data: any, conflictColumn: string = 'id'
     const errorMsg = String(result.error || '') + ' ' + String(result.details || '') + ' ' + String(result.message || '');
     
     // Auto-retry for missing columns
-    if (errorMsg.includes("does not exist") && errorMsg.includes("column")) {
+    if ((errorMsg.includes("does not exist") && errorMsg.includes("column")) || errorMsg.includes("Could not find the")) {
       // Match "column table.colname does not exist" OR "column colname of relation table does not exist" OR "column colname does not exist"
       const match1 = errorMsg.match(/column "?([^"]+)"? of relation/);
       const match2 = errorMsg.match(/column "?[a-zA-Z0-9_]+"?\."?([^"]+)"? does not exist/);
       const match3 = errorMsg.match(/column "?([^"]+)"? does not exist/);
-      const missingCol = (match1 && match1[1]) || (match2 && match2[1]) || (match3 && match3[1]);
+      const match4 = errorMsg.match(/Could not find the '([^']+)' column/);
+      const missingCol = (match1 && match1[1]) || (match2 && match2[1]) || (match3 && match3[1]) || (match4 && match4[1]);
       
       if (missingCol) {
         console.warn(`Column ${missingCol} missing in ${table}, retrying without it...`);
@@ -260,15 +261,21 @@ export const API = {
       const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
       const data = await fetchAllPages('branches', query, 'id');
       return data.map((b: any) => ({
-        id: b.id, name: b.name, location: b.location, totalShelves: b.total_shelves, 
-        totalSections: b.total_sections, customSections: b.custom_sections || {}, xarunId: b.xarun_id
+        id: b.id, name: b.name, type: b.type || 'BRANCH', location: b.location, district: b.district, totalShelves: b.total_shelves, 
+        totalSections: b.total_sections, customSections: b.custom_sections || {}, xarunId: b.xarun_id, parentBranchId: b.parent_branch_id
       }));
     },
     async save(branch: Partial<Branch>): Promise<Branch> {
       const id = branch.id || generateId();
-      const payload = { ...branch, id };
+      const payload = { 
+        ...branch, 
+        id,
+        parent_branch_id: branch.parentBranchId
+      };
+      // Remove camelCase property before saving to DB
+      delete payload.parentBranchId;
       await cloudSave('branches', payload);
-      return payload as Branch;
+      return { ...branch, id } as Branch;
     },
     async delete(id: string): Promise<void> {
       await supabaseFetch(`branches?id=eq.${id}`, { method: 'DELETE' });

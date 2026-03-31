@@ -61,14 +61,6 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ xarumo, users, onRefresh, onS
   };
 
   const handleFixHierarchy = async () => {
-    const bariireLocations = [
-      "Bariire Bakaaro",
-      "Ramadan Zoope",
-      "Bakharka x,jajab",
-      "Bin Ramadan",
-      "Bariire Xamar weyne"
-    ];
-
     try {
       // 1. Find or create the main "Bariire" company
       let bariireCompany = xarumo.find(x => x.name.toLowerCase() === "bariire");
@@ -85,31 +77,31 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ xarumo, users, onRefresh, onS
 
       const bariireId = bariireCompany.id;
 
-      // 2. Process each location
-      for (const locName of bariireLocations) {
-        const existingXarun = xarumo.find(x => x.name.toLowerCase() === locName.toLowerCase());
-        if (existingXarun) {
-          // a. Create a branch under Bariire
-          await API.branches.save({
-            name: existingXarun.name,
-            location: existingXarun.location || "Mogadishu",
-            xarunId: bariireId,
-            totalShelves: 10,
-            totalSections: 5
-          });
+      // 2. Process all other companies
+      const otherCompanies = xarumo.filter(x => x.id !== bariireId);
+      
+      for (const existingXarun of otherCompanies) {
+        // a. Create a branch under Bariire
+        await API.branches.save({
+          name: existingXarun.name,
+          type: 'BRANCH',
+          location: existingXarun.location || "Mogadishu",
+          xarunId: bariireId,
+          totalShelves: 10,
+          totalSections: 5
+        });
 
-          // b. Update users of this xarun to the main Bariire company
-          const companyUsers = users.filter(u => u.xarunId === existingXarun.id);
-          for (const u of companyUsers) {
-            await API.users.save({ ...u, xarunId: bariireId });
-          }
-
-          // c. Delete the separate company
-          await API.xarumo.delete(existingXarun.id);
+        // b. Update users of this xarun to the main Bariire company
+        const companyUsers = users.filter(u => u.xarunId === existingXarun.id);
+        for (const u of companyUsers) {
+          await API.users.save({ ...u, xarunId: bariireId });
         }
+
+        // c. Delete the separate company
+        await API.xarumo.delete(existingXarun.id);
       }
 
-      alert("Hierarchy fixed! Bariire is now the main company with 5 branches.");
+      alert(`Hierarchy fixed! Bariire is now the main company with ${otherCompanies.length} branches.`);
       onRefresh();
     } catch (error) {
       console.error("Error fixing hierarchy:", error);

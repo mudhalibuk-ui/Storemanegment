@@ -2,7 +2,7 @@ import { API } from './services/api.js';
 
 async function testAutoCheckout() {
   try {
-    const mockRecord = {
+    const mockRecord: any = {
       id: 'test-auto-checkout-id-123',
       employeeId: '8f07a22b-2f24-4bf1-8f49-af20c8cc4fb7',
       date: '2026-03-28', // two days ago
