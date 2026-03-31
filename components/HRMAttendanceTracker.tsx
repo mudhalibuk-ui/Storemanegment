@@ -98,7 +98,29 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
 
   const loadAttendance = async () => {
     setLoading(true);
-    const data = await API.attendance.getByDate(selectedDate);
+    let data = await API.attendance.getByDate(selectedDate);
+    
+    // Auto-mark absent for missing records on non-Fridays (only for past or current dates)
+    const isFriday = new Date(selectedDate).getUTCDay() === 5;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const isPastOrCurrentDate = selectedDate <= todayStr;
+    
+    if (!isFriday && isPastOrCurrentDate) {
+        const missingEmployees = employees.filter(emp => !data.some(a => a.employeeId === emp.id));
+        if (missingEmployees.length > 0) {
+            for (const emp of missingEmployees) {
+                await API.attendance.save({
+                    employeeId: emp.id,
+                    date: selectedDate,
+                    status: 'ABSENT',
+                    deviceId: 'SYSTEM-AUTO'
+                });
+            }
+            // Reload data after auto-creating absent records
+            data = await API.attendance.getByDate(selectedDate);
+        }
+    }
+
     setAttendanceData(data);
 
     // Fetch attendance for the last 3 days for warning logic

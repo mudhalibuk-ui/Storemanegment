@@ -43,6 +43,16 @@ const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo }) => {
         return d.getMonth() === monthIndex && d.getFullYear() === selectedYear;
     });
 
+    // Calculate working days in the month (excluding Fridays)
+    const daysInMonth = new Date(selectedYear, monthIndex + 1, 0).getDate();
+    let workingDays = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+        if (new Date(selectedYear, monthIndex, d).getDay() !== 5) { // 5 is Friday
+            workingDays++;
+        }
+    }
+    const STANDARD_MONTHLY_HOURS = workingDays * 10;
+
     for (const emp of employees) {
       const existing = payrolls.find(p => p.employeeId === emp.id);
       
@@ -52,31 +62,37 @@ const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo }) => {
       let totalOvertimeHours = 0;
 
       empLogs.forEach(log => {
+          const logDate = new Date(log.date);
+          const isFriday = logDate.getDay() === 5;
+
           if (log.status === 'HOLIDAY') {
-              totalWorkedHours += 10; // Standard 10 hours for a paid holiday
+              if (!isFriday) {
+                  totalWorkedHours += 10; // Standard 10 hours for a paid holiday on a regular working day
+              }
           } else if (log.clockIn && log.clockOut) {
               const hours = calculateHours(log.clockIn, log.clockOut);
               totalWorkedHours += hours;
               
-              // DAILY OVERTIME LOGIC: If worked > 10 hours in a single day
-              if (hours > 10) {
-                  totalOvertimeHours += (hours - 10);
+              if (isFriday) {
+                  // All hours worked on a Friday are considered overtime
+                  totalOvertimeHours += hours;
+              } else {
+                  // DAILY OVERTIME LOGIC: If worked > 10 hours in a single regular day
+                  if (hours > 10) {
+                      totalOvertimeHours += (hours - 10);
+                  }
               }
           }
       });
-
-      // Standard Monthly Hours (10 hours * 30 days = 300)
-      const STANDARD_MONTHLY_HOURS = 300; 
       
       // Hourly Rate based on salary
       const hourlyRate = emp.salary / STANDARD_MONTHLY_HOURS;
       
-      // Base Pay (Standard Hours Only, capped at 300 or actual)
+      // Base Pay (Standard Hours Only, capped at STANDARD_MONTHLY_HOURS or actual)
       const regularHours = totalWorkedHours - totalOvertimeHours;
       const basePay = regularHours * hourlyRate;
       
       // Overtime Pay (Added on top)
-      // Assuming Overtime is paid at same rate or 1.0x (Change to 1.5 for extra pay)
       const overtimePay = totalOvertimeHours * hourlyRate;
 
       const calculatedNetPay = Math.round(basePay + overtimePay);
