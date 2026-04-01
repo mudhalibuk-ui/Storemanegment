@@ -136,7 +136,7 @@ const HRMReports: React.FC<HRMReportsProps> = ({ employees, attendance, payrolls
                     </td>
                     <td className="px-10 py-4 text-xs font-bold text-slate-400 uppercase">{xarun}</td>
                     <td className="px-10 py-4 font-mono text-xs text-slate-600">
-                      {record?.clockIn ? new Date(record.clockIn).toLocaleTimeString() : '--:--'}
+                      {record?.clockIn ? new Date(record.clockIn).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'UTC' }) : '--:--'}
                     </td>
                     <td className="px-10 py-4">
                        {record ? (

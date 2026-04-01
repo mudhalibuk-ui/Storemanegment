@@ -60,7 +60,7 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
 
   const isFriday = (dateStr: string) => {
       const d = new Date(dateStr);
-      return d.getDay() === 5; // 5 is Friday
+      return d.getUTCDay() === 5; // 5 is Friday
   };
 
   const fetchLogs = async () => {

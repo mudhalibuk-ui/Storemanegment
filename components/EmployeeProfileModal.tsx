@@ -100,9 +100,10 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
   let countableDays = 0;
 
   empAttendance.forEach(a => {
-      const d = new Date(a.date);
+      if (!a.date) return;
+      const [year, month, day] = a.date.split('-');
       // Only process current month records
-      if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
+      if (parseInt(month, 10) - 1 === currentMonth && parseInt(year, 10) === currentYear) {
           // Scoring
           if (a.status === 'PRESENT') { totalScore += 100; countableDays++; }
           else if (a.status === 'LATE') { totalScore += 50; countableDays++; }
@@ -328,8 +329,20 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
 
                                 // Simple header grouping logic
                                 const prev = empAttendance[index - 1];
-                                const showHeader = !prev || new Date(a.date).getMonth() !== new Date(prev.date).getMonth();
-                                const monthHeader = new Date(a.date).toLocaleString('default', { month: 'long', year: 'numeric' });
+                                const getMonthYear = (dateStr: string) => {
+                                    if (!dateStr) return { month: -1, year: -1, label: '' };
+                                    const [y, m, d] = dateStr.split('-');
+                                    const dateObj = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+                                    return {
+                                        month: parseInt(m, 10) - 1,
+                                        year: parseInt(y, 10),
+                                        label: dateObj.toLocaleString('default', { month: 'long', year: 'numeric' })
+                                    };
+                                };
+                                const currentMY = getMonthYear(a.date);
+                                const prevMY = prev ? getMonthYear(prev.date) : null;
+                                const showHeader = !prev || currentMY.month !== prevMY?.month || currentMY.year !== prevMY?.year;
+                                const monthHeader = currentMY.label;
 
                                 return (
                                     <React.Fragment key={a.id}>

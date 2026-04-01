@@ -39,8 +39,9 @@ const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo }) => {
     // 2. Filter attendance for selected month/year
     const monthIndex = new Date(`${selectedMonth} 1, ${selectedYear}`).getMonth();
     const targetAttendance = allAttendance.filter(a => {
-        const d = new Date(a.date);
-        return d.getMonth() === monthIndex && d.getFullYear() === selectedYear;
+        if (!a.date) return false;
+        const [year, month, day] = a.date.split('-');
+        return parseInt(month, 10) - 1 === monthIndex && parseInt(year, 10) === selectedYear;
     });
 
     // Calculate working days in the month (including Fridays)
@@ -67,7 +68,9 @@ const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo }) => {
           const isFriday = dateObj.getDay() === 5;
           const isPastOrCurrent = dateStr <= todayStr;
           
-          const log = empLogs.find(a => a.date === dateStr);
+          const logsForDay = empLogs.filter(a => a.date === dateStr);
+          // Prefer non-ABSENT logs if duplicates exist due to previous bug
+          const log = logsForDay.find(a => a.status !== 'ABSENT') || logsForDay[0];
 
           if (isFriday) {
               // Friday is a paid day off, add 10 hours automatically
@@ -81,8 +84,8 @@ const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo }) => {
           } else {
               // Non-Friday
               if (log) {
-                  if (log.status === 'HOLIDAY') {
-                      totalWorkedHours += 10; // Standard 10 hours for a paid holiday
+                  if (log.status === 'HOLIDAY' || log.status === 'LEAVE') {
+                      totalWorkedHours += 10; // Standard 10 hours for a paid holiday/leave
                   } else if (log.status === 'ABSENT') {
                       // 0 hours
                   } else if (log.clockIn && log.clockOut) {

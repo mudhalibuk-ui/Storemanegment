@@ -36,34 +36,38 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
     // Get current month absences
     const now = new Date();
     return attendance.filter(a => {
+        if (!a.date) return false;
+        const [year, month, day] = a.date.split('-');
         const d = new Date(a.date);
         return a.employeeId === employeeId && 
                a.status === 'ABSENT' && 
                d.getUTCDay() !== 5 && // Exclude Fridays (Off Days) - Use UTC to avoid timezone shifts
-               d.getMonth() === now.getMonth() &&
-               d.getFullYear() === now.getFullYear();
+               parseInt(month, 10) - 1 === now.getMonth() &&
+               parseInt(year, 10) === now.getFullYear();
     }).length;
   };
 
   const getLateCount = (employeeId: string) => {
     const now = new Date();
     return attendance.filter(a => {
-        const d = new Date(a.date);
+        if (!a.date) return false;
+        const [year, month, day] = a.date.split('-');
         return a.employeeId === employeeId && 
                a.status === 'LATE' && 
-               d.getMonth() === now.getMonth() &&
-               d.getFullYear() === now.getFullYear();
+               parseInt(month, 10) - 1 === now.getMonth() &&
+               parseInt(year, 10) === now.getFullYear();
     }).length;
   };
 
   const getPresentCount = (employeeId: string) => {
     const now = new Date();
     return attendance.filter(a => {
-        const d = new Date(a.date);
+        if (!a.date) return false;
+        const [year, month, day] = a.date.split('-');
         return a.employeeId === employeeId && 
                (a.status === 'PRESENT' || a.status === 'LATE') && 
-               d.getMonth() === now.getMonth() &&
-               d.getFullYear() === now.getFullYear();
+               parseInt(month, 10) - 1 === now.getMonth() &&
+               parseInt(year, 10) === now.getFullYear();
     }).length;
   };
 
