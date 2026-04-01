@@ -99,29 +99,43 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
   let totalScore = 0;
   let countableDays = 0;
 
-  empAttendance.forEach(a => {
-      if (!a.date) return;
-      const [year, month, day] = a.date.split('-');
-      // Only process current month records
-      if (parseInt(month, 10) - 1 === currentMonth && parseInt(year, 10) === currentYear) {
-          // Scoring
-          if (a.status === 'PRESENT') { totalScore += 100; countableDays++; }
-          else if (a.status === 'LATE') { totalScore += 50; countableDays++; }
-          else if (a.status === 'ABSENT') { totalScore += 0; countableDays++; }
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  
+  for (let d = 1; d <= daysInMonth; d++) {
+      const dateObj = new Date(currentYear, currentMonth, d);
+      const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const isFriday = dateObj.getDay() === 5;
+      
+      const logsForDay = empAttendance.filter(a => a.date === dateStr);
+      const log = logsForDay.find(a => a.status !== 'ABSENT') || logsForDay[0];
 
-          // Hours Calculation
-          if (a.status === 'HOLIDAY') {
-              hoursWorkedThisMonth += 10;
-          } else if (a.clockIn && a.clockOut) {
-              const start = new Date(a.clockIn).getTime();
-              const end = new Date(a.clockOut).getTime();
+      if (log) {
+          if (log.status === 'PRESENT') { totalScore += 100; countableDays++; }
+          else if (log.status === 'LATE') { totalScore += 50; countableDays++; }
+          else if (log.status === 'ABSENT') { totalScore += 0; countableDays++; }
+      }
+
+      if (isFriday) {
+          hoursWorkedThisMonth += 10;
+          if (log && log.clockIn && log.clockOut) {
+              const start = new Date(log.clockIn).getTime();
+              const end = new Date(log.clockOut).getTime();
               const hours = (end - start) / (1000 * 60 * 60);
-              if (hours > 0 && hours < 24) {
-                  hoursWorkedThisMonth += hours;
+              if (hours > 0 && hours < 24) hoursWorkedThisMonth += hours;
+          }
+      } else {
+          if (log) {
+              if (log.status === 'HOLIDAY' || log.status === 'LEAVE') {
+                  hoursWorkedThisMonth += 10;
+              } else if (log.clockIn && log.clockOut) {
+                  const start = new Date(log.clockIn).getTime();
+                  const end = new Date(log.clockOut).getTime();
+                  const hours = (end - start) / (1000 * 60 * 60);
+                  if (hours > 0 && hours < 24) hoursWorkedThisMonth += hours;
               }
           }
       }
-  });
+  }
 
   const performanceScore = countableDays > 0 ? Math.round(totalScore / countableDays) : 100;
   
@@ -130,6 +144,11 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
   const hourlyRate = (employee.salary || 0) / standardHours;
   const accruedSalary = Math.floor(hoursWorkedThisMonth * hourlyRate);
   const paidMonthsCount = empPayrolls.filter(p => p.status === 'PAID').length;
+
+  const latestPayroll = empPayrolls.length > 0 ? empPayrolls[0] : null;
+  const displayHours = latestPayroll?.totalHours || hoursWorkedThisMonth;
+  const displaySalary = latestPayroll?.netPay || accruedSalary;
+  const displayMonthText = latestPayroll ? `Bishii ${latestPayroll.month} ${latestPayroll.year}` : 'Bishan (Current Month)';
 
   // --- LEAVE & FRIDAY CALCULATION ---
   const getFridaysCount = (year: number, month: number) => {
@@ -227,13 +246,123 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
     setNewLeave({ type: 'ANNUAL', startDate: '', endDate: '', reason: '' });
   };
 
+  const handlePrint = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const html = `
+      <html>
+        <head>
+          <title>Profile - ${employee.name}</title>
+          <style>
+            body { font-family: system-ui, -apple-system, sans-serif; padding: 40px; color: #333; }
+            .header { border-bottom: 2px solid #eee; padding-bottom: 20px; margin-bottom: 30px; }
+            .header h1 { margin: 0; font-size: 28px; color: #111; }
+            .header p { margin: 5px 0; color: #666; font-size: 14px; }
+            .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
+            .card { border: 1px solid #eee; padding: 20px; border-radius: 8px; text-align: center; }
+            .card h3 { margin: 0 0 10px 0; font-size: 12px; text-transform: uppercase; color: #888; }
+            .card p { margin: 0; font-size: 24px; font-weight: bold; color: #111; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; }
+            th { background: #f9f9f9; font-weight: bold; color: #555; text-transform: uppercase; font-size: 12px; }
+            .text-right { text-align: right; }
+            .status { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+            .PRESENT { background: #e6f4ea; color: #1e8e3e; }
+            .ABSENT { background: #fce8e6; color: #d93025; }
+            .LATE { background: #fef7e0; color: #f9ab00; }
+            .HOLIDAY { background: #e8f0fe; color: #1a73e8; }
+            .LEAVE { background: #f3e8fd; color: #9334e6; }
+            @media print {
+              body { padding: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${employee.name}</h1>
+            <p><strong>ID:</strong> ${employee.employeeIdCode} | <strong>Position:</strong> ${employee.position} | <strong>Department:</strong> ${employee.department}</p>
+            <p><strong>Phone:</strong> ${employee.phone || 'N/A'} | <strong>Email:</strong> ${employee.email || 'N/A'}</p>
+            <p><strong>Report Month:</strong> ${monthName} ${currentYear}</p>
+          </div>
+
+          <div class="grid">
+            <div class="card">
+              <h3>Saacadaha La Shaqeeyay</h3>
+              <p>${displayHours.toFixed(1)}h</p>
+            </div>
+            <div class="card">
+              <h3>Lacagta Kuu Soo Hoyatay</h3>
+              <p>$${displaySalary.toLocaleString()}</p>
+            </div>
+            <div class="card">
+              <h3>Heerka Joogitaanka</h3>
+              <p>${performanceScore}%</p>
+            </div>
+          </div>
+
+          <h3>Diiwaanka Maalmihii Hore (Attendance History - ${monthName} ${currentYear})</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Status</th>
+                <th>Clock In</th>
+                <th>Clock Out</th>
+                <th class="text-right">Hours</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${empAttendance.filter(a => {
+                  if (!a.date) return false;
+                  const [y, m, d] = a.date.split('-');
+                  return parseInt(m, 10) - 1 === currentMonth && parseInt(y, 10) === currentYear;
+              }).map(a => {
+                const start = a.clockIn ? new Date(a.clockIn) : null;
+                const end = a.clockOut ? new Date(a.clockOut) : null;
+                let hours = 0;
+                if (start && end) {
+                  hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+                } else if (a.status === 'HOLIDAY' || a.status === 'LEAVE') {
+                  hours = 10;
+                }
+                
+                return `
+                  <tr>
+                    <td>${a.date}</td>
+                    <td><span class="status ${a.status}">${a.status}</span></td>
+                    <td>${start ? start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}</td>
+                    <td>${end ? end.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}</td>
+                    <td class="text-right">${hours > 0 ? hours.toFixed(1) + 'h' : '-'}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+          <script>
+            window.onload = () => {
+              window.print();
+              window.onafterprint = () => window.close();
+            };
+          </script>
+        </body>
+      </html>
+    `;
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
   return (
     <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[40000] flex items-center justify-center p-4">
       <div className="bg-white w-full max-w-5xl rounded-[3rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in duration-300">
         
         {/* Professional Header */}
         <div className="bg-slate-900 text-white p-8 flex flex-col md:flex-row items-center gap-8 relative shrink-0">
-          <button onClick={onClose} className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all text-xl">✕</button>
+          <div className="absolute top-6 right-6 flex gap-3">
+            <button onClick={handlePrint} className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center hover:bg-indigo-500 transition-all text-xl" title="Download PDF / Print">🖨️</button>
+            <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all text-xl">✕</button>
+          </div>
           
           <img src={employee.avatar} className="w-28 h-28 rounded-[2.5rem] border-4 border-white/20 shadow-2xl object-cover" alt={employee.name} />
           
@@ -318,7 +447,10 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                     </div>
 
                     <div className="space-y-3">
-                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest px-2">Diiwaanka Maalmihii Hore (History)</h3>
+                        <div className="flex justify-between items-center px-2">
+                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Diiwaanka Maalmihii Hore (History)</h3>
+                            <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full">F.G: Jimcaha & Fasaxa waa 10 saacadood (Paid)</span>
+                        </div>
                         
                         {empAttendance.length > 0 ? (
                             empAttendance.map((a, index) => {
@@ -450,12 +582,12 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="bg-indigo-50 p-6 rounded-[2.5rem] border border-indigo-100 text-center">
                             <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">Saacadaha La Shaqeeyay</p>
-                            <p className="text-3xl font-black text-indigo-700">{hoursWorkedThisMonth.toFixed(1)} <span className="text-sm text-indigo-400">Saacadood</span></p>
-                            <p className="text-[8px] text-indigo-300 mt-1">Bishan (Current Month)</p>
+                            <p className="text-3xl font-black text-indigo-700">{displayHours.toFixed(1)} <span className="text-sm text-indigo-400">Saacadood</span></p>
+                            <p className="text-[8px] text-indigo-300 mt-1">{displayMonthText}</p>
                         </div>
                         <div className="bg-emerald-50 p-6 rounded-[2.5rem] border border-emerald-100 text-center">
                             <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-1">Lacagta Kuu Soo Hoyatay</p>
-                            <p className="text-3xl font-black text-emerald-700">${accruedSalary.toLocaleString()}</p>
+                            <p className="text-3xl font-black text-emerald-700">${displaySalary.toLocaleString()}</p>
                             <p className="text-[8px] text-emerald-300 mt-1">Saldhiga: ${employee.salary}</p>
                         </div>
                         <div className="bg-amber-50 p-6 rounded-[2.5rem] border border-amber-100 text-center">
