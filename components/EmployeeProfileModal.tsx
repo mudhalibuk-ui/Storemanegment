@@ -246,7 +246,60 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
     setNewLeave({ type: 'ANNUAL', startDate: '', endDate: '', reason: '' });
   };
 
-  const handlePrint = () => {
+  const handlePrint = (printMonth?: number, printYear?: number) => {
+    const targetMonth = printMonth !== undefined ? printMonth : currentMonth;
+    const targetYear = printYear !== undefined ? printYear : currentYear;
+    const targetMonthName = new Date(targetYear, targetMonth).toLocaleString('default', { month: 'long' });
+
+    // Calculate hours, salary, score for target month
+    let targetHours = 0;
+    let targetScoreTotal = 0;
+    let targetCountableDays = 0;
+    const daysInTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+
+    for (let d = 1; d <= daysInTargetMonth; d++) {
+        const dateStr = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const dateObj = new Date(targetYear, targetMonth, d);
+        const isFriday = dateObj.getDay() === 5;
+        
+        const logsForDay = empAttendance.filter(a => a.date === dateStr);
+        const log = logsForDay.find(a => a.status !== 'ABSENT') || logsForDay[0];
+
+        if (log) {
+            if (log.status === 'PRESENT') { targetScoreTotal += 100; targetCountableDays++; }
+            else if (log.status === 'LATE') { targetScoreTotal += 50; targetCountableDays++; }
+            else if (log.status === 'ABSENT') { targetScoreTotal += 0; targetCountableDays++; }
+        }
+
+        if (isFriday) {
+            targetHours += 10;
+            if (log && log.clockIn && log.clockOut) {
+                const start = new Date(log.clockIn).getTime();
+                const end = new Date(log.clockOut).getTime();
+                const hours = (end - start) / (1000 * 60 * 60);
+                if (hours > 0 && hours < 24) targetHours += hours;
+            }
+        } else {
+            if (log) {
+                if (log.status === 'HOLIDAY' || log.status === 'LEAVE') {
+                    targetHours += 10;
+                } else if (log.clockIn && log.clockOut) {
+                    const start = new Date(log.clockIn).getTime();
+                    const end = new Date(log.clockOut).getTime();
+                    const hours = (end - start) / (1000 * 60 * 60);
+                    if (hours > 0 && hours < 24) targetHours += hours;
+                }
+            }
+        }
+    }
+
+    const targetScore = targetCountableDays > 0 ? Math.round(targetScoreTotal / targetCountableDays) : 100;
+    
+    // Check if there's a payroll for this month
+    const targetPayroll = empPayrolls.find(p => (monthMap[p.month] - 1) === targetMonth && p.year === targetYear);
+    const finalHours = targetPayroll?.totalHours ?? targetHours;
+    const finalSalary = targetPayroll?.netPay ?? Math.floor(targetHours * hourlyRate);
+
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
@@ -284,25 +337,25 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
             <h1>${employee.name}</h1>
             <p><strong>ID:</strong> ${employee.employeeIdCode} | <strong>Position:</strong> ${employee.position} | <strong>Department:</strong> ${employee.department}</p>
             <p><strong>Phone:</strong> ${employee.phone || 'N/A'} | <strong>Email:</strong> ${employee.email || 'N/A'}</p>
-            <p><strong>Report Month:</strong> ${monthName} ${currentYear}</p>
+            <p><strong>Report Month:</strong> ${targetMonthName} ${targetYear}</p>
           </div>
 
           <div class="grid">
             <div class="card">
               <h3>Saacadaha La Shaqeeyay</h3>
-              <p>${displayHours.toFixed(1)}h</p>
+              <p>${finalHours.toFixed(1)}h</p>
             </div>
             <div class="card">
               <h3>Lacagta Kuu Soo Hoyatay</h3>
-              <p>$${displaySalary.toLocaleString()}</p>
+              <p>$${finalSalary.toLocaleString()}</p>
             </div>
             <div class="card">
               <h3>Heerka Joogitaanka</h3>
-              <p>${performanceScore}%</p>
+              <p>${targetScore}%</p>
             </div>
           </div>
 
-          <h3>Diiwaanka Maalmihii Hore (Attendance History - ${monthName} ${currentYear})</h3>
+          <h3>Diiwaanka Maalmihii Hore (Attendance History - ${targetMonthName} ${targetYear})</h3>
           <table>
             <thead>
               <tr>
@@ -317,7 +370,7 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
               ${empAttendance.filter(a => {
                   if (!a.date) return false;
                   const [y, m, d] = a.date.split('-');
-                  return parseInt(m, 10) - 1 === currentMonth && parseInt(y, 10) === currentYear;
+                  return parseInt(m, 10) - 1 === targetMonth && parseInt(y, 10) === targetYear;
               }).map(a => {
                 const start = a.clockIn ? new Date(a.clockIn) : null;
                 const end = a.clockOut ? new Date(a.clockOut) : null;
@@ -360,7 +413,7 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
         {/* Professional Header */}
         <div className="bg-slate-900 text-white p-8 flex flex-col md:flex-row items-center gap-8 relative shrink-0">
           <div className="absolute top-6 right-6 flex gap-3">
-            <button onClick={handlePrint} className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center hover:bg-indigo-500 transition-all text-xl" title="Download PDF / Print">🖨️</button>
+            <button onClick={() => handlePrint()} className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center hover:bg-indigo-500 transition-all text-xl" title="Download PDF / Print">🖨️</button>
             <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all text-xl">✕</button>
           </div>
           
@@ -605,9 +658,12 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                                     <p className="font-black text-slate-800">{p.month} {p.year}</p>
                                     <p className="text-[10px] font-bold text-slate-400 uppercase">Hours: {p.totalHours} • {p.status}</p>
                                 </div>
-                                <div className="text-right">
-                                    <span className="text-lg font-black text-emerald-600 block">${p.netPay}</span>
-                                    {p.paymentDate && <span className="text-[8px] font-bold text-slate-300 uppercase">Paid: {new Date(p.paymentDate).toLocaleDateString()}</span>}
+                                <div className="text-right flex items-center gap-4">
+                                    <div>
+                                        <span className="text-lg font-black text-emerald-600 block">${p.netPay}</span>
+                                        {p.paymentDate && <span className="text-[8px] font-bold text-slate-300 uppercase">Paid: {new Date(p.paymentDate).toLocaleDateString()}</span>}
+                                    </div>
+                                    <button onClick={() => handlePrint(monthMap[p.month] - 1, p.year)} className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center hover:bg-indigo-100 hover:text-indigo-600 transition-all text-sm" title={`Print ${p.month} ${p.year} Profile`}>🖨️</button>
                                 </div>
                             </div>
                         )) : (
