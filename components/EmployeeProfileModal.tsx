@@ -385,8 +385,8 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                   <tr>
                     <td>${a.date}</td>
                     <td><span class="status ${a.status}">${a.status}</span></td>
-                    <td>${start ? start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}</td>
-                    <td>${end ? end.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}</td>
+                    <td>${start ? start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', timeZone: 'UTC'}) : '-'}</td>
+                    <td>${end ? end.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', timeZone: 'UTC'}) : '-'}</td>
                     <td class="text-right">${hours > 0 ? hours.toFixed(1) + 'h' : '-'}</td>
                   </tr>
                 `;
