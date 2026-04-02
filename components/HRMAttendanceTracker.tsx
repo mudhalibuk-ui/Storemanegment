@@ -100,12 +100,23 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
     setLoading(true);
     let data = await API.attendance.getByDate(selectedDate);
     
-    // Auto-mark absent for missing records on non-Fridays (only for past or current dates)
+    // Auto-mark absent for missing records on non-Fridays (only for past dates)
     const isFriday = new Date(selectedDate).getUTCDay() === 5;
     const todayStr = new Date().toISOString().split('T')[0];
-    const isPastOrCurrentDate = selectedDate <= todayStr;
+    const isPastDate = selectedDate < todayStr;
     
-    if (!isFriday && isPastOrCurrentDate) {
+    // CLEANUP: If selectedDate is today, delete any ABSENT records that have no clockIn (mistakenly created by previous logic)
+    if (selectedDate === todayStr) {
+        const autoAbsents = data.filter(a => a.status === 'ABSENT' && !a.clockIn);
+        if (autoAbsents.length > 0) {
+            for (const a of autoAbsents) {
+                if (a.id) await API.attendance.delete(a.id);
+            }
+            data = await API.attendance.getByDate(selectedDate);
+        }
+    }
+
+    if (!isFriday && isPastDate) {
         const missingEmployees = employees.filter(emp => !data.some(a => a.employeeId === emp.id));
         if (missingEmployees.length > 0) {
             for (const emp of missingEmployees) {
@@ -295,8 +306,7 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
   // --- HELPER TO COMPUTE STATUS BASED ON TIME RULES ---
   // Rules:
   // < 8:00 AM  --> PRESENT
-  // 8:00 - 9:00 --> LATE
-  // >= 9:00 AM --> ABSENT
+  // >= 8:00 AM --> LATE
   const getComputedStatus = (record: Attendance) => {
       // If manually set to LEAVE or HOLIDAY, keep it
       if (record.status === 'LEAVE') return 'LEAVE';
@@ -307,8 +317,7 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
               const dateObj = new Date(record.clockIn);
               const hour = dateObj.getUTCHours(); // Assumes UTC storage of wall clock time
               
-              if (hour >= 9) return 'ABSENT';
-              if (hour === 8) return 'LATE';
+              if (hour >= 8) return 'LATE';
               return 'PRESENT';
           } catch (e) {
               return record.status;
