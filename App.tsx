@@ -100,6 +100,7 @@ const App: React.FC = () => {
   const [transferModalItem, setTransferModalItem] = useState<InventoryItem | null>(null);
   const [historyModalItem, setHistoryModalItem] = useState<InventoryItem | null>(null);
   const [importModalType, setImportModalType] = useState<'inventory' | 'customer' | 'vendor' | null>(null);
+  const [importModalMode, setImportModalMode] = useState<'normal' | 'create_only'>('normal');
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [receiptTransaction, setReceiptTransaction] = useState<Transaction | null>(null);
   const [bulkReceiptData, setBulkReceiptData] = useState<{ transactions: Transaction[], type: TransactionType, branch: Branch | undefined, personnel: string, date: string } | null>(null);
@@ -401,7 +402,14 @@ const App: React.FC = () => {
             items={items} branches={branches} 
             initialBranchFilter={selectedBranchId}
             onAdd={() => { setEditingItem(null); setIsItemFormOpen(true); }} 
-            onImport={() => setImportModalType('inventory')} 
+            onImport={() => {
+              setImportModalMode('normal');
+              setImportModalType('inventory');
+            }} 
+            onImportBulkNew={() => {
+              setImportModalMode('create_only');
+              setImportModalType('inventory');
+            }}
             onBulkAction={() => setIsBulkModalOpen(true)} 
             onEdit={(item) => { setEditingItem(item); setIsItemFormOpen(true); }} 
             onDelete={async (id) => { 
@@ -851,8 +859,10 @@ const App: React.FC = () => {
       {importModalType && (
         <ImportModal 
           type={importModalType}
+          mode={importModalMode}
           branches={branches} 
           xarumo={xarumo}
+          existingItems={items}
           userXarunId={user.xarunId} 
           onImport={async (data) => { 
             let success = false;

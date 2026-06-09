@@ -76,6 +76,7 @@ const POS: React.FC<POSProps> = ({ mode = 'pos', user, items, customers, branche
         itemId: item.id,
         sku: item.sku,
         name: item.name,
+        category: item.category,
         quantity: 1,
         unitPrice: item.sellingPrice || item.lastKnownPrice || 0,
         total: item.sellingPrice || item.lastKnownPrice || 0
@@ -99,6 +100,33 @@ const POS: React.FC<POSProps> = ({ mode = 'pos', user, items, customers, branche
       return;
     }
     setCart(cart.map(c => c.itemId === itemId ? { ...c, quantity: qty, total: qty * c.unitPrice } : c));
+  };
+
+  const handlePreview = () => {
+    if (cart.length === 0) return;
+    const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
+    
+    const sale: Partial<Sale> = {
+      customerId: selectedCustomerId,
+      customerName: selectedCustomer?.name || 'Walk-in Customer',
+      items: cart,
+      subtotal,
+      vatAmount,
+      total,
+      applyVat,
+      paymentMethod,
+      branchId: selectedBranchId,
+      xarunId: selectedXarunId,
+      personnel: user.name,
+      isVatSale: applyVat,
+      type: isReturnMode ? 'CREDIT_MEMO' : 'SALE',
+      timestamp: new Date().toISOString()
+    };
+
+    setViewingDocument({ 
+      type: 'INVOICE', 
+      data: sale 
+    });
   };
 
   const handleProcessSale = async (type: 'SALE' | 'QUOTATION' | 'SALES_ORDER' = 'SALE') => {
@@ -376,6 +404,13 @@ const POS: React.FC<POSProps> = ({ mode = 'pos', user, items, customers, branche
           </div>
 
           <div className="grid grid-cols-2 gap-2 pt-2">
+            <button 
+              disabled={cart.length === 0}
+              onClick={handlePreview}
+              className="py-3 bg-slate-800 text-white font-black rounded-xl shadow-lg hover:bg-slate-900 transition-all uppercase text-[10px] tracking-widest disabled:opacity-50"
+            >
+              Preview Invoice
+            </button>
             {mode === 'invoice' && (
               <>
                 <button 
@@ -385,16 +420,20 @@ const POS: React.FC<POSProps> = ({ mode = 'pos', user, items, customers, branche
                 >
                   Quotation
                 </button>
-                <button 
-                  disabled={cart.length === 0 || isProcessing}
-                  onClick={() => handleProcessSale('SALES_ORDER')}
-                  className="py-3 bg-amber-600 text-white font-black rounded-xl shadow-lg hover:bg-amber-700 transition-all uppercase text-[10px] tracking-widest disabled:opacity-50"
-                >
-                  Sales Order
-                </button>
               </>
             )}
           </div>
+          {mode === 'invoice' && (
+            <div className="grid grid-cols-1 pt-2">
+              <button 
+                disabled={cart.length === 0 || isProcessing}
+                onClick={() => handleProcessSale('SALES_ORDER')}
+                className="py-3 bg-amber-600 text-white font-black rounded-xl shadow-lg hover:bg-amber-700 transition-all uppercase text-[10px] tracking-widest disabled:opacity-50"
+              >
+                Sales Order
+              </button>
+            </div>
+          )}
 
           <button 
             disabled={cart.length === 0 || isProcessing}

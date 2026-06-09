@@ -229,6 +229,7 @@ export interface SaleItem {
   itemId: string;
   sku: string;
   name: string;
+  category?: string;
   quantity: number;
   unitPrice: number;
   total: number;

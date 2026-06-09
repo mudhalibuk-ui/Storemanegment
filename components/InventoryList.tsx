@@ -11,6 +11,7 @@ interface InventoryListProps {
   initialBranchFilter?: string;
   onAdd: () => void;
   onImport: () => void;
+  onImportBulkNew?: () => void;
   onBulkAction: () => void;
   onEdit: (item: InventoryItem) => void;
   onTransaction: (item: InventoryItem, type: 'IN' | 'OUT' | 'TRANSFER' | 'MOVE') => void;
@@ -21,7 +22,7 @@ interface InventoryListProps {
 }
 
 const InventoryList: React.FC<InventoryListProps> = ({ 
-  user, items, branches, initialBranchFilter = 'all', onAdd, onImport, onBulkAction, onEdit, onTransaction, onViewHistory, onRefresh, onDeleteAll, onDelete
+  user, items, branches, initialBranchFilter = 'all', onAdd, onImport, onImportBulkNew, onBulkAction, onEdit, onTransaction, onViewHistory, onRefresh, onDeleteAll, onDelete
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [branchFilter, setBranchFilter] = useState(initialBranchFilter);
@@ -155,11 +156,19 @@ const InventoryList: React.FC<InventoryListProps> = ({
               >
                 <span>+</span> CUSUB
               </button>
+              {onImportBulkNew && (
+                <button 
+                  onClick={onImportBulkNew}
+                  className="bg-indigo-50 text-indigo-600 px-6 md:px-8 py-3 md:py-4 rounded-xl md:rounded-2xl font-black text-[9px] md:text-[11px] uppercase tracking-[0.1em] shadow-lg shadow-indigo-100 flex items-center gap-3 active:scale-95 transition-all border border-indigo-200"
+                >
+                  <span className="text-sm">✨</span> ABUUR BADAN (EXCEL)
+                </button>
+              )}
               <button 
                 onClick={onImport}
                 className="bg-[#ecfdf5] text-[#059669] px-6 md:px-8 py-3 md:py-4 rounded-xl md:rounded-2xl font-black text-[9px] md:text-[11px] uppercase tracking-[0.1em] border border-[#d1fae5] flex items-center gap-3 active:scale-95 transition-all shadow-sm"
               >
-                📥 IMPORT
+                📥 UPDATE / IMPORT
               </button>
             </div>
             

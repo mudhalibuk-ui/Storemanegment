@@ -260,20 +260,47 @@ export const API = {
     async getAll(xarunId?: string): Promise<Branch[]> {
       const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
       const data = await fetchAllPages('branches', query, 'id');
-      return data.map((b: any) => ({
-        id: b.id, name: b.name, type: b.type || 'BRANCH', location: b.location, district: b.district, totalShelves: b.total_shelves, 
-        totalSections: b.total_sections, customSections: b.custom_sections || {}, xarunId: b.xarun_id, parentBranchId: b.parent_branch_id
-      }));
+      return data.map((b: any) => {
+        const customSec = b.custom_sections || {};
+        
+        // Ensure we strip metadata from the standard customSections to prevent UI issues
+        const cleanCustomSections = { ...customSec };
+        delete cleanCustomSections.metadata_type;
+        delete cleanCustomSections.metadata_parent_branch_id;
+        
+        return {
+          id: b.id, 
+          name: b.name, 
+          type: customSec.metadata_type || b.type || 'BRANCH', 
+          location: b.location, 
+          district: b.district, 
+          totalShelves: b.total_shelves, 
+          totalSections: b.total_sections, 
+          customSections: cleanCustomSections, 
+          xarunId: b.xarun_id, 
+          parentBranchId: customSec.metadata_parent_branch_id || b.parent_branch_id
+        };
+      });
     },
     async save(branch: Partial<Branch>): Promise<Branch> {
       const id = branch.id || generateId();
+      
+      // We inject type and parentBranchId into custom_sections to bypass missing SQL database columns
+      const customSections = {
+        ...(branch.customSections || {}),
+        metadata_type: branch.type,
+        metadata_parent_branch_id: branch.parentBranchId
+      };
+      
       const payload = { 
         ...branch, 
         id,
-        parent_branch_id: branch.parentBranchId
+        custom_sections: customSections
       };
-      // Remove camelCase property before saving to DB
+      // Keep parent_branch_id in the payload in case they eventually add the column, but it will be safely stripped by cloudSave if missing
+      (payload as any).parent_branch_id = branch.parentBranchId;
       delete payload.parentBranchId;
+      
       await cloudSave('branches', payload);
       return { ...branch, id } as Branch;
     },

@@ -6,14 +6,16 @@ import { letterToNumber } from '../services/mappingUtils';
 
 interface ImportModalProps {
   type: 'inventory' | 'customer' | 'vendor';
+  mode?: 'normal' | 'create_only';
   branches: Branch[];
   xarumo: Xarun[];
+  existingItems?: InventoryItem[];
   userXarunId?: string;
   onImport: (items: any[]) => Promise<boolean>;
   onCancel: () => void;
 }
 
-const ImportModal: React.FC<ImportModalProps> = ({ type, branches, xarumo, userXarunId, onImport, onCancel }) => {
+const ImportModal: React.FC<ImportModalProps> = ({ type, mode = 'normal', branches, xarumo, existingItems, userXarunId, onImport, onCancel }) => {
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<'IDLE' | 'SAVING' | 'SUCCESS' | 'ERROR'>('IDLE');
@@ -21,6 +23,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, branches, xarumo, userX
   const [importedCount, setImportedCount] = useState(0);
   const [selectedDefaultBranch, setSelectedDefaultBranch] = useState(branches[0]?.id || '');
   const [selectedDefaultXarun, setSelectedDefaultXarun] = useState(userXarunId || xarumo[0]?.id || '');
+  const [allowCreateNew, setAllowCreateNew] = useState(mode === 'create_only');
 
   const MAPPINGS = {
     name: ['Name', 'Magaca', 'Product', 'Alaabta', 'Shayga', 'Mudo', 'Item', 'Product Name', 'Description', 'Alaab', 'Magaca Alaabta', 'Customer', 'Vendor', 'Supplier'],
@@ -35,6 +38,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, branches, xarumo, userX
     email: ['Email', 'E-mail', 'Imeel'],
     address: ['Address', 'Cinwaanka', 'Goobta', 'Degmada'],
     balance: ['Balance', 'Haraaga', 'Lacagta', 'Amount Due', 'Owed'],
+    price: ['Price', 'Qiimaha', 'Lacagta', 'Gadka', 'Selling Price', 'Cost', 'Landed Cost', 'Jumlad', 'Tafaariiq'],
     xarun: ['Xarun', 'Xarunta', 'Center', 'Xarun Name', 'Company', 'XarunId']
   };
 
@@ -123,10 +127,19 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, branches, xarumo, userX
             sku = generateAutoSKU(name, category);
           }
 
+          const isExisting = existingItems?.some(
+            ei => ei.name.toLowerCase() === name.toLowerCase() || (ei.sku && ei.sku.toLowerCase() === sku.toLowerCase())
+          );
+
+          if (!isExisting && !allowCreateNew) {
+            return null; // Skip this item as it doesn't exist and we aren't allowing new creation
+          }
+
           const quantity = parseInt(findVal(row, MAPPINGS.quantity)) || 0;
           const minThreshold = parseInt(findVal(row, MAPPINGS.minThreshold)) || 5;
           const rawShelf = (findVal(row, MAPPINGS.shelf) || '1').toString();
           const rawSection = (findVal(row, MAPPINGS.section) || '1').toString();
+          const sellingPrice = parseFloat(findVal(row, MAPPINGS.price)) || 0;
 
           return {
             name,
@@ -135,6 +148,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, branches, xarumo, userX
             shelves: letterToNumber(rawShelf),
             sections: parseInt(rawSection) || 1,
             quantity,
+            sellingPrice,
+            lastKnownPrice: sellingPrice,
             branchId: finalBranchId,
             lastUpdated: new Date().toISOString(),
             minThreshold,
@@ -181,6 +196,14 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, branches, xarumo, userX
         });
       }
 
+      if (type === 'inventory') {
+        processedData = processedData.filter(item => item !== null);
+      }
+
+      if (processedData.length === 0) {
+        throw new Error("Ma jiraan xog sax ah oo la soo gelin karo. (Hubi in alaabtu ay horay u jirtay ama daar 'Oggolow in la abuuro alaab cusub')");
+      }
+
       const success = await onImport(processedData);
       if (success) {
         setImportedCount(processedData.length);
@@ -197,7 +220,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, branches, xarumo, userX
 
   const getTemplateData = () => {
     if (type === 'inventory') {
-      return [{'Magaca': 'Tusaale', 'Tirada': 10, 'Nooca': 'Hardware', 'SKU': '', 'Bakhaar': ''}];
+      return [{'Magaca': 'Tusaale', 'Tirada': 10, 'Qiimaha': 5.5, 'Nooca': 'Hardware', 'SKU': '', 'Bakhaar': ''}];
     } else if (type === 'customer') {
       return [{'Magaca': 'Macmiil Tusaale', 'Telefoon': '252615000000', 'Haraaga': 0, 'Xarunta': ''}];
     } else {
@@ -217,10 +240,10 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, branches, xarumo, userX
             </div>
             <div>
               <h2 className="text-2xl font-black tracking-tight uppercase">
-                {status === 'SUCCESS' ? 'WAAR LAGU GUULEYSTAY!' : status === 'ERROR' ? 'CILAD AYAA DHACDAY' : `IMPORT ${type.toUpperCase()} 🚀`}
+                {status === 'SUCCESS' ? 'WAAR LAGU GUULEYSTAY!' : status === 'ERROR' ? 'CILAD AYAA DHACDAY' : mode === 'create_only' ? `ABUUR ${type.toUpperCase()} BADAN 🚀` : `IMPORT ${type.toUpperCase()} 🚀`}
               </h2>
               <p className="text-[10px] font-bold uppercase opacity-70 tracking-widest">
-                {status === 'SUCCESS' ? `${importedCount} ${type === 'inventory' ? 'Alaab' : type === 'customer' ? 'Macaamiil' : 'Ganacsato'} ah ayaa la galiyay` : 'Excel Mapping & Auto-Generator'}
+                {status === 'SUCCESS' ? `${importedCount} ${type === 'inventory' ? 'Alaab' : type === 'customer' ? 'Macaamiil' : 'Ganacsato'} ah ayaa la galiyay` : mode === 'create_only' ? 'Excel Bulk Creation' : 'Excel Mapping & Auto-Generator'}
               </p>
             </div>
           </div>
@@ -268,7 +291,21 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, branches, xarumo, userX
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+              <div className="space-y-6">
+                {type === 'inventory' && !previewData.length && mode !== 'create_only' && (
+                  <div className="flex items-center space-x-3 p-4 rounded-2xl border-2 border-slate-100 bg-slate-50">
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" className="sr-only peer" checked={allowCreateNew} onChange={e => setAllowCreateNew(e.target.checked)} />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                    <div className="flex-1">
+                      <span className="ml-3 text-sm font-black text-slate-700">Oggolow in la abuuro Alaab cusub</span>
+                      <p className="ml-3 text-xs font-bold text-slate-500">Haddii la damiyo, kaliya alaabta horay ugu jirtay system-ka ayaa xogtooda la kordhin doonaa.</p>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
                 <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">
                       {type === 'inventory' ? 'Default Bakhaar' : 'Default Xarun'} (Hadii Excel-ka lagu xusin)
@@ -303,9 +340,11 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, branches, xarumo, userX
                           <th className="px-8 py-5">Magaca</th>
                           {type === 'inventory' ? (
                             <>
-                              <th className="px-8 py-5">SKU Status</th>
+                              <th className="px-8 py-5">Status</th>
+                              <th className="px-8 py-5">SKU</th>
                               <th className="px-8 py-5">Bakhaarka</th>
                               <th className="px-8 py-5 text-center">Tirada</th>
+                              <th className="px-8 py-5 text-center">Qiimaha</th>
                             </>
                           ) : (
                             <>
@@ -328,13 +367,30 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, branches, xarumo, userX
 
                           if (type === 'inventory') {
                             const providedSku = (findVal(row, MAPPINGS.sku) || '').toString().trim();
+                            const parsedSku = providedSku || generateAutoSKU(name, (findVal(row, MAPPINGS.category) || '').toString().trim());
+
+                            const isExisting = existingItems?.some(
+                              ei => ei.name.toLowerCase() === name.toLowerCase() || (ei.sku && ei.sku.toLowerCase() === parsedSku.toLowerCase())
+                            );
+
                             const bNameInput = (findVal(row, MAPPINGS.branch) || '').toString();
                             const bMatch = branches.find(b => b.name.toLowerCase().trim() === bNameInput.toLowerCase().trim());
                             const finalBName = bMatch ? bMatch.name : branches.find(b => b.id === selectedDefaultBranch)?.name || 'Default';
                             
+                            const willSkip = !isExisting && !allowCreateNew;
+
                             return (
-                              <tr key={i} className={`text-sm font-bold text-slate-700 hover:bg-indigo-50/50 ${status === 'SAVING' ? 'opacity-50' : ''}`}>
+                              <tr key={i} className={`text-sm font-bold ${willSkip ? 'text-slate-300 bg-slate-50 opacity-60' : 'text-slate-700 hover:bg-indigo-50/50'} ${status === 'SAVING' ? 'opacity-50' : ''}`}>
                                 <td className="px-8 py-4">{name}</td>
+                                <td className="px-8 py-4">
+                                  {isExisting ? (
+                                    <span className="px-2 py-1 bg-green-50 text-green-600 rounded text-[9px] font-black uppercase">Wuu Jiraa</span>
+                                  ) : willSkip ? (
+                                    <span className="px-2 py-1 bg-red-50 text-red-600 rounded text-[9px] font-black uppercase">Ma Abuurno</span>
+                                  ) : (
+                                    <span className="px-2 py-1 bg-purple-50 text-purple-600 rounded text-[9px] font-black uppercase">Waa Cusub</span>
+                                  )}
+                                </td>
                                 <td className="px-8 py-4">
                                   {providedSku ? (
                                     <span className="font-mono text-xs text-slate-400">{providedSku}</span>
@@ -348,6 +404,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, branches, xarumo, userX
                                   </span>
                                 </td>
                                 <td className="px-8 py-4 text-center font-black">{findVal(row, MAPPINGS.quantity) || '0'}</td>
+                                <td className="px-8 py-4 text-center font-black">${parseFloat(findVal(row, MAPPINGS.price)) || '0'}</td>
                               </tr>
                             );
                           }
@@ -370,6 +427,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, branches, xarumo, userX
                   </div>
                 </div>
               )}
+              </div>
             </>
           )}
         </div>
@@ -379,9 +437,23 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, branches, xarumo, userX
             <button onClick={onCancel} className="flex-1 py-5 bg-white border-2 border-slate-200 text-slate-400 font-black rounded-[2rem] uppercase text-[10px] tracking-widest hover:bg-slate-100 transition-all">JOOJI</button>
             <button 
               onClick={processImport}
-              className="flex-[2] py-5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-[2rem] shadow-2xl transition-all uppercase text-[11px] tracking-widest border-b-4 border-indigo-900"
+              className={`flex-[2] py-5 font-black rounded-[2rem] shadow-2xl transition-all uppercase text-[11px] tracking-widest border-b-4 ${
+                type === 'inventory' && !allowCreateNew && existingItems && 
+                previewData.filter((row) => {
+                  const name = (findVal(row, MAPPINGS.name) || '').toString().trim();
+                  const sku = (findVal(row, MAPPINGS.sku) || generateAutoSKU(name, (findVal(row, MAPPINGS.category) || '').toString().trim())).toString().trim();
+                  return existingItems.some(ei => ei.name.toLowerCase() === name.toLowerCase() || (ei.sku && ei.sku.toLowerCase() === sku.toLowerCase()));
+                }).length === 0 
+                  ? 'bg-slate-300 border-slate-400 text-slate-500 cursor-not-allowed opacity-70' 
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-900'
+              }`}
+              disabled={type === 'inventory' && !allowCreateNew && existingItems && previewData.filter((row) => {
+                const name = (findVal(row, MAPPINGS.name) || '').toString().trim();
+                const sku = (findVal(row, MAPPINGS.sku) || generateAutoSKU(name, (findVal(row, MAPPINGS.category) || '').toString().trim())).toString().trim();
+                return existingItems.some(ei => ei.name.toLowerCase() === name.toLowerCase() || (ei.sku && ei.sku.toLowerCase() === sku.toLowerCase()));
+              }).length === 0}
             >
-              SOO GALI DHAMMAAN ({previewData.length})
+              {mode === 'create_only' ? `ABUUR DHAMMAAN (${previewData.length})` : `SOO GALI DHAMMAAN (${previewData.length})`}
             </button>
           </div>
         )}
