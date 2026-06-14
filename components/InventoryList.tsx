@@ -154,14 +154,14 @@ const InventoryList: React.FC<InventoryListProps> = ({
                 onClick={onAdd}
                 className="bg-[#1e293b] text-white px-6 md:px-8 py-3 md:py-4 rounded-xl md:rounded-2xl font-black text-[9px] md:text-[11px] uppercase tracking-[0.1em] shadow-lg flex items-center gap-3 active:scale-95 transition-all"
               >
-                <span>+</span> CUSUB
+                <span>+</span> NEW ITEM
               </button>
               {onImportBulkNew && (
                 <button 
                   onClick={onImportBulkNew}
                   className="bg-indigo-50 text-indigo-600 px-6 md:px-8 py-3 md:py-4 rounded-xl md:rounded-2xl font-black text-[9px] md:text-[11px] uppercase tracking-[0.1em] shadow-lg shadow-indigo-100 flex items-center gap-3 active:scale-95 transition-all border border-indigo-200"
                 >
-                  <span className="text-sm">✨</span> ABUUR BADAN (EXCEL)
+                  <span className="text-sm">✨</span> MULTIPLE ITEMS
                 </button>
               )}
               <button 
@@ -208,7 +208,7 @@ const InventoryList: React.FC<InventoryListProps> = ({
               <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">
                 <th className="px-6 md:px-10 py-6">Product & Details</th>
                 <th className="px-6 md:px-10 py-6">Stock Locations</th>
-                <th className="px-6 md:px-10 py-6 text-center">Price</th>
+                <th className="px-6 md:px-10 py-6 text-center">Pricing (Cost / Sell)</th>
                 <th className="px-6 md:px-10 py-6 text-center">Total Qty</th>
                 <th className="px-6 md:px-10 py-6 text-center">Controls</th>
                 <th className="px-6 md:px-10 py-6 text-right">Action</th>
@@ -255,8 +255,22 @@ const InventoryList: React.FC<InventoryListProps> = ({
                           })}
                         </div>
                       </td>
-                      <td className="px-6 md:px-10 py-6 text-center align-top">
-                        <span className="text-lg md:text-xl font-black text-emerald-600">${(item.sellingPrice || item.lastKnownPrice || 0).toFixed(2)}</span>
+                      <td className="px-6 md:px-10 py-6 align-top">
+                        <div className="flex flex-col items-center gap-1.5 mt-2">
+                          <div className="flex gap-2 text-[10px] md:text-xs font-black uppercase tracking-widest text-slate-400">
+                             <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded" title="Soo Iibsi">C: ${(item.lastKnownPrice || 0).toFixed(2)}</span>
+                             <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded" title="Iibin">S: ${(item.sellingPrice || item.lastKnownPrice || 0).toFixed(2)}</span>
+                          </div>
+                          {item.sellingPrice && item.lastKnownPrice && item.sellingPrice > item.lastKnownPrice ? (
+                            <span className="text-[9px] font-black bg-emerald-500 text-white px-2 py-0.5 rounded-full uppercase shadow-sm">
+                              +{Math.round(((item.sellingPrice - item.lastKnownPrice) / item.lastKnownPrice) * 100)}% MARGIN
+                            </span>
+                          ) : item.sellingPrice && item.lastKnownPrice && item.sellingPrice < item.lastKnownPrice ? (
+                            <span className="text-[9px] font-black bg-rose-500 text-white px-2 py-0.5 rounded-full uppercase shadow-sm">
+                              {Math.round(((item.sellingPrice - item.lastKnownPrice) / item.lastKnownPrice) * 100)}% LOSS
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="px-6 md:px-10 py-6 text-center align-top">
                         <span className={`text-2xl md:text-3xl font-black ${isLow ? 'text-rose-600' : 'text-slate-900'}`}>{totalQty}</span>

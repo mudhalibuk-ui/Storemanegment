@@ -515,7 +515,7 @@ const App: React.FC = () => {
         return (
           <HRMEmployeeManagement 
             employees={employees} 
-            branches={branches} 
+            branches={user.role === UserRole.SUPER_ADMIN ? branches : branches.filter(b => b.xarunId === user.xarunId)} 
             xarumo={xarumo} 
             attendance={attendance} 
             payrolls={payrolls} 
@@ -704,7 +704,7 @@ const App: React.FC = () => {
         setIsItemFormOpen(false); 
         refreshAllData(); 
       }} onCancel={() => setIsItemFormOpen(false)} />}
-      {isEmployeeFormOpen && <EmployeeForm branches={branches} xarumo={xarumo} editingEmployee={editingEmployee} onSave={async (emp) => { await API.employees.save(emp); setIsEmployeeFormOpen(false); refreshAllData(); }} onCancel={() => setIsEmployeeFormOpen(false)} />}
+      {isEmployeeFormOpen && <EmployeeForm branches={user?.role === UserRole.SUPER_ADMIN ? branches : branches.filter(b => b.xarunId === user?.xarunId)} xarumo={user?.role === UserRole.SUPER_ADMIN ? xarumo : xarumo.filter(x => x.id === user?.xarunId)} editingEmployee={editingEmployee} onSave={async (emp) => { await API.employees.save(emp); setIsEmployeeFormOpen(false); refreshAllData(); }} onCancel={() => setIsEmployeeFormOpen(false)} />}
       
 
 
@@ -757,7 +757,8 @@ const App: React.FC = () => {
                             ...existingTargetItem, 
                             quantity: existingTargetItem.quantity + data.qty,
                             shelves: data.shelf || existingTargetItem.shelves,
-                            sections: data.section || existingTargetItem.sections
+                            sections: data.section || existingTargetItem.sections,
+                            lastKnownPrice: data.unitCost !== undefined ? data.unitCost : existingTargetItem.lastKnownPrice
                         });
                     } else {
                         // Create new item in target branch
@@ -773,8 +774,9 @@ const App: React.FC = () => {
                             shelves: data.shelf || 1,
                             sections: data.section || 1,
                             packType: sourceItem.packType,
+                            lastKnownPrice: data.unitCost || sourceItem.lastKnownPrice,
+                            sellingPrice: sourceItem.sellingPrice,
                             supplier: sourceItem.supplier,
-                            lastKnownPrice: sourceItem.lastKnownPrice,
                             landedCost: sourceItem.landedCost
                         });
                     }

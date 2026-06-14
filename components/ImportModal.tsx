@@ -29,7 +29,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, mode = 'normal', branch
     name: ['Name', 'Magaca', 'Product', 'Alaabta', 'Shayga', 'Mudo', 'Item', 'Product Name', 'Description', 'Alaab', 'Magaca Alaabta', 'Customer', 'Vendor', 'Supplier'],
     sku: ['SKU', 'Code', 'Barcode', 'Sumadda', 'Id Code', 'Lambar', 'Suku', 'Sku Code', 'Part Number', 'Item Code', 'Lambarka'],
     category: ['Category', 'Nooca', 'Cat', 'Qaybta Alaabta', 'Qaybta', 'Type', 'Nooca Shayga', 'Caynka'],
-    quantity: ['Quantity', 'Tirada', 'Qty', 'Stock', 'Maduushada', 'Tira', 'Amount', 'Count', 'Available', 'Tirada Guud', 'Xaddiga'],
+    quantity: ['Quantity', 'Tirada', 'Qty', 'Stock', 'Maduushada', 'Tira', 'Amount', 'Count', 'Available', 'Tirada Guud', 'Xaddiga', 'Cadadka'],
     shelf: ['Shelf', 'Iskafalo', 'Iskafalada', 'Iska', 'Shelf Number', 'Safaxad', 'Rack', 'Shelf Name', 'Booska'],
     section: ['Section', 'Godka', 'God', 'Go', 'Slot', 'Qaybta', 'Bin', 'Godka Iskafalada', 'Qolka'],
     branch: ['Branch', 'Bakhaar', 'Bakhaarka', 'Branch Name', 'Warehouse', 'Goobta', 'BranchId', 'Store', 'Magaalada'],
@@ -38,7 +38,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, mode = 'normal', branch
     email: ['Email', 'E-mail', 'Imeel'],
     address: ['Address', 'Cinwaanka', 'Goobta', 'Degmada'],
     balance: ['Balance', 'Haraaga', 'Lacagta', 'Amount Due', 'Owed'],
-    price: ['Price', 'Qiimaha', 'Lacagta', 'Gadka', 'Selling Price', 'Cost', 'Landed Cost', 'Jumlad', 'Tafaariiq'],
+    costPrice: ['Cost', 'Soo Iibsi', 'Gadka', 'Landed Cost', 'Jumlad', 'Qiimaha Soo Iibsiga', 'Qiimaha Jumlad', 'Cost Price'],
+    price: ['Price', 'Qiimaha', 'Lacagta', 'Selling Price', 'Tafaariiq', 'Qiimaha Iibka', 'Qimaha', 'Iibta', 'Qiimaha Lacagta'],
     xarun: ['Xarun', 'Xarunta', 'Center', 'Xarun Name', 'Company', 'XarunId']
   };
 
@@ -140,6 +141,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, mode = 'normal', branch
           const rawShelf = (findVal(row, MAPPINGS.shelf) || '1').toString();
           const rawSection = (findVal(row, MAPPINGS.section) || '1').toString();
           const sellingPrice = parseFloat(findVal(row, MAPPINGS.price)) || 0;
+          const costPrice = parseFloat(findVal(row, MAPPINGS.costPrice)) || 0;
 
           return {
             name,
@@ -149,7 +151,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, mode = 'normal', branch
             sections: parseInt(rawSection) || 1,
             quantity,
             sellingPrice,
-            lastKnownPrice: sellingPrice,
+            lastKnownPrice: costPrice > 0 ? costPrice : sellingPrice,
             branchId: finalBranchId,
             lastUpdated: new Date().toISOString(),
             minThreshold,
@@ -220,7 +222,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, mode = 'normal', branch
 
   const getTemplateData = () => {
     if (type === 'inventory') {
-      return [{'Magaca': 'Tusaale', 'Tirada': 10, 'Qiimaha': 5.5, 'Nooca': 'Hardware', 'SKU': '', 'Bakhaar': ''}];
+      return [{'Magaca': 'Tusaale', 'Tirada': 10, 'Soo Iibsi': 4.5, 'Qiimaha Iibka': 5.5, 'Nooca': 'Hardware', 'SKU': '', 'Bakhaar': ''}];
     } else if (type === 'customer') {
       return [{'Magaca': 'Macmiil Tusaale', 'Telefoon': '252615000000', 'Haraaga': 0, 'Xarunta': ''}];
     } else {
@@ -344,7 +346,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, mode = 'normal', branch
                               <th className="px-8 py-5">SKU</th>
                               <th className="px-8 py-5">Bakhaarka</th>
                               <th className="px-8 py-5 text-center">Tirada</th>
-                              <th className="px-8 py-5 text-center">Qiimaha</th>
+                              <th className="px-8 py-5 text-center">Soo Iibsi</th>
+                              <th className="px-8 py-5 text-center">Iibin</th>
                             </>
                           ) : (
                             <>
@@ -404,7 +407,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, mode = 'normal', branch
                                   </span>
                                 </td>
                                 <td className="px-8 py-4 text-center font-black">{findVal(row, MAPPINGS.quantity) || '0'}</td>
-                                <td className="px-8 py-4 text-center font-black">${parseFloat(findVal(row, MAPPINGS.price)) || '0'}</td>
+                                <td className="px-8 py-4 text-center font-black text-amber-600">${parseFloat(findVal(row, MAPPINGS.costPrice)) || '0'}</td>
+                                <td className="px-8 py-4 text-center font-black text-indigo-600">${parseFloat(findVal(row, MAPPINGS.price)) || '0'}</td>
                               </tr>
                             );
                           }
