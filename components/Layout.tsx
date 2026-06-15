@@ -64,7 +64,7 @@ const Layout: React.FC<LayoutProps> = ({
     { 
       section: 'OVERVIEW', 
       items: [
-        { id: 'dashboard', label: 'Dashboard', icon: '📊', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF, UserRole.CASHIER], badge: 0, featureId: 'dashboard' },
+        { id: 'dashboard', label: 'Dashboard', icon: '📊', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], badge: 0, featureId: 'dashboard' },
       ]
     },
     { 
@@ -115,8 +115,8 @@ const Layout: React.FC<LayoutProps> = ({
       isCollapsible: true,
       items: [
         { id: 'pos', label: 'POS Terminal', icon: '🛒', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF, UserRole.CASHIER], auditOnly: false, badge: 0, featureId: 'pos' },
-        { id: 'invoice', label: 'Invoices & Quotes', icon: '📄', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF, UserRole.CASHIER], auditOnly: false, badge: 0, featureId: 'pos' },
-        { id: 'customers', label: 'Customers', icon: '👥', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF, UserRole.CASHIER], auditOnly: false, badge: 0, featureId: 'pos' },
+        { id: 'invoice', label: 'Invoices & Quotes', icon: '📄', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'pos' },
+        { id: 'customers', label: 'Customers', icon: '👥', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'pos' },
       ]
     },
     { 
@@ -140,12 +140,12 @@ const Layout: React.FC<LayoutProps> = ({
       section: 'INVENTORY MANAGEMENT', 
       isCollapsible: true,
       items: [
-        { id: 'inventory', label: 'Stock Items', icon: '📦', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF, UserRole.CASHIER], auditOnly: false, badge: 0, featureId: 'inventory' },
+        { id: 'inventory', label: 'Stock Items', icon: '📦', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'inventory' },
         { id: 'stock-take', label: 'Year-End Audit', icon: '📋', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.AUDITOR], auditOnly: false, badge: 0, featureId: 'stock-take' },
         { id: 'inventory-adjustment', label: 'Adjustment', icon: '⚙️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], auditOnly: false, badge: 0, featureId: 'inventory' },
         { id: 'approvals', label: 'Ogolaanshaha', icon: '🛡️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], badge: pendingApprovalsCount, auditOnly: false, featureId: 'inventory' },
-        { id: 'transactions', label: 'Dhaqdhaqaaqa', icon: '🔄', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF, UserRole.CASHIER], auditOnly: false, badge: 0, featureId: 'inventory' },
-        { id: 'map', label: 'Mappingka (Map)', icon: '🗺️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF, UserRole.CASHIER], auditOnly: false, badge: 0, featureId: 'inventory' },
+        { id: 'transactions', label: 'Dhaqdhaqaaqa', icon: '🔄', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'inventory' },
+        { id: 'map', label: 'Mappingka (Map)', icon: '🗺️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'inventory' },
         { id: 'xarumaha', label: 'Xarumaha (Branches)', icon: '🏢', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], auditOnly: false, badge: 0, featureId: 'inventory' },
         { id: 'inter-branch-transfers', label: 'Logistics & Transfers', icon: '🚚', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], badge: interBranchTransferCount, auditOnly: false, featureId: 'inter-branch' }
       ]
@@ -228,18 +228,20 @@ const Layout: React.FC<LayoutProps> = ({
                 if (!enabledFeatures.includes(item.featureId)) return false;
               }
 
-              // 1. Check if user has explicit permission for this feature
-              // SUPER_ADMIN bypasses explicit permission check
-              if (user.role !== UserRole.SUPER_ADMIN && user.permissions && user.permissions.length > 0) {
-                if (!user.permissions.includes(item.id)) return false;
-              }
+              const isSuperAdmin = user.role === UserRole.SUPER_ADMIN;
 
-              // 2. Fallback to role-based check
-              const hasRole = item.roles.includes(user.role) || user.role === UserRole.SUPER_ADMIN;
               if (isAuditMode) {
+                const hasRole = item.roles.includes(user.role) || isSuperAdmin;
                 return hasRole && (item.id === 'financials' || item.id === 'dashboard');
               }
-              return hasRole;
+
+              if (isSuperAdmin) return true;
+
+              if (user.permissions && user.permissions.length > 0) {
+                return user.permissions.includes(item.id);
+              }
+
+              return item.roles.includes(user.role);
             });
             if (visibleItems.length === 0) return null;
             
@@ -407,10 +409,19 @@ const Layout: React.FC<LayoutProps> = ({
                       if (!enabledFeatures.includes(item.featureId)) return false;
                     }
 
-                    if (user.permissions && user.permissions.length > 0) {
-                      if (!user.permissions.includes(item.id)) return false;
+                    const isSuperAdmin = user.role === UserRole.SUPER_ADMIN;
+                    
+                    if (isAuditMode) {
+                      const hasRole = item.roles.includes(user.role) || isSuperAdmin;
+                      return hasRole && (item.id === 'financials' || item.id === 'dashboard');
                     }
-                    return item.roles.includes(user.role) || user.role === UserRole.SUPER_ADMIN;
+
+                    if (isSuperAdmin) return true;
+
+                    if (user.permissions && user.permissions.length > 0) {
+                      return user.permissions.includes(item.id);
+                    }
+                    return item.roles.includes(user.role);
                   });
                   if (visibleItems.length === 0) return null;
                   

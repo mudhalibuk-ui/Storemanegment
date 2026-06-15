@@ -396,6 +396,10 @@ const App: React.FC = () => {
     setIsAuditMode(isAudit);
     if (u.role === UserRole.SUPER_ADMIN) {
       setActiveTab('saas-manager');
+    } else if (u.permissions && u.permissions.length > 0) {
+      setActiveTab(u.permissions[0]);
+    } else if (u.role === UserRole.STAFF || u.role === UserRole.CASHIER) {
+      setActiveTab('pos');
     } else {
       setActiveTab('dashboard');
     }

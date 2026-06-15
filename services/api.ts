@@ -527,23 +527,38 @@ export const API = {
   users: {
     async getAll(): Promise<User[]> {
       const data = await fetchAllPages('users_registry', '', 'id');
-      return Array.isArray(data) ? data.map(u => ({
-        id: u.id, name: u.name, username: u.username, password: u.password, 
-        role: u.role as UserRole, avatar: u.avatar, xarunId: u.xarun_id,
-        permissions: u.permissions || []
-      })) : [];
+      return Array.isArray(data) ? data.map(u => {
+        let roleObj = u.role || '';
+        let perms: string[] = u.permissions || [];
+        if (typeof roleObj === 'string' && roleObj.includes('|')) {
+          const parts = roleObj.split('|');
+          roleObj = parts[0];
+          if (parts[1]) {
+            perms = parts[1].split(',');
+          }
+        }
+        return {
+          id: u.id, name: u.name, username: u.username, password: u.password, 
+          role: roleObj as UserRole, avatar: u.avatar, xarunId: u.xarun_id,
+          permissions: perms
+        };
+      }) : [];
     },
     async save(user: Partial<User>): Promise<User> {
       const id = user.id || generateId();
+      let roleString = user.role || 'STAFF';
+      if (user.permissions && user.permissions.length > 0) {
+        roleString = `${roleString}|${user.permissions.join(',')}`;
+      }
+      
       const payload = { 
         id, 
         name: user.name, 
         username: user.username, 
         password: user.password, 
-        role: user.role, 
+        role: roleString, 
         avatar: user.avatar, 
         xarun_id: user.xarunId,
-        // permissions: user.permissions // Omitted to fix PGRST204 error
       };
       await cloudSave('users_registry', payload);
       return { ...user, id } as User;
