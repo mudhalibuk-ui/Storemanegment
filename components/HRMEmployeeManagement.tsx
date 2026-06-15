@@ -184,7 +184,7 @@ const HRMEmployeeManagement: React.FC<HRMEmployeeManagementProps> = ({
               <div class="badge">
                 <div class="header"><h1>SmartStock Pro</h1></div>
                 <div class="content">
-                  <img src="${employee.avatar}" class="avatar" />
+                  <img src="${employee.avatar || 'https://via.placeholder.com/150'}" class="avatar" />
                   <p class="name">${employee.name}</p>
                   <p class="pos">${employee.position}</p>
                   <p class="branch">🏢 ${branch}</p>

@@ -417,7 +417,7 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
             <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all text-xl">✕</button>
           </div>
           
-          <img src={employee.avatar} className="w-28 h-28 rounded-[2.5rem] border-4 border-white/20 shadow-2xl object-cover" alt={employee.name} />
+          <img src={employee.avatar || 'https://via.placeholder.com/150'} className="w-28 h-28 rounded-[2.5rem] border-4 border-white/20 shadow-2xl object-cover" alt={employee.name} />
           
           <div className="text-center md:text-left flex-1">
             <h2 className="text-3xl font-black tracking-tighter">{employee.name}</h2>

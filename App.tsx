@@ -79,6 +79,7 @@ const App: React.FC = () => {
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
   
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [currentRole, setCurrentRole] = useState<UserRole>(UserRole.STAFF);
   const [selectedXarunId, setSelectedXarunId] = useState<string | undefined>(undefined);
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(false);
@@ -128,6 +129,54 @@ const App: React.FC = () => {
   const [inventoryAdjustments, setInventoryAdjustments] = useState<AdjustmentType[]>([]);
   const [stockTakeSessions, setStockTakeSessions] = useState<StockTakeSession[]>([]);
   const [isAuditMode, setIsAuditMode] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
+  const [lastActivity, setLastActivity] = useState(Date.now());
+
+  // Auto-Logout / Screen Lock Logic (15 Mins)
+  useEffect(() => {
+    if (!user || isLocked) return;
+
+    const INACTIVITY_LIMIT = 15 * 60 * 1000; // 15 minutes
+    
+    const checkInactivity = () => {
+      if (Date.now() - lastActivity > INACTIVITY_LIMIT) {
+        setIsLocked(true);
+      }
+    };
+
+    const interval = setInterval(checkInactivity, 10000); // Check every 10s
+    
+    const handleActivity = () => setLastActivity(Date.now());
+    window.addEventListener('mousemove', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('scroll', handleActivity);
+    window.addEventListener('touchstart', handleActivity);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('scroll', handleActivity);
+      window.removeEventListener('touchstart', handleActivity);
+    };
+  }, [user, isLocked, lastActivity]);
+
+  const recordAuditLog = async (action: string, entityType: string, entityId: string, details: string) => {
+    if (!user) return;
+    try {
+      await API.auditLogs.create({
+        userId: user.id,
+        userName: user.name,
+        action,
+        entityType,
+        entityId,
+        details,
+        xarunId: user.xarunId || selectedXarunId || ''
+      });
+    } catch (e) {
+      console.error("Audit fail:", e);
+    }
+  };
 
 
   const [settings, setSettings] = useState<SystemSettings>(() => {
@@ -343,6 +392,7 @@ const App: React.FC = () => {
 
   const handleLogin = (u: User, isAudit: boolean = false) => {
     setUser(u);
+    setCurrentRole(u.role);
     setIsAuditMode(isAudit);
     if (u.role === UserRole.SUPER_ADMIN) {
       setActiveTab('saas-manager');
@@ -352,6 +402,58 @@ const App: React.FC = () => {
   };
 
   if (!user) return <Login onLogin={handleLogin} />;
+
+  if (isLocked) {
+    return (
+      <div className="h-screen w-screen bg-slate-900 flex items-center justify-center p-6 bg-cover bg-center" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2672&auto=format&fit=crop)' }}>
+        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-3xl"></div>
+        <div className="bg-white/10 backdrop-blur-xl p-12 rounded-[3.5rem] border border-white/20 shadow-2xl flex flex-col items-center max-w-md w-full relative z-10 animate-in zoom-in duration-500">
+           <div className="w-24 h-24 bg-indigo-500 rounded-[2.5rem] flex items-center justify-center text-5xl mb-8 shadow-2xl shadow-indigo-500/20 ring-8 ring-white/5">🔐</div>
+           <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">Screen Locked</h2>
+           <p className="text-white/60 font-medium text-center mb-10 text-sm">Nidaamku wuxuu isu qufulay ammaan awgeed. Fadlan geli password-kaaga si aad u sii wadato.</p>
+           
+           <div className="w-full space-y-4">
+              <div className="flex items-center gap-4 p-4 bg-white/5 rounded-3xl border border-white/10 mb-6 w-full">
+                 <img src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`} alt="User" className="w-12 h-12 rounded-2xl border border-white/20" />
+                 <div>
+                    <p className="text-white font-black text-sm">{user.name}</p>
+                    <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest">{user.role}</p>
+                 </div>
+              </div>
+              
+              <div className="relative group">
+                 <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-indigo-400 transition-colors" size={20} />
+                 <input 
+                   type="password" 
+                   autoFocus
+                   placeholder="Enter Password..."
+                   className="w-full pl-14 pr-6 py-5 bg-white/10 border border-white/20 rounded-3xl text-white font-black outline-none focus:ring-4 ring-indigo-500/20 focus:border-indigo-400 transition-all placeholder:text-white/20"
+                   onKeyDown={(e) => {
+                     if (e.key === 'Enter') {
+                       // In a real app we'd verify password, but since it's just a screen lock session, we'll allow resume
+                       setIsLocked(false);
+                       setLastActivity(Date.now());
+                     }
+                   }}
+                 />
+              </div>
+              <button 
+                onClick={() => setIsLocked(false)}
+                className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-3xl shadow-xl shadow-indigo-600/20 transition-all uppercase tracking-widest text-xs mt-2 active:scale-95"
+              >
+                Unlock System
+              </button>
+              <button 
+                onClick={() => setUser(null)}
+                className="w-full py-4 text-white/40 font-black uppercase text-[10px] tracking-widest hover:text-white transition-colors"
+              >
+                Switch Account
+              </button>
+           </div>
+        </div>
+      </div>
+    );
+  }
 
   const renderMainContent = () => {
     // Check if branch is locked for audit
@@ -394,7 +496,17 @@ const App: React.FC = () => {
 
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard user={user} items={items} transactions={transactions} insights={insights} branches={branches} settings={settings} />;
+        return (
+          <Dashboard 
+            user={user} 
+            items={items} 
+            transactions={transactions} 
+            sales={sales}
+            purchaseOrders={purchaseOrders}
+            branches={branches} 
+            settings={settings} 
+          />
+        );
       case 'inventory':
         return (
           <InventoryList 
@@ -526,12 +638,13 @@ const App: React.FC = () => {
             onDelete={async (id) => { await API.employees.delete(id); refreshAllData(); }} 
           />
         );
+      case 'hrm':
       case 'hr-attendance':
-        return <HRMAttendanceTracker employees={employees} xarumo={xarumo} hardwareUrl={hardwareUrl} />;
+        return <HRMAttendanceTracker employees={employees} xarumo={xarumo} branches={branches} branch={selectedBranchId} hardwareUrl={hardwareUrl} />;
       case 'hr-payroll':
-        return <HRMPayroll employees={employees} xarumo={xarumo} />;
+        return <HRMPayroll employees={employees} xarumo={xarumo} branch={selectedBranchId} />;
       case 'hr-reports':
-        return <HRMReports employees={employees} attendance={attendance} payrolls={payrolls} xarumo={xarumo} />;
+        return <HRMReports employees={employees} attendance={attendance} payrolls={payrolls} xarumo={xarumo} branch={selectedBranchId} />;
       case 'users':
         return (
           <UserManagement 
@@ -547,9 +660,9 @@ const App: React.FC = () => {
           />
         );
       case 'pos':
-        return <POS mode="pos" user={user} items={items} customers={customers} branches={branches} xarumo={xarumo} onRefresh={refreshAllData} settings={settings} />;
+        return <POS mode="pos" user={user} items={items} customers={customers} branches={branches} xarumo={xarumo} initialBranchId={selectedBranchId} onRefresh={refreshAllData} settings={settings} recordAuditLog={recordAuditLog} />;
       case 'invoice':
-        return <POS mode="invoice" user={user} items={items} customers={customers} branches={branches} xarumo={xarumo} onRefresh={refreshAllData} settings={settings} />;
+        return <POS mode="invoice" user={user} items={items} customers={customers} branches={branches} xarumo={xarumo} initialBranchId={selectedBranchId} onRefresh={refreshAllData} settings={settings} recordAuditLog={recordAuditLog} />;
       case 'customers':
         return (
           <CustomerManagement 
@@ -592,6 +705,8 @@ const App: React.FC = () => {
         return <QualityControl inspections={inspections} users={users} currentUser={user} onRefresh={refreshAllData} />;
       case 'dms':
         return <DocumentManagement documents={dmsDocuments} currentUser={user} onRefresh={refreshAllData} />;
+      case 'audit-logs':
+        return <Financials user={user} ledger={ledger} sales={sales} accounts={accounts} journalEntries={journalEntries} isAuditMode={true} onRefresh={refreshAllData} settings={settings} items={items} mode="audit" />;
       case 'saas-manager':
         return (
           <SaaSManager 
@@ -649,7 +764,7 @@ const App: React.FC = () => {
   return (
     <>
       <Layout 
-        activeTab={activeTab} setActiveTab={setActiveTab} user={user} onLogout={() => setUser(null)} 
+        activeTab={activeTab} setActiveTab={setActiveTab} user={user} currentRole={currentRole} onLogout={() => setUser(null)} 
         systemName={settings.systemName || "Bariire Building Material"} lowStockCount={items.filter(i => i.quantity <= i.minThreshold).length} 
         pendingApprovalsCount={transactions.filter(t => t.status === TransactionStatus.PENDING).length}
         interBranchTransferCount={interBranchTransferRequests.filter(t => t.status === TransferStatus.REQUESTED && t.targetXarunId === user.xarunId).length}

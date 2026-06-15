@@ -35,7 +35,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, xarumo, onAdd, o
              
              <div className="flex items-center gap-5 mb-6">
                <div className="relative">
-                 <img src={u.avatar} className="w-16 h-16 rounded-2xl border-2 border-white shadow-sm" alt="" />
+                 <img src={u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.username}`} className="w-16 h-16 rounded-2xl border-2 border-white shadow-sm" alt="" />
                  <span className={`absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-black border-2 border-white text-white ${
                    u.role === UserRole.SUPER_ADMIN ? 'bg-amber-500' : u.role === UserRole.MANAGER ? 'bg-indigo-500' : 'bg-slate-500'
                  }`}>

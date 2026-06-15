@@ -95,14 +95,32 @@ export const getInventoryInsights = async (items: InventoryItem[], transactions:
   }
 };
 
-export const generateReportSummary = async (filteredTransactions: Transaction[], totalItems: number) => {
+export const getSmartInsights = async (items: InventoryItem[], transactions: Transaction[], sales: Sale[], purchaseOrders: PurchaseOrder[]) => {
   const ai = getAI();
+  const prompt = `
+    Analyze this ERP data and provide 4 CRITICAL SMART SUGGESTIONS in Somali.
+    Data Overview:
+    - Items: ${JSON.stringify(items.slice(0, 15).map(i => ({ name: i.name, qty: i.quantity, expiry: i.expiryDate, lastSold: i.lastSoldDate })))}
+    - Sales: ${JSON.stringify(sales.slice(0, 10).map(s => ({ total: s.total, date: s.timestamp })))}
+    - POs: ${JSON.stringify(purchaseOrders.slice(0, 5).map(p => ({ total: p.total, status: p.status })))}
+    
+    Focus on:
+    1. Demand Forecasting (What to order based on lastSold/Ramadan context).
+    2. Expiry Risk (Which items need discounts fast).
+    3. Auto-Transfer (Suggest moving stock if one branch is low/high).
+    4. Cashflow Prediction (Projected cash for next 15 days).
+    
+    Return as a JSON array of objects: { title: string, description: string, type: 'FORECAST' | 'EXPIRY' | 'TRANSFER' | 'CASHFLOW', actionLabel: string }.
+  `;
+
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Provide a professional management summary in Somali for these transactions: ${JSON.stringify(filteredTransactions.slice(0,15))}`
+      contents: prompt,
+      config: { responseMimeType: "application/json" }
     });
-    // Access the extracted string output directly via the .text property.
-    return response.text;
-  } catch (e) { return "Cilad ayaa dhacday soo saarista warbixinta."; }
+    return JSON.parse(response.text || "[]");
+  } catch (e) {
+    return [];
+  }
 };

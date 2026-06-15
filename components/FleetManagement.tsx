@@ -281,74 +281,75 @@ const FleetManagement: React.FC<FleetManagementProps> = ({ vehicles, fuelLogs, u
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {vehicles.map(vehicle => (
-              <div key={vehicle.id} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-all">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-2xl">🚛</div>
-                    <div>
-                      <h4 className="font-black text-sm text-slate-800 uppercase tracking-tight">{vehicle.model}</h4>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{vehicle.licensePlate}</p>
+            {vehicles.map(vehicle => {
+              const needsService = vehicle.odometer >= vehicle.nextServiceOdometer - 500;
+              return (
+                <div key={vehicle.id} className={`bg-white p-6 rounded-[2rem] border-2 shadow-sm hover:shadow-md transition-all ${needsService ? 'border-amber-400 bg-amber-50/20' : 'border-slate-100'}`}>
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl shadow-sm border border-slate-100">🚛</div>
+                      <div>
+                        <h4 className="font-black text-sm text-slate-800 uppercase tracking-tight">{vehicle.model}</h4>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{vehicle.licensePlate}</p>
+                      </div>
                     </div>
-                  </div>
-                  <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${
-                    vehicle.status === VehicleStatus.ACTIVE ? 'bg-emerald-100 text-emerald-600' :
-                    vehicle.status === VehicleStatus.MAINTENANCE ? 'bg-amber-100 text-amber-600' :
-                    'bg-rose-100 text-rose-600'
-                  }`}>
-                    {vehicle.status}
-                  </span>
-                </div>
-
-                <div className="space-y-4 pt-4 border-t border-slate-50">
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                      <span className="text-slate-400">Fuel Level</span>
-                      <span className={vehicle.fuelLevel < 20 ? 'text-rose-600' : 'text-slate-700'}>{vehicle.fuelLevel}%</span>
-                    </div>
-                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full transition-all duration-1000 ${vehicle.fuelLevel < 20 ? 'bg-rose-500' : 'bg-indigo-500'}`} 
-                        style={{ width: `${vehicle.fuelLevel}%` }}
-                      ></div>
-                    </div>
+                    {needsService && (
+                      <div className="flex flex-col items-end gap-1">
+                         <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[8px] font-black uppercase animate-pulse">🛠️ Service Needed</span>
+                         <p className="text-[7px] font-black text-amber-500 uppercase tracking-[0.2em]">{vehicle.nextServiceOdometer - vehicle.odometer}km left</p>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="flex justify-between text-[10px] font-bold uppercase">
-                    <span className="text-slate-400">Assigned Driver</span>
-                    <span className="text-slate-700">{vehicle.driverName || 'Unassigned'}</span>
-                  </div>
-                  
-                  {vehicle.currentLocation && (
-                    <div className="flex items-center gap-2 p-2 bg-indigo-50 rounded-xl">
-                      <MapPin size={12} className="text-indigo-500" />
-                      <span className="text-[9px] font-black text-indigo-600 uppercase truncate">{vehicle.currentLocation.address}</span>
+                  <div className="space-y-4 pt-4 border-t border-slate-100">
+                    <div className="grid grid-cols-2 gap-4">
+                       <div className="space-y-1">
+                          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Odometer</p>
+                          <p className="text-sm font-black text-slate-700">{vehicle.odometer.toLocaleString()} km</p>
+                       </div>
+                       <div className="space-y-1 text-right">
+                          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Next Service</p>
+                          <p className={`text-sm font-black ${needsService ? 'text-amber-600' : 'text-slate-400'}`}>{vehicle.nextServiceOdometer.toLocaleString()} km</p>
+                       </div>
                     </div>
-                  )}
-                </div>
+                    
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
+                        <span className="text-slate-400">Fuel Level</span>
+                        <span className={vehicle.fuelLevel < 20 ? 'text-rose-600' : 'text-slate-700'}>{vehicle.fuelLevel}%</span>
+                      </div>
+                      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full transition-all duration-1000 ${vehicle.fuelLevel < 20 ? 'bg-rose-500' : 'bg-indigo-500'}`} 
+                          style={{ width: `${vehicle.fuelLevel}%` }}
+                        ></div>
+                      </div>
+                    </div>
 
-                <div className="mt-6 flex flex-wrap gap-2">
-                  <button 
-                    onClick={() => setTrackingVehicle(vehicle)}
-                    className="flex-1 py-2 bg-indigo-600 text-white rounded-xl text-[8px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1"
-                  >
-                    <Navigation size={10} /> Track
-                  </button>
-                  <button 
-                    onClick={() => { setEditingVehicle(vehicle); setIsVehicleModalOpen(true); }}
-                    className="flex-1 py-2 bg-slate-50 text-slate-600 rounded-xl text-[8px] font-black uppercase tracking-widest hover:bg-slate-100 transition-colors"
-                  >
-                    Edit
-                  </button>
-                  <button 
-                    onClick={() => { setEditingFuel({ vehicleId: vehicle.id }); setIsFuelModalOpen(true); }}
-                    className="flex-1 py-2 bg-slate-50 text-slate-600 rounded-xl text-[8px] font-black uppercase tracking-widest hover:bg-slate-100 transition-colors"
-                  >
-                    Fuel
-                  </button>
+                    <div className="flex justify-between text-[10px] font-bold uppercase">
+                      <span className="text-slate-400">Driver</span>
+                      <span className="text-slate-700">{vehicle.driverName || 'Unassigned'}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex flex-wrap gap-2">
+                    <button 
+                      onClick={() => setTrackingVehicle(vehicle)}
+                      className="flex-1 py-3 bg-slate-900 text-white rounded-xl text-[8px] font-black uppercase tracking-widest hover:bg-slate-800 transition-colors flex items-center justify-center gap-1 shadow-lg shadow-slate-100"
+                    >
+                      <Navigation size={10} /> Track & Smart Route
+                    </button>
+                    <button 
+                      onClick={() => { setEditingVehicle(vehicle); setIsVehicleModalOpen(true); }}
+                      className="w-12 h-12 bg-white border border-slate-100 text-slate-400 rounded-xl flex items-center justify-center hover:bg-slate-50 transition-all shadow-sm"
+                      title="Edit"
+                    >
+                      ⚙️
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}
@@ -464,6 +465,26 @@ const FleetManagement: React.FC<FleetManagementProps> = ({ vehicles, fuelLogs, u
                     <option value="">Unassigned</option>
                     {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                   </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Odometer (km)</label>
+                  <input
+                    type="number"
+                    required
+                    value={editingVehicle?.odometer || 0}
+                    onChange={e => setEditingVehicle({ ...editingVehicle, odometer: Number(e.target.value) })}
+                    className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-all"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Next Service (km)</label>
+                  <input
+                    type="number"
+                    required
+                    value={editingVehicle?.nextServiceOdometer || 5000}
+                    onChange={e => setEditingVehicle({ ...editingVehicle, nextServiceOdometer: Number(e.target.value) })}
+                    className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-all"
+                  />
                 </div>
               </div>
 

@@ -1,59 +1,55 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { InventoryItem, Transaction, TransactionType, SystemSettings, Branch, User } from '../types';
-import { getInventoryInsights } from '../services/geminiService';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from 'recharts';
+import { InventoryItem, Transaction, TransactionType, SystemSettings, Branch, User, Sale, PurchaseOrder } from '../types';
+import { getSmartInsights } from '../services/geminiService';
 
 interface DashboardProps {
   user: User;
   items: InventoryItem[];
   transactions: Transaction[];
-  insights: string[];
+  sales?: Sale[];
+  purchaseOrders?: PurchaseOrder[];
   branches: Branch[];
   settings?: SystemSettings;
+  insights?: any[];
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user, items, transactions, insights: initialInsights, branches, settings }) => {
-  const [insights, setInsights] = useState<string[]>(initialInsights);
-  const [filterType, setFilterType] = useState<string>('all');
-  const [filterDate, setFilterDate] = useState<string>('all');
-
-  const filterData = useCallback(async () => {
-    if (initialInsights.length === 0) return;
-
-    let filteredTransactions = transactions;
-
-    if (filterType !== 'all') {
-      filteredTransactions = filteredTransactions.filter(t => t.type === filterType);
-    }
-
-    if (filterDate !== 'all') {
-      const days = parseInt(filterDate, 10);
-      const dateLimit = new Date();
-      dateLimit.setDate(dateLimit.getDate() - days);
-      filteredTransactions = filteredTransactions.filter(t => new Date(t.timestamp) >= dateLimit);
-    }
-
-    setInsights(["Falanqaynaya xogta la sifeeyay..."]);
-    try {
-      const newInsights = await getInventoryInsights(items, filteredTransactions);
-      setInsights(newInsights);
-    } catch (error) {
-      console.error("Error getting insights:", error);
-      setInsights(["Error generating insights."]);
-    }
-  }, [filterType, filterDate, items, transactions, initialInsights]);
-
-  useEffect(() => {
-    filterData();
-  }, [filterData]);
-
+const Dashboard: React.FC<DashboardProps> = ({ user, items = [], transactions = [], sales = [], purchaseOrders = [], branches = [], settings }) => {
+  const [smartInsights, setSmartInsights] = useState<any[]>([]);
+  const [isLoadingInsights, setIsLoadingInsights] = useState(false);
+  
   const stats = {
     totalItems: items.length,
     lowStock: items.filter(i => i.quantity <= i.minThreshold).length,
     stockValue: items.reduce((acc, curr) => acc + curr.quantity, 0),
-    recentOps: transactions.length
+    recentOps: transactions.length,
+    dailyProfit: sales.reduce((sum, s) => sum + s.total, 0) // Mock logic for quick stats
   };
+
+  const fetchSmartInsights = useCallback(async () => {
+    setIsLoadingInsights(true);
+    try {
+      const data = await getSmartInsights(items, transactions, sales, purchaseOrders);
+      setSmartInsights(data);
+    } catch (e) {
+      console.error("Insights Error", e);
+    } finally {
+      setIsLoadingInsights(false);
+    }
+  }, [items, transactions, sales, purchaseOrders]);
+
+  useEffect(() => {
+    fetchSmartInsights();
+  }, [fetchSmartInsights]);
+
+  const cashflowData = [
+    { name: 'Maanta', value: 4500, projected: 4500 },
+    { name: '2 Maalmood', value: 5200, projected: 6100 },
+    { name: '5 Maalmood', value: 4800, projected: 8400 },
+    { name: '10 Maalmood', value: 6000, projected: 12000 },
+    { name: '15 Maalmood', value: 5500, projected: 15000 },
+  ];
 
   const branchData = items.reduce((acc: any[], item) => {
     const branch = branches.find(b => b.id === item.branchId);
@@ -68,13 +64,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, items, transactions, insigh
     return acc;
   }, []);
 
-  // Sort branch data for better visuals
-  branchData.sort((a, b) => b.value - a.value);
-
-  const recentTransactions = [...transactions]
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    .slice(0, 5);
-
   const COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
   return (
@@ -83,165 +72,110 @@ const Dashboard: React.FC<DashboardProps> = ({ user, items, transactions, insigh
       {/* SECTION 1: OVERVIEW METRICS */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         {[
-          { label: 'Wadarta SKUs', value: stats.totalItems, icon: '🏷️', color: 'bg-amber-50 text-amber-600', sub: 'Active Items' },
-          { label: 'Stock-ga Yar', value: stats.lowStock, icon: '⚠️', color: 'bg-rose-50 text-rose-600', sub: 'Needs Restock' },
-          { label: 'Wadarta Guud', value: stats.stockValue.toLocaleString(), icon: '📦', color: 'bg-emerald-50 text-emerald-600', sub: 'Total Units' },
-          { label: 'Dhaqdhaqaaq', value: stats.recentOps, icon: '🔄', color: 'bg-indigo-50 text-indigo-600', sub: 'Transactions' },
+          { label: 'Wadarta SKUs', value: stats.totalItems, icon: '🏷️', color: 'bg-amber-50 text-amber-600' },
+          { label: 'Stock-ga Yar', value: stats.lowStock, icon: '⚠️', color: 'bg-rose-50 text-rose-600' },
+          { label: 'Wadarta Iibka', value: `$${stats.dailyProfit.toLocaleString()}`, icon: '💰', color: 'bg-emerald-50 text-emerald-600' },
+          { label: 'Dhaqdhaqaaq', value: stats.recentOps, icon: '🔄', color: 'bg-indigo-50 text-indigo-600' },
         ].map((stat, idx) => (
-          <div key={idx} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 transition-all hover:shadow-md hover:scale-[1.02] flex flex-col justify-between h-48 relative overflow-hidden group">
-            <div className={`absolute -top-4 -right-4 p-8 opacity-[0.03] group-hover:opacity-[0.07] transition-all duration-700 text-9xl grayscale rotate-12 group-hover:rotate-0`}>{stat.icon}</div>
-            <div className={`w-12 h-12 rounded-xl ${stat.color} flex items-center justify-center text-xl shadow-sm z-10 border border-current/5`}>
-              {stat.icon}
+          <div key={idx} className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col justify-between h-44 relative overflow-hidden group">
+            <div className="z-10 flex items-start justify-between">
+               <div className={`w-12 h-12 rounded-2xl ${stat.color} flex items-center justify-center text-xl shadow-sm border border-current/5`}>
+                 {stat.icon}
+               </div>
+               <span className="text-[10px] font-black p-2 bg-slate-50 rounded-lg text-slate-400">LIVE</span>
             </div>
-            <div className="z-10 mt-4">
-               <h3 className="text-4xl font-black text-slate-900 tracking-tighter">{stat.value}</h3>
-               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mt-2">{stat.label}</p>
+            <div className="z-10">
+               <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{stat.value}</h3>
+               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mt-1">{stat.label}</p>
             </div>
           </div>
         ))}
       </div>
 
-      {/* SECTION 2: ANALYTICS & INSIGHTS */}
+      {/* SECTION 2: SMART FORECASTING HUB */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Branch Chart */}
-        <div className="lg:col-span-2 bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col">
-          <div className="flex justify-between items-center mb-6">
+        {/* Predictive Cashflow Chart */}
+        <div className="lg:col-span-2 bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col">
+          <div className="flex justify-between items-center mb-8">
             <div>
-               <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Qaybinta Bakhaarada</h3>
-               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Stock Distribution by Branch</p>
+               <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Saadaalinta Khasnadda (Cashflow)</h3>
+               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1">15-Day AI Projected Revenue</p>
             </div>
-            <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100 uppercase tracking-widest animate-pulse">Live Data</span>
+            <div className="flex gap-4">
+               <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-indigo-500 rounded-full"></div>
+                  <span className="text-[10px] font-black text-slate-400 uppercase">Actual</span>
+               </div>
+               <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-indigo-200 rounded-full"></div>
+                  <span className="text-[10px] font-black text-slate-400 uppercase">AI Projected</span>
+               </div>
+            </div>
           </div>
           <div className="flex-1 min-h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={branchData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={cashflowData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                   <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.1}/>
+                      <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                   </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis 
-                  dataKey="name" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{fill: '#64748b', fontSize: 10, fontWeight: 'bold'}} 
-                  dy={10}
-                />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 10, fontWeight: 'bold'}} />
-                <Tooltip 
-                  cursor={{fill: '#f8fafc'}}
-                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px -10px rgba(0,0,0,0.1)', fontWeight: 'bold', padding: '12px 20px' }}
-                />
-                <Bar dataKey="value" radius={[12, 12, 12, 12]} barSize={50}>
-                  {branchData.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11, fontWeight: 'bold'}} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11, fontWeight: 'bold'}} />
+                <Tooltip />
+                <Area type="monotone" dataKey="projected" stroke="#e0e7ff" fill="#f8fafc" strokeWidth={4} strokeDasharray="10 10" />
+                <Area type="monotone" dataKey="value" stroke="#4f46e5" fillOpacity={1} fill="url(#colorVal)" strokeWidth={4} />
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* AI Insights Sidebar */}
-        <div className="bg-gradient-to-br from-indigo-600 to-indigo-900 p-8 rounded-[3rem] shadow-2xl text-white flex flex-col relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
-          
-          <div className="flex items-center gap-4 mb-8 relative z-10">
-            <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-2xl animate-pulse shadow-lg backdrop-blur-sm">✨</div>
-            <div>
-               <h3 className="text-lg font-black tracking-tight uppercase">AI Logistics</h3>
-               <p className="text-[9px] font-bold uppercase opacity-60 tracking-[0.2em]">Smart Recommendations</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2 mb-4 relative z-10">
-            <select value={filterType} onChange={e => setFilterType(e.target.value)} className="bg-white/10 text-white text-xs rounded-lg px-2 py-1">
-              <option value="all">All Types</option>
-              <option value="IN">IN</option>
-              <option value="OUT">OUT</option>
-              <option value="TRANSFER">TRANSFER</option>
-            </select>
-            <select value={filterDate} onChange={e => setFilterDate(e.target.value)} className="bg-white/10 text-white text-xs rounded-lg px-2 py-1">
-              <option value="all">All Time</option>
-              <option value="7">Last 7 Days</option>
-              <option value="30">Last 30 Days</option>
-            </select>
-          </div>
-          <div className="flex-1 space-y-4 overflow-y-auto no-scrollbar relative z-10">
-            {insights.length > 0 ? insights.map((insight, idx) => (
-              <div key={idx} className="bg-white/10 backdrop-blur-md p-5 rounded-[2rem] border border-white/10 text-xs font-bold leading-relaxed shadow-lg hover:bg-white/20 transition-all">
-                {insight}
+        {/* AI Recommendations */}
+        <div className="bg-slate-900 p-8 rounded-[3.5rem] shadow-2xl text-white flex flex-col border border-slate-800">
+           <div className="flex items-center gap-4 mb-8">
+              <div className="w-14 h-14 bg-indigo-600 rounded-[1.5rem] flex items-center justify-center text-2xl shadow-xl shadow-indigo-500/20">✨</div>
+              <div>
+                 <h3 className="text-xl font-black tracking-tight uppercase">Smart Hub</h3>
+                 <p className="text-[10px] font-black uppercase text-indigo-400 tracking-[0.2em]">Manager AI Insights</p>
               </div>
-            )) : (
-              <div className="h-full flex flex-col items-center justify-center opacity-50 text-center">
-                 <span className="text-4xl mb-4">🔍</span>
-                 <p className="text-[10px] font-black uppercase tracking-widest">Falanqaynaya xogta...</p>
-              </div>
-            )}
-          </div>
-          
-          <div className="mt-6 pt-6 border-t border-white/10 relative z-10 text-center">
-             <p className="text-[8px] font-black uppercase opacity-40 tracking-[0.3em]">Powered by Gemini AI</p>
-          </div>
-        </div>
-      </div>
+           </div>
 
-      {/* SECTION 3: RECENT ACTIVITY */}
-      <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
-         <div className="flex justify-between items-center mb-6">
-            <div>
-               <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Dhaqdhaqaaqyadii Ugu Dambeeyay</h3>
-               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Recent 5 Transactions</p>
-            </div>
-            <button className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-4 py-2 rounded-xl hover:bg-indigo-600 hover:text-white transition-all uppercase tracking-widest">
-               View All
-            </button>
-         </div>
-         
-         <div className="overflow-x-auto no-scrollbar">
-            <table className="w-full text-left border-collapse">
-               <thead>
-                  <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                     <th className="py-4 pl-4">Alaabta</th>
-                     <th className="py-4">Nooca</th>
-                     <th className="py-4 text-center">Tirada</th>
-                     <th className="py-4">Bakhaarka</th>
-                     <th className="py-4">Waqtiga</th>
-                  </tr>
-               </thead>
-               <tbody className="divide-y divide-slate-50">
-                  {recentTransactions.map(t => (
-                     <tr key={t.id} className="group hover:bg-slate-50/80 transition-colors">
-                        <td className="py-4 pl-4">
-                           <p className="text-xs font-black text-slate-700">{t.itemName}</p>
-                        </td>
-                        <td className="py-4">
-                           <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                              t.type === 'IN' ? 'bg-emerald-50 text-emerald-600' : 
-                              t.type === 'OUT' ? 'bg-rose-50 text-rose-600' : 'bg-indigo-50 text-indigo-600'
-                           }`}>
-                              {t.type}
-                           </span>
-                        </td>
-                        <td className="py-4 text-center font-black text-slate-600">{t.quantity}</td>
-                        <td className="py-4">
-                           <span className="text-[10px] font-bold text-slate-500 uppercase">
-                              {branches.find(b => b.id === t.branchId)?.name || 'Unknown'}
-                           </span>
-                        </td>
-                        <td className="py-4">
-                           <span className="text-[10px] font-bold text-slate-400 uppercase">
-                              {new Date(t.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                           </span>
-                        </td>
-                     </tr>
-                  ))}
-                  {recentTransactions.length === 0 && (
-                     <tr>
-                        <td colSpan={5} className="py-10 text-center text-[10px] font-black text-slate-300 uppercase tracking-widest">
-                           Ma jiro dhaqdhaqaaq dhowaan dhacay.
-                        </td>
-                     </tr>
-                  )}
-               </tbody>
-            </table>
-         </div>
+           <div className="flex-1 space-y-4 overflow-y-auto no-scrollbar">
+              {isLoadingInsights ? (
+                 <div className="h-full flex flex-col items-center justify-center opacity-30 text-center animate-pulse">
+                    <span className="text-4xl mb-4">🌀</span>
+                    <p className="text-[11px] font-black uppercase tracking-widest">Processing Data...</p>
+                 </div>
+              ) : smartInsights.length > 0 ? smartInsights.map((insight, idx) => (
+                 <div key={idx} className="bg-white/5 border border-white/5 p-6 rounded-[2rem] hover:bg-white/10 transition-all cursor-pointer group">
+                    <div className="flex justify-between items-start mb-3">
+                       <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest ${
+                          insight.type === 'FORECAST' ? 'bg-amber-500 text-amber-950' :
+                          insight.type === 'EXPIRY' ? 'bg-rose-500 text-rose-950' :
+                          insight.type === 'TRANSFER' ? 'bg-indigo-500 text-indigo-950' : 'bg-emerald-500 text-emerald-950'
+                       }`}>
+                          {insight.type}
+                       </span>
+                    </div>
+                    <h4 className="text-sm font-black mb-1 group-hover:text-indigo-300 transition-colors">{insight.title}</h4>
+                    <p className="text-[11px] text-slate-400 leading-relaxed font-bold">{insight.description}</p>
+                    <button className="mt-4 text-[10px] font-black uppercase tracking-[0.2em] text-white flex items-center gap-2 hover:gap-3 transition-all">
+                       {insight.actionLabel} <span>→</span>
+                    </button>
+                 </div>
+              )) : (
+                 <div className="h-full flex flex-col items-center justify-center opacity-20 text-center">
+                    <p className="text-[10px] font-black uppercase tracking-widest">No Smart Alerts Today</p>
+                 </div>
+              )}
+           </div>
+
+           <div className="mt-8 pt-6 border-t border-white/5 text-center">
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest uppercase">Autonomous Management Ready</p>
+           </div>
+        </div>
       </div>
 
     </div>

@@ -29,6 +29,11 @@ const InventoryList: React.FC<InventoryListProps> = ({
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Sync with prop
+  React.useEffect(() => {
+    setBranchFilter(initialBranchFilter);
+  }, [initialBranchFilter]);
+
   const categories = useMemo(() => 
     Array.from(new Set(items.map(item => item.category))).filter(Boolean) as string[]
   , [items]);
@@ -220,12 +225,38 @@ const InventoryList: React.FC<InventoryListProps> = ({
                   const item = group[0]; // Representative item
                   const totalQty = group.reduce((sum, i) => sum + i.quantity, 0);
                   const isLow = totalQty <= item.minThreshold;
+                  const needsDiscount = group.some(i => i.expiryDate && new Date(i.expiryDate).getTime() < new Date().getTime() + (60 * 24 * 60 * 60 * 1000)); // 2 months
+                  
+                  // Auto-Transfer Suggestion Logic
+                  const lowBranch = group.find(i => i.quantity <= i.minThreshold);
+                  const surplusBranch = group.find(i => i.quantity > i.minThreshold * 3);
+                  const canTransfer = lowBranch && surplusBranch;
                   
                   return (
-                    <tr key={item.sku || item.id} className="hover:bg-slate-50 transition-colors group">
+                    <tr key={item.sku || item.id} className={`hover:bg-slate-50 transition-colors group ${needsDiscount ? 'bg-amber-50/10' : ''}`}>
                       <td className="px-6 md:px-10 py-6 align-top">
                         <div className="flex flex-col">
-                          <span className="font-black text-slate-800 text-sm md:text-base uppercase tracking-tighter">{item.name}</span>
+                          <div className="flex items-center gap-2">
+                             <span className="font-black text-slate-800 text-sm md:text-base uppercase tracking-tighter">{item.name}</span>
+                             {needsDiscount && (
+                                <div className="group relative">
+                                   <span className="w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center text-[10px] animate-pulse cursor-help">⚠️</span>
+                                   <div className="absolute left-6 top-1/2 -translate-y-1/2 bg-slate-900 text-white text-[9px] font-black uppercase p-2 rounded-xl border border-white/10 hidden group-hover:block z-30 whitespace-nowrap">
+                                      Digniin: Alaabtu waxay dhacaysaa dhowaan!<br/>
+                                      <span className="text-emerald-400">Talo: Samee 20% Qiimo Dhimis (Discount)</span>
+                                   </div>
+                                </div>
+                             )}
+                             {canTransfer && (
+                                <div className="group relative">
+                                   <span className="w-5 h-5 bg-indigo-500 text-white rounded-full flex items-center justify-center text-[10px] animate-bounce cursor-help">🚀</span>
+                                   <div className="absolute left-6 top-1/2 -translate-y-1/2 bg-slate-900 text-white text-[9px] font-black uppercase p-2 rounded-xl border border-white/10 hidden group-hover:block z-30 whitespace-nowrap">
+                                      Talo: Isku-dheellitirka Bakhaarada<br/>
+                                      <span className="text-indigo-400">Isku wareeji alaabtan: {branches.find(b => b.id === surplusBranch.branchId)?.name} → {branches.find(b => b.id === lowBranch.branchId)?.name}</span>
+                                   </div>
+                                </div>
+                             )}
+                          </div>
                           <div className="flex flex-wrap gap-2 items-center mt-1">
                             <span className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.sku}</span>
                             <span className="text-[8px] md:text-[9px] font-black text-indigo-400 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 uppercase">{item.category}</span>

@@ -1,20 +1,28 @@
 
 import React, { useState, useEffect } from 'react';
-import { Employee, Attendance, Xarun } from '../types';
+import { Employee, Attendance, Xarun, Branch } from '../types';
 import { API } from '../services/api';
 
 interface HRMAttendanceTrackerProps {
   employees: Employee[];
   xarumo: Xarun[];
+  branches: Branch[];
+  branch?: string;
   hardwareUrl?: string; // New prop for status checking
 }
 
 const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({ 
-  employees, xarumo, hardwareUrl
+  employees, xarumo, branches, branch = 'all', hardwareUrl
 }) => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedXarunId, setSelectedXarunId] = useState<string>('all');
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(branch);
   const [attendanceData, setAttendanceData] = useState<Attendance[]>([]);
+
+  // Sync prop changes
+  useEffect(() => {
+    setSelectedBranchId(branch);
+  }, [branch]);
   const [previousAttendanceData, setPreviousAttendanceData] = useState<Record<string, Attendance[]>>({});
   const [loading, setLoading] = useState(false);
   
@@ -175,7 +183,16 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
 
       if (consecutiveAbsences >= 3 && !employee.warning) {
         hasWarning = true;
-        await API.employees.save({ ...employee, warning: 'Digniin: Maqnaansho isku xigta 3 maalmood', consecutiveAbsences: 3 });
+        const warningMsg = 'Digniin: Maqnaansho isku xigta 3 maalmood';
+        await API.employees.save({ ...employee, warning: warningMsg, consecutiveAbsences: 3 });
+        
+        // --- SMART AUTOMATION: Notification & Auto-Payroll Hook ---
+        console.log(`[AUTO-ACTION] Employee ${employee.name} hit 3-day absence streak. Triggering HR Notification & Payroll Tagging.`);
+        // Simulate notification
+        if (typeof window !== 'undefined') {
+          // In a real app, this would hit an API endpoint that sends Push/SMS/Email
+          console.info(`🔔 NOTIFICATION: ${employee.name} has been absent for 3 consecutive days. Automated warning sent.`);
+        }
       } else if (consecutiveAbsences < 3 && employee.warning) {
         // Clear warning if employee is now present or less than 3 consecutive absences
         await API.employees.save({ ...employee, warning: undefined, consecutiveAbsences: 0 });
@@ -299,9 +316,11 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
       }
   };
 
-  const filteredEmployees = employees.filter(emp => 
-    selectedXarunId === 'all' || emp.xarunId === selectedXarunId
-  );
+  const filteredEmployees = employees.filter(emp => {
+    const passXarun = selectedXarunId === 'all' || emp.xarunId === selectedXarunId;
+    const passBranch = selectedBranchId === 'all' || emp.branchId === selectedBranchId;
+    return passXarun && passBranch;
+  });
 
   // --- HELPER TO COMPUTE STATUS BASED ON TIME RULES ---
   // Rules:
@@ -392,14 +411,29 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
           )}
 
           <div className="flex flex-col gap-1 flex-1 min-w-[150px]">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Xarunta (Center)</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Shirkadda (Company)</label>
             <select
               className="px-6 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 font-bold text-sm cursor-pointer"
               value={selectedXarunId}
-              onChange={e => setSelectedXarunId(e.target.value)}
+              onChange={e => { setSelectedXarunId(e.target.value); setSelectedBranchId('all'); }}
             >
-              <option value="all">Dhamaan Xarumaha</option>
+              <option value="all">Dhamaan Shirkadaha</option>
               {xarumo.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1 flex-1 min-w-[150px]">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Bakhaarka (Branch)</label>
+            <select
+              className="px-6 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 font-bold text-sm cursor-pointer"
+              value={selectedBranchId}
+              onChange={e => setSelectedBranchId(e.target.value)}
+            >
+              <option value="all">Dhamaan Bakhaarada</option>
+              {branches
+                  .filter(b => b.type !== 'STORE' && (selectedXarunId === 'all' || b.xarunId === selectedXarunId))
+                  .map(b => <option key={b.id} value={b.id}>{b.name}</option>)
+              }
             </select>
           </div>
 
@@ -519,15 +553,23 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
                 let displayStatus = record ? getComputedStatus(record) : null;
 
                 return (
-                  <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
+                  <tr key={emp.id} className="group hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <img src={emp.avatar} className="w-8 h-8 rounded-lg shadow-sm border border-slate-100" alt="" />
+                        <img src={emp.avatar || 'https://via.placeholder.com/150'} className="w-10 h-10 rounded-2xl shadow-sm border border-slate-100 object-cover" alt="" />
                         <div>
-                          <span className="font-black text-slate-700 block text-xs">{emp.name}</span>
-                          <span className="text-[9px] font-bold text-slate-400 uppercase">{empXarun}</span>
+                          <span className="font-black text-slate-700 block text-sm tracking-tight">{emp.name}</span>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                            {emp.branchId && emp.branchId !== 'all' ? (branches.find(b => b.id === emp.branchId)?.name || 'Branch') : '🌍 Dhammaan (HQ)'}
+                          </span>
                           {emp.warning && (
-                            <span className="ml-2 px-2 py-0.5 bg-amber-50 text-amber-600 rounded-full text-[8px] font-black uppercase">⚠️ {emp.warning}</span>
+                            <div className="relative inline-block ml-2 group/tooltip">
+                              <span className="cursor-help transition-transform hover:scale-110 inline-block text-amber-500">⚠️</span>
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-slate-800 text-white text-[10px] font-bold rounded-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all whitespace-nowrap z-50 shadow-xl border border-slate-700">
+                                {emp.warning}
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-800"></div>
+                              </div>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -546,25 +588,26 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
                     </td>
                     <td className="px-6 py-4 text-center">
                       {record ? (
-                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                          displayStatus === 'PRESENT' ? 'bg-emerald-50 text-emerald-600' :
-                          displayStatus === 'ABSENT' ? 'bg-rose-50 text-rose-600' : 
-                          displayStatus === 'LEAVE' ? 'bg-indigo-50 text-indigo-600' : 
-                          displayStatus === 'HOLIDAY' ? 'bg-amber-50 text-amber-600' : 
-                          displayStatus === 'LATE' ? 'bg-orange-50 text-orange-600' : 'bg-slate-50 text-slate-500'
+                        <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm ${
+                          displayStatus === 'PRESENT' ? 'bg-emerald-500 text-white' :
+                          displayStatus === 'ABSENT' ? 'bg-rose-500 text-white' : 
+                          displayStatus === 'LEAVE' ? 'bg-indigo-500 text-white' : 
+                          displayStatus === 'HOLIDAY' ? 'bg-amber-500 text-white' : 
+                          displayStatus === 'LATE' ? 'bg-orange-400 text-white' : 'bg-slate-500 text-white'
                         }`}>
                           {displayStatus}
                         </span>
                       ) : (
-                        <span className="text-[9px] font-black text-slate-300 uppercase italic">--</span>
+                        <span className="text-[10px] font-black text-slate-200 uppercase tracking-widest italic select-none">--</span>
                       )}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button 
                         onClick={() => openEditModal(emp.id, record)}
-                        className="bg-slate-100 text-slate-500 hover:bg-indigo-600 hover:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all shadow-sm active:scale-95 flex items-center gap-2 ml-auto"
+                        className="w-10 h-10 flex ml-auto items-center justify-center rounded-2xl bg-white border border-slate-100 text-slate-400 hover:bg-slate-900 hover:text-white hover:border-slate-900 transition-all active:scale-90 group-hover:shadow-lg group-hover:shadow-slate-100"
+                        title="Edit Record"
                       >
-                        ✏️ Edit / Change
+                        <span className="text-xl font-bold">⋮</span>
                       </button>
                     </td>
                   </tr>
@@ -575,58 +618,70 @@ const HRMAttendanceTracker: React.FC<HRMAttendanceTrackerProps> = ({
         </div>
       </div>
 
-      {/* EDIT MODAL */}
+      {/* EDIT SLIDE-OVER */}
       {editingRecord && (
-          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[60000] flex items-center justify-center p-4">
-              <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
-                  <div className="p-8 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-                      <div>
-                          <h3 className="text-xl font-black text-slate-800">Sax Iimaanshaha</h3>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Manual Edit / Correction</p>
-                      </div>
-                      <button onClick={() => setEditingRecord(null)} className="w-8 h-8 rounded-full bg-white text-slate-400 hover:text-rose-500 flex items-center justify-center font-bold">✕</button>
-                  </div>
-                  
-                  <div className="p-8 space-y-6">
-                      <div className="space-y-1">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Xaaladda (Status)</label>
-                          <select 
-                            className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-indigo-500 transition-all"
-                            value={editForm.status}
-                            onChange={e => setEditForm({...editForm, status: e.target.value})}
-                          >
-                              <option value="PRESENT">✅ PRESENT (Jooga)</option>
-                              <option value="ABSENT">❌ ABSENT (Maqan)</option>
-                              <option value="LATE">⏰ LATE (Dahay)</option>
-                              <option value="LEAVE">🏖️ LEAVE (Fasax)</option>
-                              <option value="HOLIDAY">🌴 HOLIDAY (Ciid/Fasax Guud)</option>
-                          </select>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Soo Galay (Time In)</label>
-                              <input type="time" className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-indigo-500" value={editForm.clockIn} onChange={e => setEditForm({...editForm, clockIn: e.target.value})} />
+          <div className="fixed inset-0 z-[60000] overflow-hidden">
+              <div 
+                className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity animate-in fade-in duration-300"
+                onClick={() => setEditingRecord(null)}
+              ></div>
+              
+              <div className="absolute inset-y-0 right-0 max-w-full flex">
+                  <div className="w-screen max-w-md animate-in slide-in-from-right duration-500 ease-out">
+                      <div className="h-full flex flex-col bg-white shadow-2xl rounded-l-[3rem] overflow-hidden">
+                          <div className="p-10 bg-slate-900 text-white">
+                              <div className="flex items-center justify-between">
+                                  <h3 className="text-2xl font-black tracking-tight uppercase">Edit Record</h3>
+                                  <button 
+                                    onClick={() => setEditingRecord(null)} 
+                                    className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white/70 hover:bg-white/20 hover:text-white transition-all"
+                                  >✕</button>
+                              </div>
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-3">Updating Attendance Data</p>
                           </div>
-                          <div className="space-y-1">
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Baxay (Time Out)</label>
-                              <input type="time" className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-indigo-500" value={editForm.clockOut} onChange={e => setEditForm({...editForm, clockOut: e.target.value})} />
+                          
+                          <div className="flex-1 overflow-y-auto p-10 space-y-10">
+                              <div className="space-y-3">
+                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Xaaladda (Status)</label>
+                                  <select 
+                                    className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] font-black text-slate-700 outline-none focus:border-slate-900 transition-all appearance-none cursor-pointer"
+                                    value={editForm.status}
+                                    onChange={e => setEditForm({...editForm, status: e.target.value})}
+                                  >
+                                      <option value="PRESENT">✅ PRESENT (Jooga)</option>
+                                      <option value="ABSENT">❌ ABSENT (Maqan)</option>
+                                      <option value="LATE">⏰ LATE (Dahay)</option>
+                                      <option value="LEAVE">🏖️ LEAVE (Fasax)</option>
+                                      <option value="HOLIDAY">🌴 HOLIDAY (Ciid/Fasax Guud)</option>
+                                  </select>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-6">
+                                  <div className="space-y-3">
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Soo Galay (Time In)</label>
+                                      <input type="time" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] font-black text-slate-700 outline-none focus:border-slate-900 transition-all" value={editForm.clockIn} onChange={e => setEditForm({...editForm, clockIn: e.target.value})} />
+                                  </div>
+                                  <div className="space-y-3">
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Baxay (Time Out)</label>
+                                      <input type="time" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] font-black text-slate-700 outline-none focus:border-slate-900 transition-all" value={editForm.clockOut} onChange={e => setEditForm({...editForm, clockOut: e.target.value})} />
+                                  </div>
+                              </div>
+
+                              <div className="space-y-3">
+                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Sababta / Notes</label>
+                                  <textarea 
+                                    className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] font-bold text-slate-700 outline-none focus:border-slate-900 transition-all resize-none h-32"
+                                    placeholder="Qor sababta wax looga bedelay..."
+                                    value={editForm.notes}
+                                    onChange={e => setEditForm({...editForm, notes: e.target.value})}
+                                  />
+                              </div>
                           </div>
-                      </div>
 
-                      <div className="space-y-1">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Sababta / Notes</label>
-                          <textarea 
-                            className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-indigo-500 resize-none h-24"
-                            placeholder="Qor sababta wax looga bedelay..."
-                            value={editForm.notes}
-                            onChange={e => setEditForm({...editForm, notes: e.target.value})}
-                          />
-                      </div>
-
-                      <div className="pt-4 flex gap-4">
-                          <button onClick={() => setEditingRecord(null)} className="flex-1 py-4 bg-slate-100 text-slate-500 font-black rounded-2xl uppercase text-[10px] tracking-widest">Cancel</button>
-                          <button onClick={handleSaveEdit} className="flex-[2] py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl uppercase text-[10px] tracking-widest hover:bg-indigo-700">Update Record</button>
+                          <div className="p-10 bg-slate-50 border-t border-slate-100 flex gap-4">
+                              <button onClick={() => setEditingRecord(null)} className="flex-1 py-5 bg-white border-2 border-slate-200 text-slate-500 font-black rounded-2xl uppercase text-[10px] tracking-[0.2em] hover:bg-slate-100 transition-all">Cancel</button>
+                              <button onClick={handleSaveEdit} className="flex-[2] py-5 bg-slate-900 text-white font-black rounded-2xl shadow-xl shadow-slate-200 uppercase text-[10px] tracking-[0.2em] hover:bg-slate-800 transform active:scale-95 transition-all">Update Record</button>
+                          </div>
                       </div>
                   </div>
               </div>

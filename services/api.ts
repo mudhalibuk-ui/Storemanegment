@@ -1531,5 +1531,38 @@ export const API = {
       await cloudSave('stock_take_sessions', payload);
       return { ...session, id };
     }
+  },
+  auditLogs: {
+    async getAll(xarunId?: string): Promise<AuditLog[]> {
+      const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
+      const data = await fetchAllPages('audit_logs', query, 'timestamp');
+      return data.map(l => ({
+        id: l.id,
+        timestamp: l.timestamp,
+        userId: l.user_id,
+        userName: l.user_name,
+        action: l.action,
+        entityType: l.entity_type,
+        entityId: l.entity_id,
+        details: l.details,
+        xarunId: l.xarun_id
+      }));
+    },
+    async create(log: Partial<AuditLog>): Promise<AuditLog> {
+      const id = generateId();
+      const payload = { ...log, id, timestamp: new Date().toISOString() };
+      await cloudSave('audit_logs', payload);
+      return payload as AuditLog;
+    }
+  },
+  currencies: {
+    async getAll(): Promise<any[]> {
+      return await fetchAllPages('currencies', '', 'code');
+    },
+    async save(currency: any): Promise<any> {
+      const id = currency.id || generateId();
+      await cloudSave('currencies', { ...currency, id });
+      return { ...currency, id };
+    }
   }
 };

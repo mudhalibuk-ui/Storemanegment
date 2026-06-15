@@ -18,7 +18,8 @@ export enum UserRole {
   STAFF = 'STAFF',
   BUYER = 'BUYER',
   VIEWER = 'VIEWER',
-  AUDITOR = 'AUDITOR' 
+  AUDITOR = 'AUDITOR',
+  CASHIER = 'CASHIER' 
 }
 
 export enum PackType {
@@ -201,6 +202,8 @@ export interface InventoryItem {
   landedCost?: number;
   reservedQuantity?: number;
   supplier?: string;
+  expiryDate?: string; // Smart Expiry
+  lastSoldDate?: string; // For demand forecasting
 }
 
 export interface Customer {
@@ -675,6 +678,8 @@ export interface Vehicle {
   status: VehicleStatus;
   fuelLevel: number; // 0-100
   lastServiceDate?: string;
+  odometer: number; // Current km
+  nextServiceOdometer: number; // Target km for next service
   xarunId: string;
   currentLocation?: {
     lat: number;

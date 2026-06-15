@@ -28,6 +28,7 @@ interface LayoutProps {
   pendingApprovalsCount?: number;
   interBranchTransferCount?: number; // New prop for inter-branch transfers
   user: User;
+  currentRole?: UserRole;
   onLogout: () => void;
   isAuditMode?: boolean;
   enabledFeatures?: string[];
@@ -37,7 +38,7 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({
-  children, activeTab, setActiveTab, systemName = "SmartStock Pro", lowStockCount = 0, pendingApprovalsCount = 0, interBranchTransferCount = 0, user, onLogout, isAuditMode = false, enabledFeatures = [],
+  children, activeTab, setActiveTab, systemName = "SmartStock Pro", lowStockCount = 0, pendingApprovalsCount = 0, interBranchTransferCount = 0, user, currentRole, onLogout, isAuditMode = false, enabledFeatures = [],
   xarumo = [], selectedXarunId, onSelectXarun
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -63,7 +64,7 @@ const Layout: React.FC<LayoutProps> = ({
     { 
       section: 'OVERVIEW', 
       items: [
-        { id: 'dashboard', label: 'Dashboard', icon: '📊', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], badge: 0, featureId: 'dashboard' },
+        { id: 'dashboard', label: 'Dashboard', icon: '📊', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF, UserRole.CASHIER], badge: 0, featureId: 'dashboard' },
       ]
     },
     { 
@@ -113,9 +114,9 @@ const Layout: React.FC<LayoutProps> = ({
       section: 'SALES & CUSTOMERS', 
       isCollapsible: true,
       items: [
-        { id: 'pos', label: 'POS Terminal', icon: '🛒', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'pos' },
-        { id: 'invoice', label: 'Invoices & Quotes', icon: '📄', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'pos' },
-        { id: 'customers', label: 'Customers', icon: '👥', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'pos' },
+        { id: 'pos', label: 'POS Terminal', icon: '🛒', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF, UserRole.CASHIER], auditOnly: false, badge: 0, featureId: 'pos' },
+        { id: 'invoice', label: 'Invoices & Quotes', icon: '📄', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF, UserRole.CASHIER], auditOnly: false, badge: 0, featureId: 'pos' },
+        { id: 'customers', label: 'Customers', icon: '👥', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF, UserRole.CASHIER], auditOnly: false, badge: 0, featureId: 'pos' },
       ]
     },
     { 
@@ -139,14 +140,13 @@ const Layout: React.FC<LayoutProps> = ({
       section: 'INVENTORY MANAGEMENT', 
       isCollapsible: true,
       items: [
-        { id: 'inventory', label: 'Stock Items', icon: '📦', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'inventory' },
+        { id: 'inventory', label: 'Stock Items', icon: '📦', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF, UserRole.CASHIER], auditOnly: false, badge: 0, featureId: 'inventory' },
         { id: 'stock-take', label: 'Year-End Audit', icon: '📋', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.AUDITOR], auditOnly: false, badge: 0, featureId: 'stock-take' },
         { id: 'inventory-adjustment', label: 'Adjustment', icon: '⚙️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], auditOnly: false, badge: 0, featureId: 'inventory' },
         { id: 'approvals', label: 'Ogolaanshaha', icon: '🛡️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], badge: pendingApprovalsCount, auditOnly: false, featureId: 'inventory' },
-        { id: 'transactions', label: 'Dhaqdhaqaaqa', icon: '🔄', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'inventory' },
-        { id: 'map', label: 'Mappingka (Map)', icon: '🗺️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'inventory' },
+        { id: 'transactions', label: 'Dhaqdhaqaaqa', icon: '🔄', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF, UserRole.CASHIER], auditOnly: false, badge: 0, featureId: 'inventory' },
+        { id: 'map', label: 'Mappingka (Map)', icon: '🗺️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF, UserRole.CASHIER], auditOnly: false, badge: 0, featureId: 'inventory' },
         { id: 'xarumaha', label: 'Xarumaha (Branches)', icon: '🏢', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], auditOnly: false, badge: 0, featureId: 'inventory' },
-        { id: 'bakhaarada', label: 'Bakhaarada (Stores)', icon: '🏠', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], auditOnly: false, badge: 0, featureId: 'inventory' },
         { id: 'inter-branch-transfers', label: 'Logistics & Transfers', icon: '🚚', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], badge: interBranchTransferCount, auditOnly: false, featureId: 'inter-branch' }
       ]
     },
@@ -165,6 +165,7 @@ const Layout: React.FC<LayoutProps> = ({
       items: [
         { id: 'company-setup', label: 'Company Setup', icon: '🏢', roles: [UserRole.SUPER_ADMIN], auditOnly: false, badge: 0 },
         { id: 'users', label: 'User Control', icon: '🔐', roles: [UserRole.SUPER_ADMIN], auditOnly: false, badge: 0 },
+        { id: 'audit-logs', label: 'Activity Logs', icon: '📜', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], auditOnly: false, badge: 0 },
         { id: 'settings', label: 'Settings', icon: '⚙️', roles: [UserRole.SUPER_ADMIN], auditOnly: false, badge: 0 },
       ]
     }

@@ -8,19 +8,23 @@ interface HRMReportsProps {
   attendance: Attendance[];
   payrolls: Payroll[];
   xarumo: Xarun[];
+  branch?: string;
 }
 
-const HRMReports: React.FC<HRMReportsProps> = ({ employees, attendance, payrolls, xarumo }) => {
-  
+const HRMReports: React.FC<HRMReportsProps> = ({ employees, attendance, payrolls, xarumo, branch = 'all' }) => {
+  const filteredEmployees = employees.filter(emp => branch === 'all' || emp.branchId === branch);
+  const filteredAttendance = attendance.filter(a => branch === 'all' || filteredEmployees.some(e => e.id === a.employeeId));
+  const filteredPayrolls = payrolls.filter(p => branch === 'all' || filteredEmployees.some(e => e.id === p.employeeId));
+
   // 1. Attendance Data for Today
   const today = new Date().toISOString().split('T')[0];
-  const todayAttendance = attendance.filter(a => a.date === today);
+  const todayAttendance = filteredAttendance.filter(a => a.date === today);
   const presentCount = todayAttendance.filter(a => a.status === 'PRESENT').length;
   const absentCount = todayAttendance.filter(a => a.status === 'ABSENT').length;
   const lateCount = todayAttendance.filter(a => a.status === 'LATE').length;
   const leaveCount = todayAttendance.filter(a => a.status === 'LEAVE').length;
   const holidayCount = todayAttendance.filter(a => a.status === 'HOLIDAY').length;
-  const otherCount = employees.length - todayAttendance.length;
+  const otherCount = filteredEmployees.length - todayAttendance.length;
 
   const attendancePieData = [
     { name: 'Yimid', value: presentCount, color: '#10b981' },
@@ -33,10 +37,10 @@ const HRMReports: React.FC<HRMReportsProps> = ({ employees, attendance, payrolls
 
   // 2. Payroll Summary per Xarun
   const payrollPerXarun = xarumo.map(x => {
-    const xarunPayrolls = payrolls.filter(p => p.xarunId === x.id);
+    const xarunPayrolls = filteredPayrolls.filter(p => p.xarunId === x.id);
     const total = xarunPayrolls.reduce((sum, p) => sum + p.netPay, 0);
     return { name: x.name, amount: total };
-  });
+  }).filter(x => x.amount > 0);
 
   const handlePrint = () => {
     window.print();
@@ -126,7 +130,7 @@ const HRMReports: React.FC<HRMReportsProps> = ({ employees, attendance, payrolls
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {employees.map(emp => {
+              {filteredEmployees.map(emp => {
                 const record = todayAttendance.find(a => a.employeeId === emp.id);
                 const xarun = xarumo.find(x => x.id === emp.xarunId)?.name || 'N/A';
                 return (
@@ -177,7 +181,7 @@ const HRMReports: React.FC<HRMReportsProps> = ({ employees, attendance, payrolls
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {payrolls.slice(0, 10).map(pay => {
+              {filteredPayrolls.slice(0, 10).map(pay => {
                 const emp = employees.find(e => e.id === pay.employeeId);
                 return (
                   <tr key={pay.id}>

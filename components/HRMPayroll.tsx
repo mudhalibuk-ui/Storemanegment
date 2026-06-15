@@ -6,13 +6,16 @@ import { API } from '../services/api';
 interface HRMPayrollProps {
   employees: Employee[];
   xarumo: Xarun[];
+  branch?: string;
 }
 
-const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo }) => {
+const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo, branch = 'all' }) => {
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toLocaleString('en-US', { month: 'long' }));
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [isProcessing, setIsProcessing] = useState(false);
+
+  const filteredEmployees = employees.filter(emp => branch === 'all' || emp.branchId === branch);
 
   useEffect(() => {
     loadPayrollData();
@@ -20,7 +23,7 @@ const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo }) => {
 
   const loadPayrollData = async () => {
     const data = await API.payroll.getAll();
-    setPayrolls(data.filter(p => p.month === selectedMonth && p.year === selectedYear));
+    setPayrolls(data.filter(p => p.month === selectedMonth && p.year === selectedYear && (branch === 'all' || filteredEmployees.some(e => e.id === p.employeeId))));
   };
 
   const calculateHours = (inTime: string, outTime: string): number => {
@@ -50,7 +53,7 @@ const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo }) => {
     
     const todayStr = new Date().toISOString().split('T')[0];
 
-    for (const emp of employees) {
+    for (const emp of filteredEmployees) {
       const existing = payrolls.find(p => p.employeeId === emp.id);
       
       // Calculate Total Hours & Overtime
@@ -246,6 +249,7 @@ const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo }) => {
           <tbody className="divide-y divide-slate-50">
             {payrolls.map(pay => {
               const emp = employees.find(e => e.id === pay.employeeId);
+              if (branch !== 'all' && emp?.branchId !== branch) return null;
               return (
                 <tr key={pay.id} className="hover:bg-slate-50/50 transition-colors">
                   <td className="px-10 py-4 font-black text-slate-700">{emp?.name}</td>

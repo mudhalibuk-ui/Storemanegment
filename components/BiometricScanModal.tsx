@@ -157,7 +157,7 @@ const BiometricScanModal: React.FC<BiometricScanModalProps> = ({
           {scanComplete && matchedEmployee && (
             <div className="text-center animate-in fade-in zoom-in duration-500 w-full">
               <div className="bg-emerald-50 p-6 rounded-[2.5rem] border border-emerald-100 flex flex-col items-center">
-                <img src={matchedEmployee.avatar} className="w-20 h-20 rounded-2xl border-4 border-white shadow-lg mb-4" alt="" />
+                <img src={matchedEmployee.avatar || 'https://via.placeholder.com/150'} className="w-20 h-20 rounded-2xl border-4 border-white shadow-lg mb-4" alt="" />
                 <h3 className="text-xl font-black text-slate-800 tracking-tight">{matchedEmployee.name}</h3>
                 <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mt-1">Waa la Aqoonsaday ✅</p>
               </div>

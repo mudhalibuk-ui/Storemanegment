@@ -40,6 +40,48 @@ const Financials: React.FC<FinancialsProps> = ({ user, ledger, sales, accounts, 
   const [viewingDocument, setViewingDocument] = useState<{ type: 'INVOICE' | 'QUOTATION' | 'SALES_ORDER', data: Partial<Sale> } | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
+  // AI Anomaly Detection Logic ⚠️
+  const anomalies = useMemo(() => {
+    // 1. Expense spike detection
+    const expenseAccounts = accounts.filter(a => a.type === AccountType.EXPENSE);
+    const flags: { id: string; type: string; title: string; desc: string; severity: 'HIGH' | 'MEDIUM' }[] = [];
+    
+    expenseAccounts.forEach(acc => {
+      const entries = ledger.filter(l => l.accountCode === acc.code);
+      if (entries.length < 2) return;
+      
+      const lastEntry = entries[0]; // Sorted desc in memo
+      const average = entries.slice(1, 10).reduce((sum, e) => sum + e.amount, 0) / Math.min(9, entries.length - 1);
+      
+      if (lastEntry.amount > average * 2.5 && lastEntry.amount > 100) {
+        flags.push({
+          id: lastEntry.id,
+          type: 'EXPENSE_SPIKE',
+          title: `Xaddiga Kharashka: ${acc.name}`,
+          desc: `Kharashkan ($${lastEntry.amount}) wuxuu 2.5x ka badan yahay celceliska ($${average.toFixed(2)}).`,
+          severity: 'HIGH'
+        });
+      }
+    });
+
+    // 2. Unusual transaction hour detection (e.g., transactions at midnight)
+    ledger.slice(0, 50).forEach(entry => {
+       const date = new Date(entry.date);
+       const hour = date.getHours();
+       if (hour >= 23 || hour <= 4) {
+          flags.push({
+             id: entry.id,
+             type: 'TIME_ANOMALY',
+             title: 'Macaamil Wakhti Ka Bax San ah',
+             desc: `Transaction-kan waxaa la sameeyay ${hour}:00 habeenimo.`,
+             severity: 'MEDIUM'
+          });
+       }
+    });
+
+    return flags;
+  }, [ledger, accounts]);
+
   React.useEffect(() => {
     if (activeTab === 'audit') {
       API.auditLogs.getAll(user.xarunId).then(setAuditLogs);
@@ -188,6 +230,26 @@ const Financials: React.FC<FinancialsProps> = ({ user, ledger, sales, accounts, 
     return { ar, ap };
   }, [sales]);
 
+  const handleExportCSV = (data: any[], fileName: string) => {
+    if (data.length === 0) return;
+    const headers = Object.keys(data[0]).join(',');
+    const rows = data.map(obj => 
+      Object.values(obj).map(val => 
+        typeof val === 'string' ? `"${val.replace(/"/g, '""')}"` : val
+      ).join(',')
+    );
+    const csvContent = [headers, ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${fileName}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const renderSales = () => (
     <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="p-8 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
@@ -203,6 +265,13 @@ const Financials: React.FC<FinancialsProps> = ({ user, ledger, sales, accounts, 
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+          <button 
+            onClick={() => handleExportCSV(filteredSales, 'SalesInvoices')}
+            className="p-3 bg-slate-100 text-slate-600 rounded-2xl hover:bg-slate-900 hover:text-white transition-all flex items-center gap-2 group border border-slate-200 shadow-sm"
+          >
+            <Download size={18} />
+            <span className="text-[10px] font-black uppercase tracking-widest hidden group-hover:block px-1">CSV</span>
+          </button>
         </div>
       </div>
       <div className="overflow-x-auto">
@@ -258,6 +327,34 @@ const Financials: React.FC<FinancialsProps> = ({ user, ledger, sales, accounts, 
 
   const renderDashboard = () => (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      
+      {/* AI Anomaly Detection Banner */}
+      {anomalies.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-[2.5rem] p-8 shadow-sm overflow-hidden relative group">
+           <div className="absolute right-0 top-0 w-64 h-64 bg-amber-200/20 blur-3xl -mr-32 -mt-32"></div>
+           <div className="flex items-center gap-4 mb-6 relative z-10">
+              <div className="p-3 bg-amber-500 text-white rounded-2xl animate-pulse">⚠️</div>
+              <div>
+                 <h4 className="text-lg font-black text-slate-900 uppercase tracking-tight">Dareemaha Qaladaadka (AI Anomaly Detection)</h4>
+                 <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Nidaamku wuxuu helay {anomalies.length} waxyaabood oo u baahan baaritaan</p>
+              </div>
+           </div>
+           
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 relative z-10">
+              {anomalies.slice(0, 3).map(anomaly => (
+                <div key={anomaly.id} className="p-5 bg-white border border-amber-100 rounded-3xl shadow-sm hover:shadow-md transition-all">
+                   <div className="flex justify-between items-start mb-2">
+                      <p className="text-[9px] font-black text-amber-500 uppercase tracking-[0.2em]">{anomaly.type.replace('_', ' ')}</p>
+                      <span className={`w-2 h-2 rounded-full ${anomaly.severity === 'HIGH' ? 'bg-rose-500' : 'bg-amber-500'}`}></span>
+                   </div>
+                   <p className="text-xs font-black text-slate-800 uppercase mb-1">{anomaly.title}</p>
+                   <p className="text-[10px] font-bold text-slate-500 leading-tight">{anomaly.desc}</p>
+                </div>
+              ))}
+           </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 group hover:border-slate-900 transition-all duration-500">
           <div className="flex justify-between items-start mb-4">
@@ -393,8 +490,12 @@ const Financials: React.FC<FinancialsProps> = ({ user, ledger, sales, accounts, 
           <button className="p-3 bg-slate-50 text-slate-600 rounded-2xl hover:bg-slate-900 hover:text-white transition-all">
             <Filter size={18} />
           </button>
-          <button className="p-3 bg-slate-50 text-slate-600 rounded-2xl hover:bg-slate-900 hover:text-white transition-all">
+          <button 
+            onClick={() => handleExportCSV(filteredLedger, 'GeneralLedger')}
+            className="p-3 bg-slate-50 text-slate-600 rounded-2xl hover:bg-slate-900 hover:text-white transition-all flex items-center gap-2 group"
+          >
             <Download size={18} />
+            <span className="text-[10px] font-black uppercase tracking-widest hidden group-hover:block">Export CSV</span>
           </button>
         </div>
       </div>
