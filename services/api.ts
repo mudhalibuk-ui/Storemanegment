@@ -46,7 +46,7 @@ const FIELD_MAPPING: Record<string, string> = {
   expectedArrivalDate: 'expected_arrival_date'
 };
 
-const generateId = () => {
+export const generateId = () => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
@@ -363,6 +363,7 @@ export const API = {
       delete safePayload.sellingPrice;
       delete safePayload.landedCost;
       delete safePayload.supplier;
+      delete safePayload.itemType;
 
       await cloudSave('inventory_items', safePayload, 'id');
       return payload as InventoryItem;
@@ -377,6 +378,7 @@ export const API = {
           delete safeItem.sellingPrice;
           delete safeItem.landedCost;
           delete safeItem.supplier;
+          delete safeItem.itemType;
           return toSnakeCase({
             ...safeItem,
             lastUpdated: new Date().toISOString()
@@ -1545,39 +1547,6 @@ export const API = {
       };
       await cloudSave('stock_take_sessions', payload);
       return { ...session, id };
-    }
-  },
-  auditLogs: {
-    async getAll(xarunId?: string): Promise<AuditLog[]> {
-      const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
-      const data = await fetchAllPages('audit_logs', query, 'timestamp');
-      return data.map(l => ({
-        id: l.id,
-        timestamp: l.timestamp,
-        userId: l.user_id,
-        userName: l.user_name,
-        action: l.action,
-        entityType: l.entity_type,
-        entityId: l.entity_id,
-        details: l.details,
-        xarunId: l.xarun_id
-      }));
-    },
-    async create(log: Partial<AuditLog>): Promise<AuditLog> {
-      const id = generateId();
-      const payload = { ...log, id, timestamp: new Date().toISOString() };
-      await cloudSave('audit_logs', payload);
-      return payload as AuditLog;
-    }
-  },
-  currencies: {
-    async getAll(): Promise<any[]> {
-      return await fetchAllPages('currencies', '', 'code');
-    },
-    async save(currency: any): Promise<any> {
-      const id = currency.id || generateId();
-      await cloudSave('currencies', { ...currency, id });
-      return { ...currency, id };
     }
   }
 };

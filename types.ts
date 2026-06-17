@@ -184,6 +184,8 @@ export interface Branch {
   isMainStore?: boolean;
 }
 
+export type ItemType = 'STOCK' | 'NON_STOCK' | 'SERVICE' | 'ASSEMBLE';
+
 export interface InventoryItem {
   id: string;
   name: string;
@@ -204,6 +206,7 @@ export interface InventoryItem {
   supplier?: string;
   expiryDate?: string; // Smart Expiry
   lastSoldDate?: string; // For demand forecasting
+  itemType?: ItemType;
 }
 
 export interface Customer {
@@ -497,6 +500,7 @@ export interface CreateInventoryItemArgs {
   xarunId: string;
   packType?: PackType;
   supplier?: string;
+  itemType?: ItemType;
 }
 
 export interface AdjustStockArgs {

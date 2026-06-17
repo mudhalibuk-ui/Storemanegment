@@ -17,6 +17,7 @@ import BranchForm from './components/BranchForm';
 import ItemMovementHistoryModal from './components/ItemMovementHistoryModal';
 import TransferModal from './components/TransferModal';
 import ImportModal from './components/ImportModal';
+import { MultiItemAddModal } from './components/MultiItemAddModal';
 import BulkTransactionModal from './components/BulkTransactionModal';
 import ApprovalQueue from './components/ApprovalQueue';
 import TransactionReceipt from './components/TransactionReceipt';
@@ -103,6 +104,7 @@ const App: React.FC = () => {
   const [importModalType, setImportModalType] = useState<'inventory' | 'customer' | 'vendor' | null>(null);
   const [importModalMode, setImportModalMode] = useState<'normal' | 'create_only'>('normal');
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [isMultiItemModalOpen, setIsMultiItemModalOpen] = useState(false);
   const [receiptTransaction, setReceiptTransaction] = useState<Transaction | null>(null);
   const [bulkReceiptData, setBulkReceiptData] = useState<{ transactions: Transaction[], type: TransactionType, branch: Branch | undefined, personnel: string, date: string } | null>(null);
   const [xarunOrders, setXarunOrders] = useState<XarunOrderRequest[]>([]);
@@ -523,8 +525,7 @@ const App: React.FC = () => {
               setImportModalType('inventory');
             }} 
             onImportBulkNew={() => {
-              setImportModalMode('create_only');
-              setImportModalType('inventory');
+              setIsMultiItemModalOpen(true);
             }}
             onBulkAction={() => setIsBulkModalOpen(true)} 
             onEdit={(item) => { setEditingItem(item); setIsItemFormOpen(true); }} 
@@ -1002,6 +1003,36 @@ const App: React.FC = () => {
             return success; 
           }} 
           onCancel={() => setImportModalType(null)} 
+        />
+      )}
+      {isMultiItemModalOpen && (
+        <MultiItemAddModal 
+          branches={branches}
+          xarumo={xarumo}
+          userXarunId={user?.xarunId}
+          onSave={async (newItems, replicateToAllBranches) => {
+             let finalItems = newItems;
+             if (replicateToAllBranches) {
+                 finalItems = [];
+                 for (const item of newItems) {
+                     for (const b of branches) {
+                         const branchItem = { ...item };
+                         // We need a unique ID per branch/item pair since id is PK
+                         branchItem.id = item.id + '-' + b.id; 
+                         branchItem.branchId = b.id;
+                         branchItem.xarunId = b.xarunId || item.xarunId;
+                         finalItems.push(branchItem);
+                     }
+                 }
+             }
+
+             const success = await api.inventory.items.bulkSave(finalItems);
+             if (success) {
+                refreshAllData();
+             }
+             return success;
+          }}
+          onCancel={() => setIsMultiItemModalOpen(false)}
         />
       )}
       {isBulkModalOpen && <BulkTransactionModal items={items} branches={branches} onSave={async (type, data) => { 
