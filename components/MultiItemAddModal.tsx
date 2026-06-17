@@ -144,6 +144,10 @@ export const MultiItemAddModal: React.FC<MultiItemAddModalProps> = ({ branches, 
       if (validRows.length === 0) return;
 
       setIsSaving(true);
+      
+      // Let React paint the "WAA LA KEYDINAYAA..." button state
+      await new Promise(resolve => setTimeout(resolve, 50));
+
       const mappedRows = validRows.map(row => {
           // Auto-generate SKU if omitted
           const safeSku = row.sku ? String(row.sku).trim() : '';
@@ -224,7 +228,7 @@ export const MultiItemAddModal: React.FC<MultiItemAddModalProps> = ({ branches, 
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {rows.map((row, idx) => (
+                {rows.slice(0, 100).map((row, idx) => (
                   <tr key={row.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-2">
                       <input 
@@ -319,6 +323,11 @@ export const MultiItemAddModal: React.FC<MultiItemAddModalProps> = ({ branches, 
                 ))}
               </tbody>
             </table>
+            {rows.length > 100 && (
+              <div className="bg-indigo-50 text-indigo-700 p-4 text-center text-[11px] font-black uppercase tracking-widest border-t-2 border-indigo-100">
+                Waa la soo gaabiyay, 100-ka ugu horeeya oo qura ayaa muuqda. ({rows.length - 100} ayaa qarsoon) balse dhamaantood waa la keydinayaa.
+              </div>
+            )}
           </div>
 
           <div className="mt-4 flex justify-center">

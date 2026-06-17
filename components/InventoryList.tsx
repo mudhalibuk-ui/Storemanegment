@@ -19,10 +19,11 @@ interface InventoryListProps {
   onRefresh?: () => void; 
   onDeleteAll?: () => void;
   onDelete?: (id: string) => void;
+  onCleanDuplicates?: () => void;
 }
 
 const InventoryList: React.FC<InventoryListProps> = ({ 
-  user, items, branches, initialBranchFilter = 'all', onAdd, onImport, onImportBulkNew, onBulkAction, onEdit, onTransaction, onViewHistory, onRefresh, onDeleteAll, onDelete
+  user, items, branches, initialBranchFilter = 'all', onAdd, onImport, onImportBulkNew, onBulkAction, onEdit, onTransaction, onViewHistory, onRefresh, onDeleteAll, onDelete, onCleanDuplicates
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [branchFilter, setBranchFilter] = useState(initialBranchFilter);
@@ -175,6 +176,15 @@ const InventoryList: React.FC<InventoryListProps> = ({
               >
                 📥 UPDATE / IMPORT
               </button>
+              {onCleanDuplicates && user.role === UserRole.SUPER_ADMIN && (
+                <button 
+                  onClick={onCleanDuplicates}
+                  className="bg-rose-50 text-rose-600 px-6 md:px-8 py-3 md:py-4 rounded-xl md:rounded-2xl font-black text-[9px] md:text-[11px] uppercase tracking-[0.1em] border border-rose-100 flex items-center gap-3 active:scale-95 transition-all shadow-sm"
+                  title="Remove duplicate items generated across branches"
+                >
+                  <span className="text-sm">🧹</span> FIX DUPLICATES
+                </button>
+              )}
             </div>
             
             <div className="flex gap-2 w-full md:w-auto">

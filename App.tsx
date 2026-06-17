@@ -541,6 +541,69 @@ const App: React.FC = () => {
                 } catch (err) { alert("Cilad tirtiridda!"); }
               } 
             }}
+            onCleanDuplicates={async () => {
+                if(!window.confirm("Ma hubtaa inaad tirtirto dhamaan alaabta soo noqnoqotay? Batoonkan wuxuu midaynayaa alaabta isku magaca ah oo leh SKU isku dhow wuxuuna ka saarayaa xarumaha/bakhaarada qaaska ah si ay uga muuqdaan kaliya 'master list'-ka.")) return;
+                
+                // Group items by name and category (ignoring case)
+                const itemsByName = new Map<string, InventoryItem[]>();
+                for (const item of items) {
+                    const key = `${item.name.toLowerCase().trim()}|${item.category?.toLowerCase().trim() || ''}`;
+                    if (!itemsByName.has(key)) itemsByName.set(key, []);
+                    itemsByName.get(key)!.push(item);
+                }
+
+                let cleanedCount = 0;
+                let deletedCount = 0;
+                try {
+                  for (const [key, group] of itemsByName.entries()) {
+                      if (group.length > 1) {
+                          // Keep the first one, strip its location, save it
+                          const master = group[0];
+                          const safeItem = { ...master, quantity: 0, shelves: 1, sections: 1 };
+                          delete safeItem.branchId;
+                          delete safeItem.xarunId;
+
+                          // Clean SKU if it has '-XXX' suffix at the end (e.g. ITM-234234-HQ)
+                          if (safeItem.sku) {
+                              const parts = safeItem.sku.split('-');
+                              if (parts.length >= 3) { // usually PREFIX-NUMBER-SUFFIX
+                                  safeItem.sku = parts.slice(0, 2).join('-');
+                              }
+                          }
+                          await API.items.save(safeItem);
+                          cleanedCount++;
+
+                          // Delete the rest
+                          for (let i = 1; i < group.length; i++) {
+                              await API.items.delete(group[i].id);
+                              deletedCount++;
+                          }
+                      } else if (group.length === 1) {
+                          // Clean up single items imported wrongly into branches with qty 0
+                          const item = group[0];
+                          if (item.branchId && (item.quantity === 0 || !item.quantity)) {
+                              const safeItem = { ...item, quantity: 0, shelves: 1, sections: 1 };
+                              delete safeItem.branchId;
+                              delete safeItem.xarunId;
+                              
+                              if (safeItem.sku) {
+                                  const parts = safeItem.sku.split('-');
+                                  if (parts.length >= 3) { 
+                                      safeItem.sku = parts.slice(0, 2).join('-');
+                                  }
+                              }
+                              await API.items.save(safeItem);
+                              cleanedCount++;
+                          }
+                      }
+                  }
+                  alert(`Si guul leh ayaa loo Nadiifiyay!\n\nAlaab dib loo habeeyay: ${cleanedCount}\nAlaab soo noqnoqotay oo la tirtiray: ${deletedCount}`);
+                  refreshAllData(true);
+                } catch (error) {
+                  console.error(error);
+                  alert("Cilad ayaa dhacday inta lagu guda jiray Nadiifinta!");
+                }
+            }}
             onTransaction={(item, type) => {
               if (type === 'TRANSFER') {
                 setTransferModalItem(item);
@@ -791,39 +854,23 @@ const App: React.FC = () => {
         const validXarunId = selectedBranch?.xarunId || user.xarunId || '';
         const itemWithXarun = { ...item, xarunId: validXarunId };
         
-        if (!editingItem && updateAll && item.sku) {
-            // New item, add to all branches
-            for (const b of branches) {
-                const safeName = b.name ? b.name : 'BRC';
-                const bSku = `${item.sku}-${safeName.replace(/[^a-zA-Z0-9]/g, '').substring(0,3).toUpperCase()}`;
-                const bId = `${item.id || generateId()}-${b.id}`;
-                await API.items.save({
-                    ...itemWithXarun,
-                    id: bId,
-                    sku: bSku,
-                    branchId: b.id,
-                    xarunId: b.xarunId || validXarunId
-                });
-            }
-        } else {
-            await API.items.save(itemWithXarun); 
+        await API.items.save(itemWithXarun); 
 
-            if (updateAll && item.sku) {
-                // Find all other items with same prefix SKU and update their master details
-                const baseSku = item.sku.split('-')[0] + (item.sku.split('-')[1] ? '-' + item.sku.split('-')[1] : '');
-                const relatedItems = items.filter(i => i.sku && i.sku.startsWith(baseSku) && i.id !== item.id);
-                for (const related of relatedItems) {
-                    await API.items.save({
-                        ...related,
-                        name: item.name,
-                        category: item.category,
-                        supplier: item.supplier,
-                        packType: item.packType,
-                        minThreshold: item.minThreshold,
-                        lastKnownPrice: item.lastKnownPrice,
-                        landedCost: item.landedCost
-                    });
-                }
+        if (editingItem && updateAll && item.sku) {
+            // Find all other items with same prefix SKU and update their master details
+            const baseSku = item.sku.split('-')[0] + (item.sku.split('-')[1] ? '-' + item.sku.split('-')[1] : '');
+            const relatedItems = items.filter(i => i.sku && i.sku.startsWith(baseSku) && i.id !== item.id);
+            for (const related of relatedItems) {
+                await API.items.save({
+                    ...related,
+                    name: item.name,
+                    category: item.category,
+                    supplier: item.supplier,
+                    packType: item.packType,
+                    minThreshold: item.minThreshold,
+                    lastKnownPrice: item.lastKnownPrice,
+                    landedCost: item.landedCost
+                });
             }
         }
 
@@ -1016,26 +1063,18 @@ const App: React.FC = () => {
           branches={branches}
           xarumo={xarumo}
           userXarunId={user?.xarunId}
-          onSave={async (newItems, replicateToAllBranches) => {
+          onSave={async (newItems, noLocationAssigned) => {
              let finalItems = newItems;
-             if (replicateToAllBranches) {
-                 finalItems = [];
-                 for (const item of newItems) {
-                     for (const b of branches) {
-                         const branchItem = { ...item };
-                         // We need a unique ID per branch/item pair since id is PK
-                         branchItem.id = item.id + '-' + b.id; 
-                         branchItem.branchId = b.id;
-                         branchItem.xarunId = b.xarunId || item.xarunId;
-                         
-                         // Fix SKU collision constraint
-                         if (branchItem.sku) {
-                            const safeBName = b.name ? b.name : 'BRC';
-                            branchItem.sku = `${branchItem.sku}-${safeBName.replace(/[^a-zA-Z0-9]/g, '').substring(0,3).toUpperCase()}`;
-                         }
-                         finalItems.push(branchItem);
-                     }
-                 }
+             if (noLocationAssigned) {
+                 // user did not provide warehouse data, so don't assign to ANY branch/xarun
+                 // it will just be a master catalog item.
+                 finalItems = newItems.map(item => {
+                     const catalogItem = { ...item };
+                     delete catalogItem.branchId;
+                     delete catalogItem.xarunId;
+                     catalogItem.quantity = 0;
+                     return catalogItem;
+                 });
              }
 
              try {
