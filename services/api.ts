@@ -385,19 +385,24 @@ export const API = {
           });
         });
         
-        const result = await supabaseFetch(`inventory_items?on_conflict=sku,branch_id`, {
-          method: 'POST',
-          headers: {
-            'Prefer': 'resolution=merge-duplicates'
-          },
-          body: JSON.stringify(payload)
-        });
-
-        if (result && result.error) {
-          console.error("Bulk Save Error:", result.error);
-          return false;
+        // Chunking the payload to prevent huge POST requests that can freeze or timeout
+        const CHUNK_SIZE = 500;
+        let allSuccess = true;
+        for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
+          const chunk = payload.slice(i, i + CHUNK_SIZE);
+          const result = await supabaseFetch(`inventory_items?on_conflict=id`, {
+            method: 'POST',
+            headers: {
+              'Prefer': 'resolution=merge-duplicates'
+            },
+            body: JSON.stringify(chunk)
+          });
+          if (result && result.error) {
+            console.error("Bulk Save Chunk Error:", result.error, result.details);
+            allSuccess = false;
+          }
         }
-        return true;
+        return allSuccess;
       } catch (e) {
         console.error("Bulk Save Exception:", e);
         return false;

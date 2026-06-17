@@ -139,34 +139,44 @@ export const MultiItemAddModal: React.FC<MultiItemAddModalProps> = ({ branches, 
   };
 
   const handleSave = async () => {
-    const validRows = rows.filter(r => r.name.trim() !== '');
-    if (validRows.length === 0) return;
+    try {
+      const validRows = rows.filter(r => r.name && String(r.name).trim() !== '');
+      if (validRows.length === 0) return;
 
-    setIsSaving(true);
-    const success = await onSave(validRows.map(row => {
-        // Auto-generate SKU if omitted
-        const generatedSku = row.sku.trim() || `SKU-${Math.floor(10000 + Math.random() * 90000)}`;
-        return {
-            name: row.name,
-            sku: generatedSku,
-            category: row.category,
-            itemType: row.itemType,
-            lastKnownPrice: row.lastKnownPrice,
-            sellingPrice: row.sellingPrice || row.lastKnownPrice || 0,
-            xarunId: row.xarunId,
-            branchId: row.branchId,
-            quantity: showWarehouseData ? (row.quantity || 0) : 0,
-            shelves: showWarehouseData ? (row.shelves || 1) : 1,
-            sections: showWarehouseData ? (row.sections || 1) : 1,
-            minThreshold: 5
-        };
-    }), !showWarehouseData);
+      setIsSaving(true);
+      const mappedRows = validRows.map(row => {
+          // Auto-generate SKU if omitted
+          const safeSku = row.sku ? String(row.sku).trim() : '';
+          const generatedSku = safeSku || `SKU-${Math.floor(10000 + Math.random() * 90000)}`;
+          return {
+              id: row.id || generateId(),
+              name: String(row.name).trim(),
+              sku: generatedSku,
+              category: row.category ? String(row.category).trim() : '',
+              itemType: row.itemType,
+              lastKnownPrice: row.lastKnownPrice,
+              sellingPrice: row.sellingPrice || row.lastKnownPrice || 0,
+              xarunId: row.xarunId,
+              branchId: row.branchId,
+              quantity: showWarehouseData ? (row.quantity || 0) : 0,
+              shelves: showWarehouseData ? (row.shelves || 1) : 1,
+              sections: showWarehouseData ? (row.sections || 1) : 1,
+              minThreshold: 5
+          };
+      });
 
-    setIsSaving(false);
-    if (success) {
-      onCancel();
-    } else {
-      alert("Cilad ayaa dhacday inta lagu guda jiray xog gelinta.");
+      const success = await onSave(mappedRows, !showWarehouseData);
+
+      setIsSaving(false);
+      if (success) {
+        onCancel();
+      } else {
+        alert("Cilad ayaa dhacday inta lagu guda jiray xog gelinta.");
+      }
+    } catch (e: any) {
+      console.error("MultiItemAddModal handleSave Error:", e);
+      setIsSaving(false);
+      alert("Cilad ayaa dhacday: " + e.message);
     }
   };
 

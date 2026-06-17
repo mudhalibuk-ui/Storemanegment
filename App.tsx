@@ -794,8 +794,13 @@ const App: React.FC = () => {
         if (!editingItem && updateAll && item.sku) {
             // New item, add to all branches
             for (const b of branches) {
+                const safeName = b.name ? b.name : 'BRC';
+                const bSku = `${item.sku}-${safeName.replace(/[^a-zA-Z0-9]/g, '').substring(0,3).toUpperCase()}`;
+                const bId = `${item.id || generateId()}-${b.id}`;
                 await API.items.save({
                     ...itemWithXarun,
+                    id: bId,
+                    sku: bSku,
                     branchId: b.id,
                     xarunId: b.xarunId || validXarunId
                 });
@@ -804,8 +809,9 @@ const App: React.FC = () => {
             await API.items.save(itemWithXarun); 
 
             if (updateAll && item.sku) {
-                // Find all other items with same SKU and update their master details
-                const relatedItems = items.filter(i => i.sku === item.sku && i.id !== item.id);
+                // Find all other items with same prefix SKU and update their master details
+                const baseSku = item.sku.split('-')[0] + (item.sku.split('-')[1] ? '-' + item.sku.split('-')[1] : '');
+                const relatedItems = items.filter(i => i.sku && i.sku.startsWith(baseSku) && i.id !== item.id);
                 for (const related of relatedItems) {
                     await API.items.save({
                         ...related,
@@ -1021,16 +1027,27 @@ const App: React.FC = () => {
                          branchItem.id = item.id + '-' + b.id; 
                          branchItem.branchId = b.id;
                          branchItem.xarunId = b.xarunId || item.xarunId;
+                         
+                         // Fix SKU collision constraint
+                         if (branchItem.sku) {
+                            const safeBName = b.name ? b.name : 'BRC';
+                            branchItem.sku = `${branchItem.sku}-${safeBName.replace(/[^a-zA-Z0-9]/g, '').substring(0,3).toUpperCase()}`;
+                         }
                          finalItems.push(branchItem);
                      }
                  }
              }
 
-             const success = await api.inventory.items.bulkSave(finalItems);
-             if (success) {
-                refreshAllData();
+             try {
+                const success = await API.items.bulkSave(finalItems);
+                if (success) {
+                   refreshAllData();
+                }
+                return success;
+             } catch (e) {
+                console.error(" bulkSave threw error:", e);
+                return false;
              }
-             return success;
           }}
           onCancel={() => setIsMultiItemModalOpen(false)}
         />
