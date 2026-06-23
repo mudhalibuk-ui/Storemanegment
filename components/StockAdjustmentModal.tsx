@@ -173,12 +173,14 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
                   <div>
                     <label className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2 px-1">Iskafalo</label>
                     <select className="w-full px-5 py-3.5 bg-white border-2 border-indigo-50 rounded-2xl font-black text-indigo-900 shadow-sm" value={shelf} onChange={e => setShelf(parseInt(e.target.value))}>
+                      <option value={0}>Eber (No Shelf)</option>
                       {shelfOptions.map(opt => <option key={opt.value} value={opt.value}>Iskafalo: {opt.label}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2 px-1">Godka</label>
                     <select className="w-full px-5 py-3.5 bg-white border-2 border-indigo-50 rounded-2xl font-black text-indigo-900 shadow-sm" value={section} onChange={e => setSection(parseInt(e.target.value))}>
+                      <option value={0}>Eber (No Section)</option>
                       {sectionOptions.map(opt => <option key={opt.value} value={opt.value}>Godka: {opt.label}</option>)}
                     </select>
                   </div>

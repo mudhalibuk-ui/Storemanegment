@@ -929,8 +929,8 @@ const App: React.FC = () => {
                         await API.items.save({ 
                             ...existingTargetItem, 
                             quantity: existingTargetItem.quantity + data.qty,
-                            shelves: data.shelf || existingTargetItem.shelves,
-                            sections: data.section || existingTargetItem.sections,
+                            shelves: data.shelf !== undefined ? data.shelf : existingTargetItem.shelves,
+                            sections: data.section !== undefined ? data.section : existingTargetItem.sections,
                             lastKnownPrice: data.unitCost !== undefined ? data.unitCost : existingTargetItem.lastKnownPrice
                         });
                     } else {
@@ -944,8 +944,8 @@ const App: React.FC = () => {
                             branchId: targetBranchId,
                             minThreshold: sourceItem.minThreshold,
                             xarunId: foundTargetBranch?.xarunId || user.xarunId || '',
-                            shelves: data.shelf || 1,
-                            sections: data.section || 1,
+                            shelves: data.shelf !== undefined ? data.shelf : 0,
+                            sections: data.section !== undefined ? data.section : 0,
                             packType: sourceItem.packType,
                             lastKnownPrice: data.unitCost || sourceItem.lastKnownPrice,
                             sellingPrice: sourceItem.sellingPrice,
@@ -1132,7 +1132,13 @@ const App: React.FC = () => {
                     let newQty = item.quantity;
                     if (type === TransactionType.IN) newQty += row.qty;
                     else if (type === TransactionType.OUT) newQty -= row.qty;
-                    await API.items.save({ ...item, quantity: newQty });
+
+                    const itemUpdate: Partial<InventoryItem> = { ...item, quantity: newQty };
+                    if (type === TransactionType.IN) {
+                        if (row.shelf !== undefined && row.shelf !== null && row.shelf !== '') itemUpdate.shelves = Number(row.shelf);
+                        if (row.section !== undefined && row.section !== null && row.section !== '') itemUpdate.sections = Number(row.section);
+                    }
+                    await API.items.save(itemUpdate);
                 }
               }
           }

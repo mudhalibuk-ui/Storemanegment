@@ -169,10 +169,12 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
                  <div className="space-y-1">
                    <label className="text-[10px] font-black text-indigo-400 uppercase px-1">Iskafalo (Shelf)</label>
                    <select 
-                      className="w-full p-4 bg-white border-2 border-indigo-50 rounded-2xl font-black text-indigo-900 outline-none focus:border-indigo-500 transition-all cursor-pointer"
-                      value={formData.shelves}
+                      disabled={formData.quantity === 0}
+                      className="w-full p-4 bg-white border-2 border-indigo-50 rounded-2xl font-black text-indigo-900 outline-none focus:border-indigo-500 transition-all cursor-pointer disabled:opacity-50"
+                      value={formData.quantity === 0 ? 0 : formData.shelves}
                       onChange={e => setFormData({...formData, shelves: parseInt(e.target.value), sections: 1})}
                    >
+                      <option value={0}>Eber (No Shelf)</option>
                       {shelfOptions.map(opt => (
                         <option key={opt.value} value={opt.value}>{opt.label}</option>
                       ))}
@@ -181,10 +183,12 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
                  <div className="space-y-1">
                    <label className="text-[10px] font-black text-indigo-400 uppercase px-1">Godka (Section)</label>
                    <select 
-                      className="w-full p-4 bg-white border-2 border-indigo-50 rounded-2xl font-black text-indigo-900 outline-none focus:border-indigo-500 transition-all cursor-pointer"
-                      value={formData.sections}
+                      disabled={formData.quantity === 0}
+                      className="w-full p-4 bg-white border-2 border-indigo-50 rounded-2xl font-black text-indigo-900 outline-none focus:border-indigo-500 transition-all cursor-pointer disabled:opacity-50"
+                      value={formData.quantity === 0 ? 0 : formData.sections}
                       onChange={e => setFormData({...formData, sections: parseInt(e.target.value)})}
                    >
+                      <option value={0}>Eber (No Section)</option>
                       {sectionOptions.map(opt => (
                         <option key={opt.value} value={opt.value}>{opt.label}</option>
                       ))}

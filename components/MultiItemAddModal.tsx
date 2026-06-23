@@ -163,8 +163,8 @@ export const MultiItemAddModal: React.FC<MultiItemAddModalProps> = ({ branches, 
               xarunId: row.xarunId,
               branchId: row.branchId,
               quantity: showWarehouseData ? (row.quantity || 0) : 0,
-              shelves: showWarehouseData ? (row.shelves || 1) : 1,
-              sections: showWarehouseData ? (row.sections || 1) : 1,
+              shelves: showWarehouseData ? (row.shelves !== undefined && row.shelves !== '' ? row.shelves : 1) : 0,
+              sections: showWarehouseData ? (row.sections !== undefined && row.sections !== '' ? row.sections : 1) : 0,
               minThreshold: 5
           };
       });
@@ -221,6 +221,8 @@ export const MultiItemAddModal: React.FC<MultiItemAddModalProps> = ({ branches, 
                   <th className="px-4 py-3 min-w-[100px]">Cost (Optional)</th>
                   {showWarehouseData && <th className="px-4 py-3 min-w-[100px] bg-indigo-50 text-indigo-700">Tirada (Qty)</th>}
                   {showWarehouseData && <th className="px-4 py-3 min-w-[100px] bg-indigo-50 text-indigo-700">Lacagta (Sell)</th>}
+                  {showWarehouseData && <th className="px-4 py-3 min-w-[100px] bg-indigo-50 text-indigo-700">Safka (Shelf)</th>}
+                  {showWarehouseData && <th className="px-4 py-3 min-w-[100px] bg-indigo-50 text-indigo-700">Godka (Section)</th>}
                   <th className="px-4 py-3 min-w-[150px]">Nooca (Type)</th>
                   <th className="px-4 py-3 min-w-[150px]">Category (Optional)</th>
                   {showWarehouseData && <th className="px-4 py-3 min-w-[150px] bg-indigo-50 text-indigo-700">Bakhaar</th>}
@@ -276,6 +278,30 @@ export const MultiItemAddModal: React.FC<MultiItemAddModalProps> = ({ branches, 
                           onChange={e => updateRow(idx, 'sellingPrice', parseFloat(e.target.value) || 0)}
                           placeholder="$ 0.00"
                           className="w-full p-3 bg-slate-50 border-2 border-indigo-200 focus:border-indigo-500 rounded-xl font-bold text-sm outline-none transition-all"
+                        />
+                      </td>
+                    )}
+                    {showWarehouseData && (
+                      <td className="px-4 py-2">
+                        <input 
+                          type="number" 
+                          disabled={!row.quantity || row.quantity === 0}
+                          value={(!row.quantity || row.quantity === 0) ? '' : (row.shelves || '')} 
+                          onChange={e => updateRow(idx, 'shelves', parseInt(e.target.value) || 0)}
+                          placeholder={(!row.quantity || row.quantity === 0) ? "0" : "1"}
+                          className="w-full p-3 bg-slate-50 border-2 border-indigo-200 focus:border-indigo-500 rounded-xl font-bold text-sm outline-none transition-all disabled:opacity-50"
+                        />
+                      </td>
+                    )}
+                    {showWarehouseData && (
+                      <td className="px-4 py-2">
+                        <input 
+                          type="number" 
+                          disabled={!row.quantity || row.quantity === 0}
+                          value={(!row.quantity || row.quantity === 0) ? '' : (row.sections || '')} 
+                          onChange={e => updateRow(idx, 'sections', parseInt(e.target.value) || 0)}
+                          placeholder={(!row.quantity || row.quantity === 0) ? "0" : "1"}
+                          className="w-full p-3 bg-slate-50 border-2 border-indigo-200 focus:border-indigo-500 rounded-xl font-bold text-sm outline-none transition-all disabled:opacity-50"
                         />
                       </td>
                     )}

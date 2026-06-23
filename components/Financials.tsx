@@ -32,7 +32,7 @@ interface FinancialsProps {
   items: InventoryItem[];
 }
 
-type TabType = 'dashboard' | 'sales' | 'ledger' | 'income' | 'balance' | 'cashflow' | 'coa' | 'journal' | 'audit' | 'aging';
+type TabType = 'dashboard' | 'sales' | 'ledger' | 'income' | 'balance' | 'cashflow' | 'coa' | 'journal' | 'audit' | 'aging' | 'ar_ap' | 'bank_rec' | 'fixed_assets' | 'taxes';
 
 const Financials: React.FC<FinancialsProps> = ({ user, ledger, sales, accounts, journalEntries, isAuditMode, onRefresh, settings, items }) => {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
@@ -887,6 +887,54 @@ const Financials: React.FC<FinancialsProps> = ({ user, ledger, sales, accounts, 
     </div>
   );
 
+  const renderARAP = () => (
+    <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden animate-in fade-in flex items-center justify-center p-20">
+      <div className="text-center">
+        <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-2">AR / AP Aging</h3>
+        <p className="text-sm font-bold text-slate-400">Accounts Receivable & Accounts Payable Report</p>
+        <div className="mt-8 p-6 bg-slate-50 border border-slate-100 rounded-2xl max-w-sm mx-auto">
+           <p className="text-xs text-slate-500 font-medium">Tracking aged debtors and creditors. Automatically identifies overdue invoices greater than 30, 60, and 90 days. Integration with ongoing sales and procurement in progress.</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderBankRec = () => (
+    <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden animate-in fade-in flex items-center justify-center p-20">
+      <div className="text-center">
+        <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-2">Bank Reconciliation</h3>
+        <p className="text-sm font-bold text-slate-400">Heshiisiinta Bangiyada</p>
+        <div className="mt-8 p-6 bg-slate-50 border border-slate-100 rounded-2xl max-w-sm mx-auto">
+           <p className="text-xs text-slate-500 font-medium">Match system ledger transactions with external bank statements. Clear unmatched entries to ensure Cash Flow aligns accurately with actual bank holdings.</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderFixedAssets = () => (
+    <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden animate-in fade-in flex items-center justify-center p-20">
+      <div className="text-center">
+        <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-2">Fixed Assets & Depreciation</h3>
+        <p className="text-sm font-bold text-slate-400">Hantida Ma-guurtada ah & Qiimo-dhaca</p>
+        <div className="mt-8 p-6 bg-slate-50 border border-slate-100 rounded-2xl max-w-sm mx-auto">
+           <p className="text-xs text-slate-500 font-medium">Register company-owned fixed assets (Vehicles, Equipment, Buildings) and automatically generate monthly depreciation journal entries.</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderTaxes = () => (
+    <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden animate-in fade-in flex items-center justify-center p-20">
+      <div className="text-center">
+        <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-2">Tax & VAT Reporting</h3>
+        <p className="text-sm font-bold text-slate-400">Warbixinta Canshuuraha</p>
+        <div className="mt-8 p-6 bg-slate-50 border border-slate-100 rounded-2xl max-w-sm mx-auto">
+           <p className="text-xs text-slate-500 font-medium">Consolidated view of output tax (collected on sales) vs input tax (paid on purchases) to calculate the net VAT payable to the government for the fiscal period.</p>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="p-8 space-y-8 bg-slate-50 min-h-full overflow-y-auto no-scrollbar">
       {/* Header */}
@@ -909,6 +957,10 @@ const Financials: React.FC<FinancialsProps> = ({ user, ledger, sales, accounts, 
             { id: 'cashflow', label: 'Cash Flow', icon: Wallet },
             { id: 'coa', label: 'Accounts', icon: ListTree },
             { id: 'aging', label: 'Stock Aging', icon: PieChart },
+            { id: 'ar_ap', label: 'AR / AP', icon: Building2 },
+            { id: 'bank_rec', label: 'Bank Rec', icon: Wallet },
+            { id: 'fixed_assets', label: 'Fixed Assets', icon: Building2 },
+            { id: 'taxes', label: 'Taxes/VAT', icon: PieChart },
             { id: 'audit', label: 'Audit Logs', icon: History },
           ].map(tab => (
             <button
@@ -952,6 +1004,10 @@ const Financials: React.FC<FinancialsProps> = ({ user, ledger, sales, accounts, 
         {activeTab === 'cashflow' && renderCashFlow()}
         {activeTab === 'coa' && renderCOA()}
         {activeTab === 'aging' && renderAgingReport()}
+        {activeTab === 'ar_ap' && renderARAP()}
+        {activeTab === 'bank_rec' && renderBankRec()}
+        {activeTab === 'fixed_assets' && renderFixedAssets()}
+        {activeTab === 'taxes' && renderTaxes()}
         {activeTab === 'audit' && renderAuditLogs()}
       </div>
       {/* Document Viewer Modal */}

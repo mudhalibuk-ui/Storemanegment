@@ -310,41 +310,57 @@ const BulkTransactionModal: React.FC<BulkTransactionModalProps> = ({ items, bran
                       )}
                     </div>
                     
-                    <div className="w-full md:w-32 flex flex-col gap-1 shrink-0">
-                       <label className="md:hidden text-[8px] font-black text-slate-400 uppercase ml-1">Tirada</label>
-                       {type === 'MOVE' ? (
-                         <div className="flex gap-2">
-                            <select 
-                              className="flex-1 p-3 rounded-2xl border-2 border-slate-200 font-black text-xs bg-white focus:border-indigo-500 outline-none"
-                              value={row.shelf}
-                              onChange={e => handleRowChange(idx, 'shelf', parseInt(e.target.value))}
-                            >
-                              {Array.from({ length: branches.find(b => b.id === selectedBranchId)?.totalShelves || 10 }, (_, i) => (
-                                <option key={i+1} value={i+1}>{String.fromCharCode(65 + i)}</option>
-                              ))}
-                            </select>
-                            <select 
-                              className="flex-1 p-3 rounded-2xl border-2 border-slate-200 font-black text-xs bg-white focus:border-indigo-500 outline-none"
-                              value={row.section}
-                              onChange={e => handleRowChange(idx, 'section', parseInt(e.target.value))}
-                            >
-                              {Array.from({ length: 20 }, (_, i) => (
-                                <option key={i+1} value={i+1}>{(i+1).toString().padStart(2, '0')}</option>
-                              ))}
-                            </select>
+                    <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto shrink-0 mt-4 md:mt-0">
+                       {type !== 'MOVE' && (
+                         <div className="flex flex-col w-full md:w-32">
+                           <label className="text-[8px] font-black text-slate-400 uppercase ml-1 mb-1 hidden md:block">Tirada (Qty)</label>
+                           <label className="text-[8px] font-black text-slate-400 uppercase ml-1 mb-1 md:hidden">Tirada (Qty)</label>
+                           <input 
+                             type="number" 
+                             placeholder="Qty" 
+                             className="w-full p-4 rounded-2xl border-2 border-slate-200 text-center font-black text-lg bg-white focus:border-indigo-500 outline-none transition-all shadow-sm h-full" 
+                             value={row.qty} 
+                             onChange={e => handleRowChange(idx, 'qty', parseInt(e.target.value) || 0)} 
+                           />
                          </div>
-                       ) : (
-                         <input 
-                          type="number" 
-                          placeholder="Qty" 
-                          className="w-full p-4 rounded-2xl border-2 border-slate-200 text-center font-black text-lg bg-white focus:border-indigo-500 outline-none transition-all shadow-sm" 
-                          value={row.qty} 
-                          onChange={e => handleRowChange(idx, 'qty', parseInt(e.target.value) || 0)} 
-                        />
                        )}
-                    </div>
+                       {(type === 'IN' || type === 'MOVE') && (
+                         <div className="flex gap-2">
+                           <div className="flex flex-col w-full md:w-24">
+                             <label className="text-[8px] font-black text-indigo-400 uppercase ml-1 mb-1 hidden md:block">Shelf</label>
+                             <label className="text-[8px] font-black text-indigo-400 uppercase ml-1 mb-1 md:hidden">Shelf (Iskafal)</label>
+                             <select 
+                               className="w-full px-3 py-4 rounded-2xl border-2 border-indigo-50 font-black text-xs text-indigo-900 bg-white focus:border-indigo-500 outline-none h-full shadow-sm"
+                               value={row.shelf !== undefined ? row.shelf : ''}
+                               onChange={e => handleRowChange(idx, 'shelf', parseInt(e.target.value))}
+                             >
+                               <option value="">Shelf</option>
+                                <option value={0}>Eber (0)</option>
+                               {Array.from({ length: branches.find(b => b.id === selectedBranchId)?.totalShelves || 10 }, (_, i) => (
+                                 <option key={i+1} value={i+1}>{String.fromCharCode(65 + i)}</option>
+                               ))}
+                             </select>
+                           </div>
+                           <div className="flex flex-col w-full md:w-24">
+                             <label className="text-[8px] font-black text-indigo-400 uppercase ml-1 mb-1 hidden md:block">Godka</label>
+                             <label className="text-[8px] font-black text-indigo-400 uppercase ml-1 mb-1 md:hidden">God (Section)</label>
+                             <select 
+                               className="w-full px-3 py-4 rounded-2xl border-2 border-indigo-50 font-black text-xs text-indigo-900 bg-white focus:border-indigo-500 outline-none h-full shadow-sm"
+                               value={row.section !== undefined ? row.section : ''}
+                               onChange={e => handleRowChange(idx, 'section', parseInt(e.target.value))}
+                             >
+                               <option value="">Godka</option>
+                                <option value={0}>Eber (0)</option>
+                               {Array.from({ length: 20 }, (_, i) => (
+                                 <option key={i+1} value={i+1}>{(i+1).toString().padStart(2, '0')}</option>
+                               ))}
+                             </select>
+                           </div>
+                         </div>
+                       )}
+                     </div>
 
-                    <button 
+                     <button 
                       type="button" 
                       onClick={() => removeRow(idx)}
                       className="p-4 text-rose-300 hover:text-rose-600 bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-md transition-all active:scale-90 shrink-0"

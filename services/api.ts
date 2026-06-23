@@ -356,6 +356,11 @@ export const API = {
       const id = item.id || generateId();
       const payload = { ...item, id, lastUpdated: new Date().toISOString() };
       
+      if (payload.quantity === 0 || !payload.quantity) {
+          payload.shelves = 0;
+          payload.sections = 0;
+      }
+
       // Strip missing columns to prevent Supabase errors
       const safePayload = { ...payload };
       delete safePayload.packType;
@@ -373,6 +378,12 @@ export const API = {
       try {
         const payload = items.map(item => {
           const safeItem = { ...item };
+          
+          if (safeItem.quantity === 0 || !safeItem.quantity) {
+              safeItem.shelves = 0;
+              safeItem.sections = 0;
+          }
+
           delete safeItem.packType;
           delete safeItem.lastKnownPrice;
           delete safeItem.sellingPrice;
