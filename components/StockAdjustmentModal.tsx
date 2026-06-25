@@ -27,8 +27,8 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
   const [source, setSource] = useState(isMove ? currentPlacement : '');
   const [selectedBranchId, setSelectedBranchId] = useState(item.branchId);
   
-  const [shelf, setShelf] = useState<number>(item.shelves || 1);
-  const [section, setSection] = useState<number>(item.sections || 1);
+  const [shelf, setShelf] = useState<number>((item.quantity === 0) ? 0 : (item.shelves || 1));
+  const [section, setSection] = useState<number>((item.quantity === 0) ? 0 : (item.sections || 1));
   const [placement, setPlacement] = useState(currentPlacement);
   
   const selectedBranch = branches.find(b => b.id === selectedBranchId) || branches[0];

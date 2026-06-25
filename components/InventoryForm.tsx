@@ -15,8 +15,8 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
     name: '',
     category: '',
     sku: '',
-    shelves: 1,
-    sections: 1,
+    shelves: 0,
+    sections: 0,
     quantity: 0,
     minThreshold: 5,
     branchId: branches[0]?.id || '',
@@ -119,7 +119,7 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
                 required 
                 className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-indigo-500 transition-all" 
                 value={formData.branchId} 
-                onChange={e => setFormData({...formData, branchId: e.target.value, shelves: 1, sections: 1})}
+                onChange={e => setFormData({...formData, branchId: e.target.value, shelves: 0, sections: 0})}
               >
                 {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
@@ -172,7 +172,7 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
                       disabled={formData.quantity === 0}
                       className="w-full p-4 bg-white border-2 border-indigo-50 rounded-2xl font-black text-indigo-900 outline-none focus:border-indigo-500 transition-all cursor-pointer disabled:opacity-50"
                       value={formData.quantity === 0 ? 0 : formData.shelves}
-                      onChange={e => setFormData({...formData, shelves: parseInt(e.target.value), sections: 1})}
+                      onChange={e => setFormData({...formData, shelves: parseInt(e.target.value), sections: 0})}
                    >
                       <option value={0}>Eber (No Shelf)</option>
                       {shelfOptions.map(opt => (

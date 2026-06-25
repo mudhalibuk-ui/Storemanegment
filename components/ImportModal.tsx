@@ -128,12 +128,17 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, mode = 'normal', branch
             sku = generateAutoSKU(name, category);
           }
 
-          const isExisting = existingItems?.some(
+          const existingMatchInTargetBranch = existingItems?.find(
+            ei => (ei.name.toLowerCase() === name.toLowerCase() || (ei.sku && ei.sku.toLowerCase() === sku.toLowerCase())) && ei.branchId === finalBranchId
+          );
+          
+          // Check if it exists in ANY branch (to allow multi-branch creation during update)
+          const isExistingAnywhere = existingItems?.some(
             ei => ei.name.toLowerCase() === name.toLowerCase() || (ei.sku && ei.sku.toLowerCase() === sku.toLowerCase())
           );
 
-          if (!isExisting && !allowCreateNew) {
-            return null; // Skip this item as it doesn't exist and we aren't allowing new creation
+          if (!isExistingAnywhere && !allowCreateNew) {
+            return null; // Skip this item as it doesn't exist anywhere and we aren't allowing new creation
           }
 
           const quantity = parseInt(findVal(row, MAPPINGS.quantity)) || 0;
@@ -144,11 +149,12 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, mode = 'normal', branch
           const costPrice = parseFloat(findVal(row, MAPPINGS.costPrice)) || 0;
 
           return {
+            id: existingMatchInTargetBranch?.id,
             name,
             category,
             sku,
-            shelves: letterToNumber(rawShelf),
-            sections: parseInt(rawSection) || 1,
+            shelves: rawShelf ? letterToNumber(rawShelf) : 0,
+            sections: rawSection ? (parseInt(rawSection) || 0) : 0,
             quantity,
             sellingPrice,
             lastKnownPrice: costPrice > 0 ? costPrice : sellingPrice,
@@ -372,13 +378,14 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, mode = 'normal', branch
                             const providedSku = (findVal(row, MAPPINGS.sku) || '').toString().trim();
                             const parsedSku = providedSku || generateAutoSKU(name, (findVal(row, MAPPINGS.category) || '').toString().trim());
 
-                            const isExisting = existingItems?.some(
-                              ei => ei.name.toLowerCase() === name.toLowerCase() || (ei.sku && ei.sku.toLowerCase() === parsedSku.toLowerCase())
-                            );
-
                             const bNameInput = (findVal(row, MAPPINGS.branch) || '').toString();
                             const bMatch = branches.find(b => b.name.toLowerCase().trim() === bNameInput.toLowerCase().trim());
                             const finalBName = bMatch ? bMatch.name : branches.find(b => b.id === selectedDefaultBranch)?.name || 'Default';
+                            const finalBranchIdForCheck = bMatch ? bMatch.id : selectedDefaultBranch;
+
+                            const isExisting = existingItems?.some(
+                              ei => (ei.name.toLowerCase() === name.toLowerCase() || (ei.sku && ei.sku.toLowerCase() === parsedSku.toLowerCase())) && ei.branchId === finalBranchIdForCheck
+                            );
                             
                             const willSkip = !isExisting && !allowCreateNew;
 
@@ -444,6 +451,9 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, mode = 'normal', branch
               className={`flex-[2] py-5 font-black rounded-[2rem] shadow-2xl transition-all uppercase text-[11px] tracking-widest border-b-4 ${
                 type === 'inventory' && !allowCreateNew && existingItems && 
                 previewData.filter((row) => {
+                  const bNameInput = (findVal(row, MAPPINGS.branch) || '').toString();
+                  const bMatch = branches.find(b => b.name.toLowerCase().trim() === bNameInput.toLowerCase().trim());
+                  const finalBranchIdForCheck = bMatch ? bMatch.id : selectedDefaultBranch;
                   const name = (findVal(row, MAPPINGS.name) || '').toString().trim();
                   const sku = (findVal(row, MAPPINGS.sku) || generateAutoSKU(name, (findVal(row, MAPPINGS.category) || '').toString().trim())).toString().trim();
                   return existingItems.some(ei => ei.name.toLowerCase() === name.toLowerCase() || (ei.sku && ei.sku.toLowerCase() === sku.toLowerCase()));

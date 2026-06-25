@@ -1,71 +1,112 @@
-
-import React, { useState, useEffect, useCallback } from 'react';
-import Layout from './components/Layout';
-import Dashboard from './components/Dashboard';
-import InventoryList from './components/InventoryList';
-import InventoryForm from './components/InventoryForm';
-import WarehouseMap from './components/WarehouseMap';
-import TransactionHistory from './components/TransactionHistory';
-import UserManagement from './components/UserManagement';
-import UserForm from './components/UserForm';
-import Settings from './components/Settings';
-import Login from './components/Login';
-import StockAdjustmentModal from './components/StockAdjustmentModal';
-import LogisticsProcurement from './components/LogisticsProcurement';
-import BakhaarList from './components/BakhaarList';
-import BranchForm from './components/BranchForm';
-import ItemMovementHistoryModal from './components/ItemMovementHistoryModal';
-import TransferModal from './components/TransferModal';
-import ImportModal from './components/ImportModal';
-import { MultiItemAddModal } from './components/MultiItemAddModal';
-import BulkTransactionModal from './components/BulkTransactionModal';
-import ApprovalQueue from './components/ApprovalQueue';
-import TransactionReceipt from './components/TransactionReceipt';
-import BulkTransactionReceipt from './components/BulkTransactionReceipt';
-import CrossXarunOrderHub from './components/CrossXarunOrderHub';
+import React, { useState, useEffect, useCallback } from "react";
+import Layout from "./components/Layout";
+import Dashboard from "./components/Dashboard";
+import InventoryList from "./components/InventoryList";
+import InventoryForm from "./components/InventoryForm";
+import WarehouseMap from "./components/WarehouseMap";
+import TransactionHistory from "./components/TransactionHistory";
+import UserManagement from "./components/UserManagement";
+import UserForm from "./components/UserForm";
+import Settings from "./components/Settings";
+import Login from "./components/Login";
+import StockAdjustmentModal from "./components/StockAdjustmentModal";
+import LogisticsProcurement from "./components/LogisticsProcurement";
+import BakhaarList from "./components/BakhaarList";
+import BranchForm from "./components/BranchForm";
+import ItemMovementHistoryModal from "./components/ItemMovementHistoryModal";
+import TransferModal from "./components/TransferModal";
+import ImportModal from "./components/ImportModal";
+import { MultiItemAddModal } from "./components/MultiItemAddModal";
+import BulkTransactionModal from "./components/BulkTransactionModal";
+import ApprovalQueue from "./components/ApprovalQueue";
+import TransactionReceipt from "./components/TransactionReceipt";
+import BulkTransactionReceipt from "./components/BulkTransactionReceipt";
+import CrossXarunOrderHub from "./components/CrossXarunOrderHub";
 
 // HRM Imports
-import HRMEmployeeManagement from './components/HRMEmployeeManagement';
-import HRMAttendanceTracker from './components/HRMAttendanceTracker';
-import HRMPayroll from './components/HRMPayroll';
-import HRMReports from './components/HRMReports';
-import EmployeeForm from './components/EmployeeForm';
+import HRMEmployeeManagement from "./components/HRMEmployeeManagement";
+import HRMAttendanceTracker from "./components/HRMAttendanceTracker";
+import HRMPayroll from "./components/HRMPayroll";
+import HRMReports from "./components/HRMReports";
+import EmployeeForm from "./components/EmployeeForm";
 
-import POS from './components/POS';
-import Financials from './components/Financials';
-import PurchaseManagement from './components/PurchaseManagement';
-import PaymentManagement from './components/PaymentManagement';
-import CustomerManagement from './components/CustomerManagement';
-import VendorManagement from './components/VendorManagement';
-import CRM from './components/CRM';
-import Manufacturing from './components/Manufacturing';
-import ProjectManagement from './components/ProjectManagement';
-import FleetManagement from './components/FleetManagement';
-import QualityControl from './components/QualityControl';
-import DocumentManagement from './components/DocumentManagement';
-import CompanySetup from './components/CompanySetup';
-import SaaSManager from './components/SaaSManager';
-import Helpdesk from './components/Helpdesk';
-import InventoryAdjustment from './components/InventoryAdjustment';
-import StockTakeAudit from './components/StockTakeAudit';
-import { 
-  Settings2, 
-  Plus, 
-  Search, 
+import POS from "./components/POS";
+import Financials from "./components/Financials";
+import PurchaseManagement from "./components/PurchaseManagement";
+import PaymentManagement from "./components/PaymentManagement";
+import CustomerManagement from "./components/CustomerManagement";
+import VendorManagement from "./components/VendorManagement";
+import CRM from "./components/CRM";
+import Manufacturing from "./components/Manufacturing";
+import ProjectManagement from "./components/ProjectManagement";
+import FleetManagement from "./components/FleetManagement";
+import QualityControl from "./components/QualityControl";
+import DocumentManagement from "./components/DocumentManagement";
+import CompanySetup from "./components/CompanySetup";
+import SaaSManager from "./components/SaaSManager";
+import Helpdesk from "./components/Helpdesk";
+import InventoryAdjustment from "./components/InventoryAdjustment";
+import StockTakeAudit from "./components/StockTakeAudit";
+import {
+  Settings2,
+  Plus,
+  Search,
   AlertCircle,
   CheckCircle2,
   FileUp,
   Download,
   Lock,
-  Clock
-} from 'lucide-react';
-import { API } from './services/api';
-import InterBranchTransferPage from './components/InterBranchTransferPage';
-import { InventoryItem, Branch, Transaction, User, TransactionStatus, TransactionType, SystemSettings, UserRole, Xarun, Employee, Attendance, Payroll, XarunOrderRequest, XarunOrderItem, InterBranchTransferRequest, TransferStatus, Customer, Vendor, Sale, LedgerEntry, Account, PurchaseOrder, Payment, JournalEntry, Lead, BillOfMaterials, WorkOrder, Project, ProjectTask, Vehicle, FuelLog, QCInspection, DMSDocument, Ticket, Currency, InventoryAdjustment as AdjustmentType, StockTakeSession, StockTakeStatus } from './types';
-import { getInventoryInsights } from './services/geminiService';
-import { formatPlacement } from './services/mappingUtils';
+  Clock,
+} from "lucide-react";
+import { API } from "./services/api";
+import InterBranchTransferPage from "./components/InterBranchTransferPage";
+import {
+  InventoryItem,
+  Branch,
+  Transaction,
+  User,
+  TransactionStatus,
+  TransactionType,
+  SystemSettings,
+  UserRole,
+  Xarun,
+  Employee,
+  Attendance,
+  Payroll,
+  XarunOrderRequest,
+  XarunOrderItem,
+  InterBranchTransferRequest,
+  TransferStatus,
+  Customer,
+  Vendor,
+  Sale,
+  LedgerEntry,
+  Account,
+  PurchaseOrder,
+  Payment,
+  JournalEntry,
+  Lead,
+  BillOfMaterials,
+  WorkOrder,
+  Project,
+  ProjectTask,
+  Vehicle,
+  FuelLog,
+  QCInspection,
+  DMSDocument,
+  Ticket,
+  Currency,
+  InventoryAdjustment as AdjustmentType,
+  StockTakeSession,
+  StockTakeStatus,
+} from "./types";
+import { getInventoryInsights } from "./services/geminiService";
+import { formatPlacement } from "./services/mappingUtils";
 
-type AdjustmentModalState = { item: InventoryItem; type: TransactionType.IN | TransactionType.OUT | TransactionType.MOVE } | null;
+type AdjustmentModalState = {
+  item: InventoryItem;
+  type: TransactionType.IN | TransactionType.OUT | TransactionType.MOVE;
+} | null;
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -74,15 +115,17 @@ const App: React.FC = () => {
   const [xarumo, setXarumo] = useState<Xarun[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  
+
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
-  
-  const [activeTab, setActiveTab] = useState('dashboard');
+
+  const [activeTab, setActiveTab] = useState("dashboard");
   const [currentRole, setCurrentRole] = useState<UserRole>(UserRole.STAFF);
-  const [selectedXarunId, setSelectedXarunId] = useState<string | undefined>(undefined);
-  const [selectedBranchId, setSelectedBranchId] = useState<string>('all');
+  const [selectedXarunId, setSelectedXarunId] = useState<string | undefined>(
+    undefined,
+  );
+  const [selectedBranchId, setSelectedBranchId] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(false);
   const [insights, setInsights] = useState<string[]>([]);
 
@@ -92,23 +135,40 @@ const App: React.FC = () => {
   const [isUserFormOpen, setIsUserFormOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
   const [isBranchFormOpen, setIsBranchFormOpen] = useState(false);
-  const [branchFormType, setBranchFormType] = useState<'BRANCH' | 'STORE'>('BRANCH');
+  const [branchFormType, setBranchFormType] = useState<"BRANCH" | "STORE">(
+    "BRANCH",
+  );
   const [filterXarunId, setFilterXarunId] = useState<string | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [isEmployeeFormOpen, setIsEmployeeFormOpen] = useState(false);
-  
+
   // Modals
-  const [adjustmentModal, setAdjustmentModal] = useState<AdjustmentModalState>(null);
-  const [transferModalItem, setTransferModalItem] = useState<InventoryItem | null>(null);
-  const [historyModalItem, setHistoryModalItem] = useState<InventoryItem | null>(null);
-  const [importModalType, setImportModalType] = useState<'inventory' | 'customer' | 'vendor' | null>(null);
-  const [importModalMode, setImportModalMode] = useState<'normal' | 'create_only'>('normal');
+  const [adjustmentModal, setAdjustmentModal] =
+    useState<AdjustmentModalState>(null);
+  const [transferModalItem, setTransferModalItem] =
+    useState<InventoryItem | null>(null);
+  const [historyModalItem, setHistoryModalItem] =
+    useState<InventoryItem | null>(null);
+  const [importModalType, setImportModalType] = useState<
+    "inventory" | "customer" | "vendor" | null
+  >(null);
+  const [importModalMode, setImportModalMode] = useState<
+    "normal" | "create_only"
+  >("normal");
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [isMultiItemModalOpen, setIsMultiItemModalOpen] = useState(false);
-  const [receiptTransaction, setReceiptTransaction] = useState<Transaction | null>(null);
-  const [bulkReceiptData, setBulkReceiptData] = useState<{ transactions: Transaction[], type: TransactionType, branch: Branch | undefined, personnel: string, date: string } | null>(null);
+  const [receiptTransaction, setReceiptTransaction] =
+    useState<Transaction | null>(null);
+  const [bulkReceiptData, setBulkReceiptData] = useState<{
+    transactions: Transaction[];
+    type: TransactionType;
+    branch: Branch | undefined;
+    personnel: string;
+    date: string;
+  } | null>(null);
   const [xarunOrders, setXarunOrders] = useState<XarunOrderRequest[]>([]);
-  const [interBranchTransferRequests, setInterBranchTransferRequests] = useState<InterBranchTransferRequest[]>([]);
+  const [interBranchTransferRequests, setInterBranchTransferRequests] =
+    useState<InterBranchTransferRequest[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
@@ -128,8 +188,12 @@ const App: React.FC = () => {
   const [dmsDocuments, setDmsDocuments] = useState<DMSDocument[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
-  const [inventoryAdjustments, setInventoryAdjustments] = useState<AdjustmentType[]>([]);
-  const [stockTakeSessions, setStockTakeSessions] = useState<StockTakeSession[]>([]);
+  const [inventoryAdjustments, setInventoryAdjustments] = useState<
+    AdjustmentType[]
+  >([]);
+  const [stockTakeSessions, setStockTakeSessions] = useState<
+    StockTakeSession[]
+  >([]);
   const [isAuditMode, setIsAuditMode] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [lastActivity, setLastActivity] = useState(Date.now());
@@ -139,7 +203,7 @@ const App: React.FC = () => {
     if (!user || isLocked) return;
 
     const INACTIVITY_LIMIT = 15 * 60 * 1000; // 15 minutes
-    
+
     const checkInactivity = () => {
       if (Date.now() - lastActivity > INACTIVITY_LIMIT) {
         setIsLocked(true);
@@ -147,23 +211,28 @@ const App: React.FC = () => {
     };
 
     const interval = setInterval(checkInactivity, 10000); // Check every 10s
-    
+
     const handleActivity = () => setLastActivity(Date.now());
-    window.addEventListener('mousemove', handleActivity);
-    window.addEventListener('keydown', handleActivity);
-    window.addEventListener('scroll', handleActivity);
-    window.addEventListener('touchstart', handleActivity);
+    window.addEventListener("mousemove", handleActivity);
+    window.addEventListener("keydown", handleActivity);
+    window.addEventListener("scroll", handleActivity);
+    window.addEventListener("touchstart", handleActivity);
 
     return () => {
       clearInterval(interval);
-      window.removeEventListener('mousemove', handleActivity);
-      window.removeEventListener('keydown', handleActivity);
-      window.removeEventListener('scroll', handleActivity);
-      window.removeEventListener('touchstart', handleActivity);
+      window.removeEventListener("mousemove", handleActivity);
+      window.removeEventListener("keydown", handleActivity);
+      window.removeEventListener("scroll", handleActivity);
+      window.removeEventListener("touchstart", handleActivity);
     };
   }, [user, isLocked, lastActivity]);
 
-  const recordAuditLog = async (action: string, entityType: string, entityId: string, details: string) => {
+  const recordAuditLog = async (
+    action: string,
+    entityType: string,
+    entityId: string,
+    details: string,
+  ) => {
     if (!user) return;
     try {
       await API.auditLogs.create({
@@ -173,197 +242,302 @@ const App: React.FC = () => {
         entityType,
         entityId,
         details,
-        xarunId: user.xarunId || selectedXarunId || ''
+        xarunId: user.xarunId || selectedXarunId || "",
       });
     } catch (e) {
       console.error("Audit fail:", e);
     }
   };
 
-
   const [settings, setSettings] = useState<SystemSettings>(() => {
-    const saved = localStorage.getItem('smartstock_settings');
-    return saved ? JSON.parse(saved) : {
-      systemName: 'SmartStock Pro',
-      currency: 'USD',
-      language: 'SO',
-      primaryColor: '#4f46e5',
-      lowStockGlobalThreshold: 5,
-      taxPerBox: 2,
-      taxPerKiish: 1,
-      taxPerDram: 5,
-      taxPerFalag: 10,
-      mainStoreId: '',
-      zkDeviceIp: '192.168.100.201',
-      zkDevicePort: 4370,
-      enabledFeatures: [
-        'dashboard', 'inventory', 'pos', 'financials', 'hr', 'crm', 'mrp', 'projects', 'fleet', 'qc', 'dms', 'helpdesk', 'procurement', 'inter-branch', 'stock-take', 'saas'
-      ]
-    };
+    const saved = localStorage.getItem("smartstock_settings");
+    return saved
+      ? JSON.parse(saved)
+      : {
+          systemName: "SmartStock Pro",
+          currency: "USD",
+          language: "SO",
+          primaryColor: "#4f46e5",
+          lowStockGlobalThreshold: 5,
+          taxPerBox: 2,
+          taxPerKiish: 1,
+          taxPerDram: 5,
+          taxPerFalag: 10,
+          mainStoreId: "",
+          zkDeviceIp: "192.168.100.201",
+          zkDevicePort: 4370,
+          enabledFeatures: [
+            "dashboard",
+            "inventory",
+            "pos",
+            "financials",
+            "hr",
+            "crm",
+            "mrp",
+            "projects",
+            "fleet",
+            "qc",
+            "dms",
+            "helpdesk",
+            "procurement",
+            "inter-branch",
+            "stock-take",
+            "saas",
+          ],
+        };
   });
 
   // Calculate Hardware URL dynamically based on current browser location
   const getHardwareUrl = () => {
     try {
       const hostname = window.location.hostname;
-      if (!hostname) return 'http://localhost:5050';
+      if (!hostname) return "http://localhost:5050";
       return `http://${hostname}:5050`;
     } catch (e) {
-      return 'http://localhost:5050';
+      return "http://localhost:5050";
     }
   };
   const hardwareUrl = getHardwareUrl();
 
-  const refreshAllData = useCallback(async (isBackground = false) => {
-    if (!user) return;
-    if (!isBackground) setIsLoading(true);
-    
-    const xarunIdFilter = user.role === UserRole.SUPER_ADMIN ? selectedXarunId : user.xarunId;
-    
-    try {
-      // Use a safer approach: wrap each call in a try-catch or ensure fetchAllPages doesn't throw
-      const [fXarumo, fItems, fBranches, fTransactions, fUsers, fEmployees, fPayrolls, fAttendance, fXarunOrders, fInterBranchTransferRequests, fCustomers, fVendors, fSales, fLedger, fAccounts, fPurchaseOrders, fPayments, fJournalEntries, fLeads, fBoMs, fWorkOrders, fProjects, fTasks, fVehicles, fFuel, fInspections, fDms, fTickets, fCurrencies, fAdjustments, fStockTakes] = await Promise.all([
-        API.xarumo.getAll().catch(() => []),
-        API.items.getAll().catch(() => []),
-        API.branches.getAll().catch(() => []),
-        API.transactions.getAll(xarunIdFilter).catch(() => []),
-        API.users.getAll().catch(() => []),
-        API.employees.getAll(user.role === UserRole.SUPER_ADMIN ? undefined : xarunIdFilter).catch(() => []),
-        API.payroll.getAll().catch(() => []),
-        API.attendance.getAll().catch(() => []),
-        API.xarunOrders.getAll(xarunIdFilter).catch(() => []),
-        API.interBranchTransferRequests.getAll(xarunIdFilter).catch(() => []),
-        API.customers.getAll(xarunIdFilter).catch(() => []),
-        API.vendors.getAll(xarunIdFilter).catch(() => []),
-        API.sales.getAll(xarunIdFilter).catch(() => []),
-        API.ledger.getAll(xarunIdFilter).catch(() => []),
-        API.accounts.getAll(xarunIdFilter).catch(() => []),
-        API.purchaseOrders.getAll(xarunIdFilter).catch(() => []),
-        API.payments.getAll(xarunIdFilter).catch(() => []),
-        API.journalEntries.getAll(xarunIdFilter).catch(() => []),
-        API.crm.getAllLeads(xarunIdFilter).catch(() => []),
-        API.mrp.getAllBoMs(xarunIdFilter).catch(() => []),
-        API.mrp.getAllWorkOrders(xarunIdFilter).catch(() => []),
-        API.projects.getAllProjects(xarunIdFilter).catch(() => []),
-        API.projects.getAllTasks().catch(() => []),
-        API.fleet.getAllVehicles(xarunIdFilter).catch(() => []),
-        API.fleet.getFuelLogs().catch(() => []),
-        API.qc.getAllInspections().catch(() => []),
-        API.dms.getAllDocuments(xarunIdFilter).catch(() => []),
-        API.helpdesk.getAllTickets(xarunIdFilter).catch(() => []),
-        API.currencies.getAll().catch(() => []),
-        API.inventoryAdjustments.getAll(xarunIdFilter).catch(() => []),
-        API.stockTakeSessions.getAll(xarunIdFilter).catch(() => [])
-      ]);
+  const refreshAllData = useCallback(
+    async (isBackground = false) => {
+      if (!user) return;
+      if (!isBackground) setIsLoading(true);
 
-      setXarumo(fXarumo || []);
-      setItems(fItems || []);
-      setBranches(fBranches || []);
-      setTransactions(fTransactions || []);
-      setUsers(fUsers || []);
-      setEmployees(fEmployees || []);
-      setPayrolls(fPayrolls || []);
-      setAttendance(fAttendance || []);
-      setXarunOrders(fXarunOrders || []);
-      setInterBranchTransferRequests(fInterBranchTransferRequests || []);
-      setCustomers(fCustomers || []);
-      setVendors(fVendors || []);
-      setSales(fSales || []);
-      setLedger(fLedger || []);
-      setAccounts(fAccounts || []);
-      setPurchaseOrders(fPurchaseOrders || []);
-      setPayments(fPayments || []);
-      setJournalEntries(fJournalEntries || []);
-      setLeads(fLeads || []);
-      setBoms(fBoMs || []);
-      setWorkOrders(fWorkOrders || []);
-      setProjects(fProjects || []);
-      setProjectTasks(fTasks || []);
-      setVehicles(fVehicles || []);
-      setFuelLogs(fFuel || []);
-      setInspections(fInspections || []);
-      setDmsDocuments(fDms || []);
-      setTickets(fTickets || []);
-      setCurrencies(fCurrencies || []);
-      setInventoryAdjustments(fAdjustments || []);
-      setStockTakeSessions(fStockTakes || []);
+      const xarunIdFilter =
+        user.role === UserRole.SUPER_ADMIN ? selectedXarunId : user.xarunId;
 
-      // Data Recovery Script for old localStorage keys
-      if (fItems && fItems.length === 0) {
-        const oldItemsStr = localStorage.getItem('stock_local_items') || localStorage.getItem('smartstock_items') || localStorage.getItem('stock_local_products');
-        if (oldItemsStr) {
-          try {
-            const oldItems = JSON.parse(oldItemsStr);
-            if (Array.isArray(oldItems) && oldItems.length > 0) {
-              console.log("Recovering old items from localStorage...", oldItems.length);
-              const success = await API.items.bulkSave(oldItems);
-              if (success) {
-                const updatedItems = await API.items.getAll();
-                setItems(updatedItems || []);
-              }
+      try {
+        // Use a safer approach: wrap each call in a try-catch or ensure fetchAllPages doesn't throw
+        const [
+          fXarumo,
+          fItems,
+          fBranches,
+          fTransactions,
+          fUsers,
+          fEmployees,
+          fPayrolls,
+          fAttendance,
+          fXarunOrders,
+          fInterBranchTransferRequests,
+          fCustomers,
+          fVendors,
+          fSales,
+          fLedger,
+          fAccounts,
+          fPurchaseOrders,
+          fPayments,
+          fJournalEntries,
+          fLeads,
+          fBoMs,
+          fWorkOrders,
+          fProjects,
+          fTasks,
+          fVehicles,
+          fFuel,
+          fInspections,
+          fDms,
+          fTickets,
+          fCurrencies,
+          fAdjustments,
+          fStockTakes,
+        ] = await Promise.all([
+          API.xarumo.getAll().catch(() => []),
+          API.items.getAll().catch(() => []),
+          API.branches.getAll().catch(() => []),
+          API.transactions.getAll(xarunIdFilter).catch(() => []),
+          API.users.getAll().catch(() => []),
+          API.employees
+            .getAll(
+              user.role === UserRole.SUPER_ADMIN ? undefined : xarunIdFilter,
+            )
+            .catch(() => []),
+          API.payroll.getAll().catch(() => []),
+          API.attendance.getAll().catch(() => []),
+          API.xarunOrders.getAll(xarunIdFilter).catch(() => []),
+          API.interBranchTransferRequests.getAll(xarunIdFilter).catch(() => []),
+          API.customers.getAll(xarunIdFilter).catch(() => []),
+          API.vendors.getAll(xarunIdFilter).catch(() => []),
+          API.sales.getAll(xarunIdFilter).catch(() => []),
+          API.ledger.getAll(xarunIdFilter).catch(() => []),
+          API.accounts.getAll(xarunIdFilter).catch(() => []),
+          API.purchaseOrders.getAll(xarunIdFilter).catch(() => []),
+          API.payments.getAll(xarunIdFilter).catch(() => []),
+          API.journalEntries.getAll(xarunIdFilter).catch(() => []),
+          API.crm.getAllLeads(xarunIdFilter).catch(() => []),
+          API.mrp.getAllBoMs(xarunIdFilter).catch(() => []),
+          API.mrp.getAllWorkOrders(xarunIdFilter).catch(() => []),
+          API.projects.getAllProjects(xarunIdFilter).catch(() => []),
+          API.projects.getAllTasks().catch(() => []),
+          API.fleet.getAllVehicles(xarunIdFilter).catch(() => []),
+          API.fleet.getFuelLogs().catch(() => []),
+          API.qc.getAllInspections().catch(() => []),
+          API.dms.getAllDocuments(xarunIdFilter).catch(() => []),
+          API.helpdesk.getAllTickets(xarunIdFilter).catch(() => []),
+          API.currencies.getAll().catch(() => []),
+          API.inventoryAdjustments.getAll(xarunIdFilter).catch(() => []),
+          API.stockTakeSessions.getAll(xarunIdFilter).catch(() => []),
+        ]);
+
+        let cleanedItems = fItems || [];
+        const badItems = cleanedItems.filter(
+          (item) =>
+            item.quantity === 0 && (item.shelves !== 0 || item.sections !== 0),
+        );
+        if (badItems.length > 0) {
+          // Run asynchronously so we don't block the UI refresh heavily,
+          // but update the state immediately for the UI to be correct.
+          cleanedItems = cleanedItems.map((item) => {
+            if (
+              item.quantity === 0 &&
+              (item.shelves !== 0 || item.sections !== 0)
+            ) {
+              const fixed = { ...item, shelves: 0, sections: 0 };
+              API.items.save(fixed).catch(console.error);
+              return fixed;
             }
-          } catch (e) { console.error("Error recovering items", e); }
+            return item;
+          });
         }
-      }
 
-      if (fTransactions && fTransactions.length === 0) {
-        const oldTransStr = localStorage.getItem('stock_local_transactions') || localStorage.getItem('smartstock_transactions');
-        if (oldTransStr) {
-          try {
-            const oldTrans = JSON.parse(oldTransStr);
-            if (Array.isArray(oldTrans) && oldTrans.length > 0) {
-              console.log("Recovering old transactions from localStorage...", oldTrans.length);
-              // Bulk save transactions
-              for (const t of oldTrans) {
-                await API.transactions.create(t);
+        setXarumo(fXarumo || []);
+        setItems(cleanedItems);
+        setBranches(fBranches || []);
+        setTransactions(fTransactions || []);
+        setUsers(fUsers || []);
+        setEmployees(fEmployees || []);
+        setPayrolls(fPayrolls || []);
+        setAttendance(fAttendance || []);
+        setXarunOrders(fXarunOrders || []);
+        setInterBranchTransferRequests(fInterBranchTransferRequests || []);
+        setCustomers(fCustomers || []);
+        setVendors(fVendors || []);
+        setSales(fSales || []);
+        setLedger(fLedger || []);
+        setAccounts(fAccounts || []);
+        setPurchaseOrders(fPurchaseOrders || []);
+        setPayments(fPayments || []);
+        setJournalEntries(fJournalEntries || []);
+        setLeads(fLeads || []);
+        setBoms(fBoMs || []);
+        setWorkOrders(fWorkOrders || []);
+        setProjects(fProjects || []);
+        setProjectTasks(fTasks || []);
+        setVehicles(fVehicles || []);
+        setFuelLogs(fFuel || []);
+        setInspections(fInspections || []);
+        setDmsDocuments(fDms || []);
+        setTickets(fTickets || []);
+        setCurrencies(fCurrencies || []);
+        setInventoryAdjustments(fAdjustments || []);
+        setStockTakeSessions(fStockTakes || []);
+
+        // Data Recovery Script for old localStorage keys
+        if (fItems && fItems.length === 0) {
+          const oldItemsStr =
+            localStorage.getItem("stock_local_items") ||
+            localStorage.getItem("smartstock_items") ||
+            localStorage.getItem("stock_local_products");
+          if (oldItemsStr) {
+            try {
+              const oldItems = JSON.parse(oldItemsStr);
+              if (Array.isArray(oldItems) && oldItems.length > 0) {
+                console.log(
+                  "Recovering old items from localStorage...",
+                  oldItems.length,
+                );
+                const success = await API.items.bulkSave(oldItems);
+                if (success) {
+                  const updatedItems = await API.items.getAll();
+                  setItems(updatedItems || []);
+                }
               }
-              const updatedTrans = await API.transactions.getAll(xarunIdFilter);
-              setTransactions(updatedTrans || []);
+            } catch (e) {
+              console.error("Error recovering items", e);
             }
-          } catch (e) { console.error("Error recovering transactions", e); }
+          }
         }
-      }
 
-      // QuickBooks Logic: Auto-setup accounts for new Xarun
-      // Only run if we actually fetched accounts successfully (not an empty array from a catch)
-      // and if we haven't already tried to setup in this session (simple flag)
-      if (user && user.xarunId && fAccounts && fAccounts.length === 0 && !isBackground) {
-        console.log("Setting up default QuickBooks accounts...");
-        try {
-          await API.accounts.setupDefaultAccounts(user.xarunId);
-          // Refresh after setup to get the new accounts
-          const updatedAccounts = await API.accounts.getAll(user.xarunId);
-          setAccounts(updatedAccounts);
-        } catch (e) {
-          console.error("Failed to setup default accounts:", e);
+        if (fTransactions && fTransactions.length === 0) {
+          const oldTransStr =
+            localStorage.getItem("stock_local_transactions") ||
+            localStorage.getItem("smartstock_transactions");
+          if (oldTransStr) {
+            try {
+              const oldTrans = JSON.parse(oldTransStr);
+              if (Array.isArray(oldTrans) && oldTrans.length > 0) {
+                console.log(
+                  "Recovering old transactions from localStorage...",
+                  oldTrans.length,
+                );
+                // Bulk save transactions
+                for (const t of oldTrans) {
+                  await API.transactions.create(t);
+                }
+                const updatedTrans =
+                  await API.transactions.getAll(xarunIdFilter);
+                setTransactions(updatedTrans || []);
+              }
+            } catch (e) {
+              console.error("Error recovering transactions", e);
+            }
+          }
         }
-      }
 
+        // QuickBooks Logic: Auto-setup accounts for new Xarun
+        // Only run if we actually fetched accounts successfully (not an empty array from a catch)
+        // and if we haven't already tried to setup in this session (simple flag)
+        if (
+          user &&
+          user.xarunId &&
+          fAccounts &&
+          fAccounts.length === 0 &&
+          !isBackground
+        ) {
+          console.log("Setting up default QuickBooks accounts...");
+          try {
+            await API.accounts.setupDefaultAccounts(user.xarunId);
+            // Refresh after setup to get the new accounts
+            const updatedAccounts = await API.accounts.getAll(user.xarunId);
+            setAccounts(updatedAccounts);
+          } catch (e) {
+            console.error("Failed to setup default accounts:", e);
+          }
+        }
 
-      if (fItems && fItems.length > 0 && !isBackground && activeTab === 'dashboard') {
-        getInventoryInsights(fItems, fTransactions || [])
-          .then(setInsights)
-          .catch(() => setInsights(["Falanqaynta AI-ga hadda lama heli karo."]));
+        if (
+          fItems &&
+          fItems.length > 0 &&
+          !isBackground &&
+          activeTab === "dashboard"
+        ) {
+          getInventoryInsights(fItems, fTransactions || [])
+            .then(setInsights)
+            .catch(() =>
+              setInsights(["Falanqaynta AI-ga hadda lama heli karo."]),
+            );
+        }
+      } catch (error) {
+        console.error("Fetch Error:", error);
+      } finally {
+        if (!isBackground) setIsLoading(false);
       }
-    } catch (error) {
-      console.error("Fetch Error:", error);
-    } finally {
-      if (!isBackground) setIsLoading(false);
-    }
-  }, [user, activeTab]);
+    },
+    [user, activeTab],
+  );
 
   useEffect(() => {
     if (user) {
       refreshAllData();
       const syncInterval = setInterval(() => {
         if (!document.hidden) refreshAllData(true);
-      }, 30000); 
+      }, 30000);
       return () => clearInterval(syncInterval);
     }
   }, [user, refreshAllData, selectedXarunId]);
 
   const handleApprove = async (t: Transaction) => {
-    const item = items.find(i => i.id === t.itemId);
+    const item = items.find((i) => i.id === t.itemId);
     if (!item) return;
 
     // Apply the transaction effect to stock
@@ -373,8 +547,66 @@ const App: React.FC = () => {
     else if (t.type === TransactionType.TRANSFER) newQty -= t.quantity;
 
     try {
-      await API.items.save({ ...item, quantity: newQty });
-      await API.transactions.update(t.id, { status: TransactionStatus.APPROVED, approvedBy: user?.id });
+      const updates = { ...item, quantity: newQty };
+      if (newQty === 0) {
+        updates.shelves = 0;
+        updates.sections = 0;
+      }
+      await API.items.save(updates);
+
+      // Handle Transfer Target Addition
+      if (t.type === TransactionType.TRANSFER && t.targetBranchId) {
+        const existingTargetItem = items.find(
+           (i) => i.sku === item.sku && i.branchId === t.targetBranchId
+        );
+        let finalTargetItemId = '';
+
+        if (existingTargetItem) {
+           await API.items.save({
+              ...existingTargetItem,
+              quantity: existingTargetItem.quantity + t.quantity
+           });
+           finalTargetItemId = existingTargetItem.id;
+        } else {
+           const targetBranch = branches.find(b => b.id === t.targetBranchId);
+           const savedItem = await API.items.save({
+              name: item.name,
+              category: item.category,
+              sku: item.sku,
+              quantity: t.quantity,
+              branchId: t.targetBranchId,
+              minThreshold: item.minThreshold,
+              xarunId: targetBranch?.xarunId || item.xarunId,
+              shelves: 0,
+              sections: 0,
+              packType: item.packType,
+              lastKnownPrice: item.lastKnownPrice,
+              sellingPrice: item.sellingPrice,
+              supplier: item.supplier,
+              landedCost: item.landedCost,
+           });
+           finalTargetItemId = savedItem.id;
+        }
+        
+        // Also log an "IN" transaction for the target item to record the receipt
+        await API.transactions.create({
+           itemId: finalTargetItemId,
+           itemName: item.name,
+           type: TransactionType.IN,
+           quantity: t.quantity,
+           branchId: t.targetBranchId,
+           personnel: t.personnel || "System",
+           originOrSource: `Transfer from ${branches.find((b) => b.id === t.branchId)?.name}`,
+           status: TransactionStatus.APPROVED,
+           approvedBy: user?.id,
+           xarunId: item.xarunId
+        });
+      }
+
+      await API.transactions.update(t.id, {
+        status: TransactionStatus.APPROVED,
+        approvedBy: user?.id,
+      });
       refreshAllData(true);
       setReceiptTransaction(t);
     } catch (err) {
@@ -383,7 +615,7 @@ const App: React.FC = () => {
   };
 
   const handleReject = async (id: string) => {
-    if(!confirm("Ma hubtaa inaad diido rarkan?")) return;
+    if (!confirm("Ma hubtaa inaad diido rarkan?")) return;
     try {
       await API.transactions.update(id, { status: TransactionStatus.REJECTED });
       refreshAllData(true);
@@ -397,13 +629,13 @@ const App: React.FC = () => {
     setCurrentRole(u.role);
     setIsAuditMode(isAudit);
     if (u.role === UserRole.SUPER_ADMIN) {
-      setActiveTab('saas-manager');
+      setActiveTab("saas-manager");
     } else if (u.permissions && u.permissions.length > 0) {
       setActiveTab(u.permissions[0]);
     } else if (u.role === UserRole.STAFF || u.role === UserRole.CASHIER) {
-      setActiveTab('pos');
+      setActiveTab("pos");
     } else {
-      setActiveTab('dashboard');
+      setActiveTab("dashboard");
     }
   };
 
@@ -411,51 +643,76 @@ const App: React.FC = () => {
 
   if (isLocked) {
     return (
-      <div className="h-screen w-screen bg-slate-900 flex items-center justify-center p-6 bg-cover bg-center" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2672&auto=format&fit=crop)' }}>
+      <div
+        className="h-screen w-screen bg-slate-900 flex items-center justify-center p-6 bg-cover bg-center"
+        style={{
+          backgroundImage:
+            "url(https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2672&auto=format&fit=crop)",
+        }}
+      >
         <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-3xl"></div>
         <div className="bg-white/10 backdrop-blur-xl p-12 rounded-[3.5rem] border border-white/20 shadow-2xl flex flex-col items-center max-w-md w-full relative z-10 animate-in zoom-in duration-500">
-           <div className="w-24 h-24 bg-indigo-500 rounded-[2.5rem] flex items-center justify-center text-5xl mb-8 shadow-2xl shadow-indigo-500/20 ring-8 ring-white/5">🔐</div>
-           <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">Screen Locked</h2>
-           <p className="text-white/60 font-medium text-center mb-10 text-sm">Nidaamku wuxuu isu qufulay ammaan awgeed. Fadlan geli password-kaaga si aad u sii wadato.</p>
-           
-           <div className="w-full space-y-4">
-              <div className="flex items-center gap-4 p-4 bg-white/5 rounded-3xl border border-white/10 mb-6 w-full">
-                 <img src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`} alt="User" className="w-12 h-12 rounded-2xl border border-white/20" />
-                 <div>
-                    <p className="text-white font-black text-sm">{user.name}</p>
-                    <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest">{user.role}</p>
-                 </div>
+          <div className="w-24 h-24 bg-indigo-500 rounded-[2.5rem] flex items-center justify-center text-5xl mb-8 shadow-2xl shadow-indigo-500/20 ring-8 ring-white/5">
+            🔐
+          </div>
+          <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">
+            Screen Locked
+          </h2>
+          <p className="text-white/60 font-medium text-center mb-10 text-sm">
+            Nidaamku wuxuu isu qufulay ammaan awgeed. Fadlan geli password-kaaga
+            si aad u sii wadato.
+          </p>
+
+          <div className="w-full space-y-4">
+            <div className="flex items-center gap-4 p-4 bg-white/5 rounded-3xl border border-white/10 mb-6 w-full">
+              <img
+                src={
+                  user.avatar ||
+                  `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`
+                }
+                alt="User"
+                className="w-12 h-12 rounded-2xl border border-white/20"
+              />
+              <div>
+                <p className="text-white font-black text-sm">{user.name}</p>
+                <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest">
+                  {user.role}
+                </p>
               </div>
-              
-              <div className="relative group">
-                 <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-indigo-400 transition-colors" size={20} />
-                 <input 
-                   type="password" 
-                   autoFocus
-                   placeholder="Enter Password..."
-                   className="w-full pl-14 pr-6 py-5 bg-white/10 border border-white/20 rounded-3xl text-white font-black outline-none focus:ring-4 ring-indigo-500/20 focus:border-indigo-400 transition-all placeholder:text-white/20"
-                   onKeyDown={(e) => {
-                     if (e.key === 'Enter') {
-                       // In a real app we'd verify password, but since it's just a screen lock session, we'll allow resume
-                       setIsLocked(false);
-                       setLastActivity(Date.now());
-                     }
-                   }}
-                 />
-              </div>
-              <button 
-                onClick={() => setIsLocked(false)}
-                className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-3xl shadow-xl shadow-indigo-600/20 transition-all uppercase tracking-widest text-xs mt-2 active:scale-95"
-              >
-                Unlock System
-              </button>
-              <button 
-                onClick={() => setUser(null)}
-                className="w-full py-4 text-white/40 font-black uppercase text-[10px] tracking-widest hover:text-white transition-colors"
-              >
-                Switch Account
-              </button>
-           </div>
+            </div>
+
+            <div className="relative group">
+              <Lock
+                className="absolute left-5 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-indigo-400 transition-colors"
+                size={20}
+              />
+              <input
+                type="password"
+                autoFocus
+                placeholder="Enter Password..."
+                className="w-full pl-14 pr-6 py-5 bg-white/10 border border-white/20 rounded-3xl text-white font-black outline-none focus:ring-4 ring-indigo-500/20 focus:border-indigo-400 transition-all placeholder:text-white/20"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    // In a real app we'd verify password, but since it's just a screen lock session, we'll allow resume
+                    setIsLocked(false);
+                    setLastActivity(Date.now());
+                  }
+                }}
+              />
+            </div>
+            <button
+              onClick={() => setIsLocked(false)}
+              className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-3xl shadow-xl shadow-indigo-600/20 transition-all uppercase tracking-widest text-xs mt-2 active:scale-95"
+            >
+              Unlock System
+            </button>
+            <button
+              onClick={() => setUser(null)}
+              className="w-full py-4 text-white/40 font-black uppercase text-[10px] tracking-widest hover:text-white transition-colors"
+            >
+              Switch Account
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -463,13 +720,24 @@ const App: React.FC = () => {
 
   const renderMainContent = () => {
     // Check if branch is locked for audit
-    const activeAudit = stockTakeSessions.find(s => 
-      s.xarunId === user.xarunId && 
-      (s.status === StockTakeStatus.OPEN || s.status === StockTakeStatus.IN_PROGRESS)
+    const activeAudit = stockTakeSessions.find(
+      (s) =>
+        s.xarunId === user.xarunId &&
+        (s.status === StockTakeStatus.OPEN ||
+          s.status === StockTakeStatus.IN_PROGRESS),
     );
 
     const isLocked = !!activeAudit;
-    const lockedTabs = ['pos', 'inventory', 'inventory-adjustment', 'approvals', 'inter-branch-transfers', 'purchases', 'procurement', 'mrp'];
+    const lockedTabs = [
+      "pos",
+      "inventory",
+      "inventory-adjustment",
+      "approvals",
+      "inter-branch-transfers",
+      "purchases",
+      "procurement",
+      "mrp",
+    ];
 
     if (isLocked && lockedTabs.includes(activeTab)) {
       return (
@@ -477,21 +745,29 @@ const App: React.FC = () => {
           <div className="w-24 h-24 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center text-4xl animate-bounce">
             <Lock size={48} />
           </div>
-          <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Xarunta waa xiran tahay (Locked)</h2>
+          <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tight">
+            Xarunta waa xiran tahay (Locked)
+          </h2>
           <p className="text-slate-500 max-w-md font-bold">
-            Xaruntan waxaa ka socda xisaab-xir (Year-End Audit). Dhammaan dhaqdhaqaaqyada alaabta waa la hakiyey ilaa laga dhammaystiro xisaabta.
+            Xaruntan waxaa ka socda xisaab-xir (Year-End Audit). Dhammaan
+            dhaqdhaqaaqyada alaabta waa la hakiyey ilaa laga dhammaystiro
+            xisaabta.
           </p>
           <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
             <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white">
               <Clock size={24} />
             </div>
             <div className="text-left">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Audit Session</p>
-              <p className="text-sm font-black text-slate-900">Started by {activeAudit.createdBy}</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Active Audit Session
+              </p>
+              <p className="text-sm font-black text-slate-900">
+                Started by {activeAudit.createdBy}
+              </p>
             </div>
           </div>
-          <button 
-            onClick={() => setActiveTab('stock-take')}
+          <button
+            onClick={() => setActiveTab("stock-take")}
             className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest hover:scale-105 transition-all shadow-xl"
           >
             Go to Audit Page
@@ -501,320 +777,581 @@ const App: React.FC = () => {
     }
 
     switch (activeTab) {
-      case 'dashboard':
+      case "dashboard":
         return (
-          <Dashboard 
-            user={user} 
-            items={items} 
-            transactions={transactions} 
+          <Dashboard
+            user={user}
+            items={items}
+            transactions={transactions}
             sales={sales}
             purchaseOrders={purchaseOrders}
-            branches={branches} 
-            settings={settings} 
+            branches={branches}
+            settings={settings}
           />
         );
-      case 'inventory':
+      case "inventory":
         return (
-          <InventoryList 
+          <InventoryList
             user={user}
-            items={items} branches={branches} 
+            items={items}
+            branches={branches}
             initialBranchFilter={selectedBranchId}
-            onAdd={() => { setEditingItem(null); setIsItemFormOpen(true); }} 
+            onAdd={() => {
+              setEditingItem(null);
+              setIsItemFormOpen(true);
+            }}
             onImport={() => {
-              setImportModalMode('normal');
-              setImportModalType('inventory');
-            }} 
+              setImportModalMode("normal");
+              setImportModalType("inventory");
+            }}
             onImportBulkNew={() => {
               setIsMultiItemModalOpen(true);
             }}
-            onBulkAction={() => setIsBulkModalOpen(true)} 
-            onEdit={(item) => { setEditingItem(item); setIsItemFormOpen(true); }} 
-            onDelete={async (id) => { 
-              const itemToDelete = items.find(i => i.id === id);
-              if(window.confirm(`Ma hubtaa inaad tirtirto alaabtan: "${itemToDelete?.name}"?`)) { 
+            onBulkAction={() => setIsBulkModalOpen(true)}
+            onEdit={(item) => {
+              setEditingItem(item);
+              setIsItemFormOpen(true);
+            }}
+            onDelete={async (id) => {
+              const itemToDelete = items.find((i) => i.id === id);
+              if (
+                window.confirm(
+                  `Ma hubtaa inaad tirtirto alaabtan: "${itemToDelete?.name}"?`,
+                )
+              ) {
                 try {
-                  const result = await API.items.delete(id); 
+                  const result = await API.items.delete(id);
                   if (result.success) {
-                    setItems(prev => prev.filter(i => i.id !== id));
+                    setItems((prev) => prev.filter((i) => i.id !== id));
                     refreshAllData(true);
                   }
-                } catch (err) { alert("Cilad tirtiridda!"); }
-              } 
+                } catch (err) {
+                  alert("Cilad tirtiridda!");
+                }
+              }
             }}
             onCleanDuplicates={async () => {
-                if(!window.confirm("Ma hubtaa inaad tirtirto dhamaan alaabta soo noqnoqotay? Batoonkan wuxuu midaynayaa alaabta isku magaca ah oo leh SKU isku dhow wuxuuna ka saarayaa xarumaha/bakhaarada qaaska ah si ay uga muuqdaan kaliya 'master list'-ka.")) return;
-                
-                // Group items by name and category (ignoring case)
-                const itemsByName = new Map<string, InventoryItem[]>();
-                for (const item of items) {
-                    const key = `${item.name.toLowerCase().trim()}|${item.category?.toLowerCase().trim() || ''}`;
-                    if (!itemsByName.has(key)) itemsByName.set(key, []);
-                    itemsByName.get(key)!.push(item);
+              const targetBranchName = window.prompt(
+                "Fadlan gali magaca bakhaarka aad rabto inaad alaabaha soo noqnoqday isugu geyso (tusaale: Cumar Awow).\nHaddii aad rabto inaad bakhaar kasta goonidiisa isugu geyso alaabaha isku midka ah, kaliya guji OK adoon wax qorin:"
+              );
+              
+              if (targetBranchName === null) return; // User cancelled
+              
+              let targetBranch: Branch | undefined;
+              if (targetBranchName.trim()) {
+                targetBranch = branches.find(b => b.name.toLowerCase().includes(targetBranchName.toLowerCase().trim()));
+                if (!targetBranch) {
+                  alert(`Lama helin bakhaar lagu magacaabo "${targetBranchName}".`);
+                  return;
                 }
+              }
 
-                let cleanedCount = 0;
-                let deletedCount = 0;
-                try {
-                  for (const [key, group] of itemsByName.entries()) {
-                      if (group.length > 1) {
-                          // Keep the first one, strip its location, save it
-                          const master = group[0];
-                          const safeItem = { ...master, quantity: 0, shelves: 1, sections: 1 };
-                          delete safeItem.branchId;
-                          delete safeItem.xarunId;
+              // Group items by SKU (or Name+Category as fallback)
+              const itemsByGroup = new Map<string, InventoryItem[]>();
+              for (const item of items) {
+                const baseKey = item.sku || `${item.name.toLowerCase().trim()}|${item.category?.toLowerCase().trim() || ""}`;
+                const groupKey = targetBranch ? baseKey : `${baseKey}|${item.branchId}`;
+                if (!itemsByGroup.has(groupKey)) itemsByGroup.set(groupKey, []);
+                itemsByGroup.get(groupKey)!.push(item);
+              }
 
-                          // Clean SKU if it has '-XXX' suffix at the end (e.g. ITM-234234-HQ)
-                          if (safeItem.sku) {
-                              const parts = safeItem.sku.split('-');
-                              if (parts.length >= 3) { // usually PREFIX-NUMBER-SUFFIX
-                                  safeItem.sku = parts.slice(0, 2).join('-');
-                              }
-                          }
-                          await API.items.save(safeItem);
-                          cleanedCount++;
+              let cleanedCount = 0;
+              let deletedCount = 0;
+              try {
+                for (const [key, group] of itemsByGroup.entries()) {
+                  if (group.length > 1 || (group.length === 1 && targetBranch && group[0].branchId !== targetBranch.id)) {
+                    // Find master item (prefer the one already in target branch to avoid DB unique constraint on update)
+                    let master = targetBranch ? group.find(i => i.branchId === targetBranch?.id) : null;
+                    if (!master) {
+                      master = group.reduce((prev, curr) => (prev.quantity > curr.quantity ? prev : curr), group[0]);
+                    }
+                    
+                    const totalQty = group.reduce((sum, item) => sum + item.quantity, 0);
+                    const safeItem = { ...master, quantity: totalQty };
+                    
+                    if (targetBranch) {
+                       safeItem.branchId = targetBranch.id;
+                       safeItem.xarunId = targetBranch.xarunId || user.xarunId || "";
+                    }
 
-                          // Delete the rest
-                          for (let i = 1; i < group.length; i++) {
-                              await API.items.delete(group[i].id);
-                              deletedCount++;
-                          }
-                      } else if (group.length === 1) {
-                          // Clean up single items imported wrongly into branches with qty 0
-                          const item = group[0];
-                          if (item.branchId && (item.quantity === 0 || !item.quantity)) {
-                              const safeItem = { ...item, quantity: 0, shelves: 1, sections: 1 };
-                              delete safeItem.branchId;
-                              delete safeItem.xarunId;
-                              
-                              if (safeItem.sku) {
-                                  const parts = safeItem.sku.split('-');
-                                  if (parts.length >= 3) { 
-                                      safeItem.sku = parts.slice(0, 2).join('-');
-                                  }
-                              }
-                              await API.items.save(safeItem);
-                              cleanedCount++;
-                          }
+                    // Save the merged item first
+                    await API.items.save(safeItem);
+                    cleanedCount++;
+
+                    // Delete the duplicates
+                    for (const item of group) {
+                      if (item.id !== master.id) {
+                         await API.items.delete(item.id);
+                         deletedCount++;
                       }
+                    }
                   }
-                  alert(`Si guul leh ayaa loo Nadiifiyay!\n\nAlaab dib loo habeeyay: ${cleanedCount}\nAlaab soo noqnoqotay oo la tirtiray: ${deletedCount}`);
-                  refreshAllData(true);
-                } catch (error) {
-                  console.error(error);
-                  alert("Cilad ayaa dhacday inta lagu guda jiray Nadiifinta!");
                 }
+                alert(
+                  `Si guul leh ayaa loo Nadiifiyay!\n\nAlaab dib loo habeeyay: ${cleanedCount}\nAlaab soo noqnoqotay oo la tirtiray: ${deletedCount}`
+                );
+                refreshAllData(true);
+              } catch (error) {
+                console.error(error);
+                alert("Cilad ayaa dhacday inta lagu guda jiray Nadiifinta!");
+              }
             }}
             onTransaction={(item, type) => {
-              if (type === 'TRANSFER') {
+              if (type === "TRANSFER") {
                 setTransferModalItem(item);
               } else {
                 setAdjustmentModal({ item, type: type as any });
               }
-            }} 
+            }}
             onViewHistory={(item) => setHistoryModalItem(item)}
             onRefresh={() => refreshAllData()}
           />
         );
-      case 'stock-take':
-        return <StockTakeAudit user={user} inventory={items} sessions={stockTakeSessions} onRefresh={refreshAllData} />;
-      case 'inventory-adjustment':
-        return <InventoryAdjustment user={user} inventory={items} adjustments={inventoryAdjustments} onRefresh={refreshAllData} />;
-      case 'approvals':
-        return <ApprovalQueue transactions={transactions} onApprove={handleApprove} onReject={handleReject} />;
-      case 'transactions':
-        return <TransactionHistory transactions={transactions} branches={branches} items={items} sales={sales} settings={settings} onRefresh={refreshAllData} />;
-      case 'map':
-        return <WarehouseMap user={user} items={items} branches={branches} initialBranchId={selectedBranchId} onRefresh={refreshAllData} />;
-      case 'inter-branch-transfers':
+      case "stock-take":
         return (
-          <InterBranchTransferPage 
-            user={user} 
-            xarumo={xarumo}
-            myBranches={branches}
-            items={items} 
-            interBranchTransferRequests={interBranchTransferRequests}
-            onRefresh={refreshAllData} 
-            onUpdateTransfer={async (transferId: string, updates: Partial<InterBranchTransferRequest>) => { await API.interBranchTransferRequests.update(transferId, updates); refreshAllData(true); }}
-            onDeleteTransfer={async (transferId: string) => { await API.interBranchTransferRequests.delete(transferId); refreshAllData(true); }}
+          <StockTakeAudit
+            user={user}
+            inventory={items}
+            sessions={stockTakeSessions}
+            onRefresh={refreshAllData}
           />
         );
-      case 'procurement':
+      case "inventory-adjustment":
         return (
-          <LogisticsProcurement 
-            user={user} 
-            masterItems={items} 
-            buyers={users.filter(u => u.role === UserRole.BUYER)} 
+          <InventoryAdjustment
+            user={user}
+            inventory={items}
+            adjustments={inventoryAdjustments}
+            onRefresh={refreshAllData}
+          />
+        );
+      case "approvals":
+        return (
+          <ApprovalQueue
+            transactions={transactions}
+            onApprove={handleApprove}
+            onReject={handleReject}
+          />
+        );
+      case "transactions":
+        return (
+          <TransactionHistory
+            transactions={transactions}
+            branches={branches}
+            items={items}
+            sales={sales}
+            settings={settings}
+            onRefresh={refreshAllData}
+          />
+        );
+      case "map":
+        return (
+          <WarehouseMap
+            user={user}
+            items={items}
+            branches={branches}
+            initialBranchId={selectedBranchId}
+            onRefresh={refreshAllData}
+          />
+        );
+      case "inter-branch-transfers":
+        return (
+          <InterBranchTransferPage
+            user={user}
+            xarumo={xarumo}
+            myBranches={branches}
+            items={items}
+            interBranchTransferRequests={interBranchTransferRequests}
+            onRefresh={refreshAllData}
+            onUpdateTransfer={async (
+              transferId: string,
+              updates: Partial<InterBranchTransferRequest>,
+            ) => {
+              await API.interBranchTransferRequests.update(transferId, updates);
+              refreshAllData(true);
+            }}
+            onDeleteTransfer={async (transferId: string) => {
+              await API.interBranchTransferRequests.delete(transferId);
+              refreshAllData(true);
+            }}
+          />
+        );
+      case "procurement":
+        return (
+          <LogisticsProcurement
+            user={user}
+            masterItems={items}
+            buyers={users.filter((u) => u.role === UserRole.BUYER)}
             settings={settings}
             branches={branches}
             onRefresh={refreshAllData}
           />
         );
-      case 'xarumaha':
+      case "xarumaha":
         return (
-          <BakhaarList 
-            branches={user.role === UserRole.SUPER_ADMIN ? branches : branches.filter(b => b.xarunId === user.xarunId)} 
-            xarumo={xarumo} 
-            filterXarunId={selectedXarunId || null} 
+          <BakhaarList
+            branches={
+              user.role === UserRole.SUPER_ADMIN
+                ? branches
+                : branches.filter((b) => b.xarunId === user.xarunId)
+            }
+            xarumo={xarumo}
+            filterXarunId={selectedXarunId || null}
             filterType="BRANCH"
-            onClearFilter={() => setSelectedXarunId(undefined)} 
-            onAdd={() => { setEditingBranch(null); setBranchFormType('BRANCH'); setIsBranchFormOpen(true); }} 
-            onEdit={(b) => { setEditingBranch(b); setBranchFormType('BRANCH'); setIsBranchFormOpen(true); }} 
-            onDelete={async (id) => { await API.branches.delete(id); refreshAllData(); }} 
+            onClearFilter={() => setSelectedXarunId(undefined)}
+            onAdd={() => {
+              setEditingBranch(null);
+              setBranchFormType("BRANCH");
+              setIsBranchFormOpen(true);
+            }}
+            onEdit={(b) => {
+              setEditingBranch(b);
+              setBranchFormType("BRANCH");
+              setIsBranchFormOpen(true);
+            }}
+            onDelete={async (id) => {
+              await API.branches.delete(id);
+              refreshAllData();
+            }}
             onViewInventory={(branchId) => {
               setSelectedBranchId(branchId);
-              setActiveTab('inventory');
+              setActiveTab("inventory");
             }}
             onViewMap={(branchId) => {
               setSelectedBranchId(branchId);
-              setActiveTab('map');
+              setActiveTab("map");
             }}
           />
         );
-      case 'bakhaarada':
+      case "bakhaarada":
         return (
-          <BakhaarList 
-            branches={user.role === UserRole.SUPER_ADMIN ? branches : branches.filter(b => b.xarunId === user.xarunId)} 
-            xarumo={xarumo} 
-            filterXarunId={selectedXarunId || null} 
+          <BakhaarList
+            branches={
+              user.role === UserRole.SUPER_ADMIN
+                ? branches
+                : branches.filter((b) => b.xarunId === user.xarunId)
+            }
+            xarumo={xarumo}
+            filterXarunId={selectedXarunId || null}
             filterType="STORE"
-            onClearFilter={() => setSelectedXarunId(undefined)} 
-            onAdd={() => { setEditingBranch(null); setBranchFormType('STORE'); setIsBranchFormOpen(true); }} 
-            onEdit={(b) => { setEditingBranch(b); setBranchFormType('STORE'); setIsBranchFormOpen(true); }} 
-            onDelete={async (id) => { await API.branches.delete(id); refreshAllData(); }} 
+            onClearFilter={() => setSelectedXarunId(undefined)}
+            onAdd={() => {
+              setEditingBranch(null);
+              setBranchFormType("STORE");
+              setIsBranchFormOpen(true);
+            }}
+            onEdit={(b) => {
+              setEditingBranch(b);
+              setBranchFormType("STORE");
+              setIsBranchFormOpen(true);
+            }}
+            onDelete={async (id) => {
+              await API.branches.delete(id);
+              refreshAllData();
+            }}
             onViewInventory={(branchId) => {
               setSelectedBranchId(branchId);
-              setActiveTab('inventory');
+              setActiveTab("inventory");
             }}
             onViewMap={(branchId) => {
               setSelectedBranchId(branchId);
-              setActiveTab('map');
+              setActiveTab("map");
             }}
           />
         );
-      case 'hr-employees':
+      case "hr-employees":
         return (
-          <HRMEmployeeManagement 
-            employees={employees} 
-            branches={user.role === UserRole.SUPER_ADMIN ? branches : branches.filter(b => b.xarunId === user.xarunId)} 
-            xarumo={xarumo} 
-            attendance={attendance} 
-            payrolls={payrolls} 
+          <HRMEmployeeManagement
+            employees={employees}
+            branches={
+              user.role === UserRole.SUPER_ADMIN
+                ? branches
+                : branches.filter((b) => b.xarunId === user.xarunId)
+            }
+            xarumo={xarumo}
+            attendance={attendance}
+            payrolls={payrolls}
             settings={settings}
             hardwareUrl={hardwareUrl}
-            onAdd={() => { setEditingEmployee(null); setIsEmployeeFormOpen(true); }} 
-            onEdit={(e) => { setEditingEmployee(e); setIsEmployeeFormOpen(true); }} 
-            onDelete={async (id) => { await API.employees.delete(id); refreshAllData(); }} 
-          />
-        );
-      case 'hrm':
-      case 'hr-attendance':
-        return <HRMAttendanceTracker employees={employees} xarumo={xarumo} branches={branches} branch={selectedBranchId} hardwareUrl={hardwareUrl} />;
-      case 'hr-payroll':
-        return <HRMPayroll employees={employees} xarumo={xarumo} branch={selectedBranchId} />;
-      case 'hr-reports':
-        return <HRMReports employees={employees} attendance={attendance} payrolls={payrolls} xarumo={xarumo} branch={selectedBranchId} />;
-      case 'users':
-        return (
-          <UserManagement 
-            users={users} 
-            xarumo={xarumo} 
-            onAdd={() => { setEditingUser(null); setIsUserFormOpen(true); }} 
-            onEdit={(u) => { setEditingUser(u); setIsUserFormOpen(true); }} 
-            onSwitchUser={(u) => {
-              setUser(u);
-              localStorage.setItem('smartstock_user', JSON.stringify(u));
-              setActiveTab('dashboard');
-            }} 
-          />
-        );
-      case 'pos':
-        return <POS mode="pos" user={user} items={items} customers={customers} branches={branches} xarumo={xarumo} initialBranchId={selectedBranchId} onRefresh={refreshAllData} settings={settings} recordAuditLog={recordAuditLog} />;
-      case 'invoice':
-        return <POS mode="invoice" user={user} items={items} customers={customers} branches={branches} xarumo={xarumo} initialBranchId={selectedBranchId} onRefresh={refreshAllData} settings={settings} recordAuditLog={recordAuditLog} />;
-      case 'customers':
-        return (
-          <CustomerManagement 
-            user={user} 
-            customers={customers} 
-            sales={sales} 
-            payments={payments} 
-            onRefresh={refreshAllData} 
-            settings={settings} 
-            branches={branches} 
-            onImport={() => setImportModalType('customer')}
-          />
-        );
-      case 'vendors':
-        return (
-          <VendorManagement 
-            user={user} 
-            vendors={vendors} 
-            purchaseOrders={purchaseOrders} 
-            payments={payments} 
-            onRefresh={refreshAllData} 
-            onImport={() => setImportModalType('vendor')}
-          />
-        );
-      case 'purchases':
-        return <PurchaseManagement user={user} vendors={vendors} items={items} purchaseOrders={purchaseOrders} branches={branches} settings={settings} onRefresh={refreshAllData} />;
-      case 'payments':
-        return <PaymentManagement user={user} payments={payments} accounts={accounts} onRefresh={refreshAllData} />;
-      case 'financials':
-        return <Financials user={user} ledger={ledger} sales={sales} accounts={accounts} journalEntries={journalEntries} isAuditMode={isAuditMode} onRefresh={refreshAllData} settings={settings} items={items} />;
-      case 'crm':
-        return <CRM leads={leads} users={users} currentUser={user} onRefresh={refreshAllData} />;
-      case 'mrp':
-        return <Manufacturing boms={boms} workOrders={workOrders} items={items} currentUser={user} onRefresh={refreshAllData} />;
-      case 'projects':
-        return <ProjectManagement projects={projects} tasks={projectTasks} users={users} currentUser={user} onRefresh={refreshAllData} />;
-      case 'fleet':
-        return <FleetManagement vehicles={vehicles} fuelLogs={fuelLogs} users={users} currentUser={user} onRefresh={refreshAllData} />;
-      case 'qc':
-        return <QualityControl inspections={inspections} users={users} currentUser={user} onRefresh={refreshAllData} />;
-      case 'dms':
-        return <DocumentManagement documents={dmsDocuments} currentUser={user} onRefresh={refreshAllData} />;
-      case 'audit-logs':
-        return <Financials user={user} ledger={ledger} sales={sales} accounts={accounts} journalEntries={journalEntries} isAuditMode={true} onRefresh={refreshAllData} settings={settings} items={items} mode="audit" />;
-      case 'saas-manager':
-        return (
-          <SaaSManager 
-            xarumo={xarumo} 
-            users={users} 
-            onRefresh={refreshAllData} 
-            onSelectCompany={(id) => {
-              setSelectedXarunId(id);
-              setActiveTab('dashboard');
+            onAdd={() => {
+              setEditingEmployee(null);
+              setIsEmployeeFormOpen(true);
+            }}
+            onEdit={(e) => {
+              setEditingEmployee(e);
+              setIsEmployeeFormOpen(true);
+            }}
+            onDelete={async (id) => {
+              await API.employees.delete(id);
+              refreshAllData();
             }}
           />
         );
-      case 'company-setup':
+      case "hrm":
+      case "hr-attendance":
         return (
-          <CompanySetup 
-            settings={settings} 
-            onSave={(s) => { setSettings(s); localStorage.setItem('smartstock_settings', JSON.stringify(s)); }} 
+          <HRMAttendanceTracker
+            employees={employees}
+            xarumo={xarumo}
+            branches={branches}
+            branch={selectedBranchId}
+            hardwareUrl={hardwareUrl}
+          />
+        );
+      case "hr-payroll":
+        return (
+          <HRMPayroll
+            employees={employees}
+            xarumo={xarumo}
+            branch={selectedBranchId}
+          />
+        );
+      case "hr-reports":
+        return (
+          <HRMReports
+            employees={employees}
+            attendance={attendance}
+            payrolls={payrolls}
+            xarumo={xarumo}
+            branch={selectedBranchId}
+          />
+        );
+      case "users":
+        return (
+          <UserManagement
+            users={users}
+            xarumo={xarumo}
+            onAdd={() => {
+              setEditingUser(null);
+              setIsUserFormOpen(true);
+            }}
+            onEdit={(u) => {
+              setEditingUser(u);
+              setIsUserFormOpen(true);
+            }}
+            onSwitchUser={(u) => {
+              setUser(u);
+              localStorage.setItem("smartstock_user", JSON.stringify(u));
+              setActiveTab("dashboard");
+            }}
+          />
+        );
+      case "pos":
+        return (
+          <POS
+            mode="pos"
+            user={user}
+            items={items}
+            customers={customers}
+            branches={branches}
+            xarumo={xarumo}
+            initialBranchId={selectedBranchId}
+            onRefresh={refreshAllData}
+            settings={settings}
+            recordAuditLog={recordAuditLog}
+          />
+        );
+      case "invoice":
+        return (
+          <POS
+            mode="invoice"
+            user={user}
+            items={items}
+            customers={customers}
+            branches={branches}
+            xarumo={xarumo}
+            initialBranchId={selectedBranchId}
+            onRefresh={refreshAllData}
+            settings={settings}
+            recordAuditLog={recordAuditLog}
+          />
+        );
+      case "customers":
+        return (
+          <CustomerManagement
+            user={user}
+            customers={customers}
+            sales={sales}
+            payments={payments}
+            onRefresh={refreshAllData}
+            settings={settings}
+            branches={branches}
+            onImport={() => setImportModalType("customer")}
+          />
+        );
+      case "vendors":
+        return (
+          <VendorManagement
+            user={user}
+            vendors={vendors}
+            purchaseOrders={purchaseOrders}
+            payments={payments}
+            onRefresh={refreshAllData}
+            onImport={() => setImportModalType("vendor")}
+          />
+        );
+      case "purchases":
+        return (
+          <PurchaseManagement
+            user={user}
+            vendors={vendors}
+            items={items}
+            purchaseOrders={purchaseOrders}
+            branches={branches}
+            settings={settings}
+            onRefresh={refreshAllData}
+          />
+        );
+      case "payments":
+        return (
+          <PaymentManagement
+            user={user}
+            payments={payments}
+            accounts={accounts}
+            onRefresh={refreshAllData}
+          />
+        );
+      case "financials":
+        return (
+          <Financials
+            user={user}
+            ledger={ledger}
+            sales={sales}
+            accounts={accounts}
+            journalEntries={journalEntries}
+            isAuditMode={isAuditMode}
+            onRefresh={refreshAllData}
+            settings={settings}
+            items={items}
+          />
+        );
+      case "crm":
+        return (
+          <CRM
+            leads={leads}
+            users={users}
+            currentUser={user}
+            onRefresh={refreshAllData}
+          />
+        );
+      case "mrp":
+        return (
+          <Manufacturing
+            boms={boms}
+            workOrders={workOrders}
+            items={items}
+            currentUser={user}
+            onRefresh={refreshAllData}
+          />
+        );
+      case "projects":
+        return (
+          <ProjectManagement
+            projects={projects}
+            tasks={projectTasks}
+            users={users}
+            currentUser={user}
+            onRefresh={refreshAllData}
+          />
+        );
+      case "fleet":
+        return (
+          <FleetManagement
+            vehicles={vehicles}
+            fuelLogs={fuelLogs}
+            users={users}
+            currentUser={user}
+            onRefresh={refreshAllData}
+          />
+        );
+      case "qc":
+        return (
+          <QualityControl
+            inspections={inspections}
+            users={users}
+            currentUser={user}
+            onRefresh={refreshAllData}
+          />
+        );
+      case "dms":
+        return (
+          <DocumentManagement
+            documents={dmsDocuments}
+            currentUser={user}
+            onRefresh={refreshAllData}
+          />
+        );
+      case "audit-logs":
+        return (
+          <Financials
+            user={user}
+            ledger={ledger}
+            sales={sales}
+            accounts={accounts}
+            journalEntries={journalEntries}
+            isAuditMode={true}
+            onRefresh={refreshAllData}
+            settings={settings}
+            items={items}
+            mode="audit"
+          />
+        );
+      case "saas-manager":
+        return (
+          <SaaSManager
+            xarumo={xarumo}
+            users={users}
+            onRefresh={refreshAllData}
+            onSelectCompany={(id) => {
+              setSelectedXarunId(id);
+              setActiveTab("dashboard");
+            }}
+          />
+        );
+      case "company-setup":
+        return (
+          <CompanySetup
+            settings={settings}
+            onSave={(s) => {
+              setSettings(s);
+              localStorage.setItem("smartstock_settings", JSON.stringify(s));
+            }}
             currentUser={user!}
             documents={dmsDocuments}
             onRefresh={refreshAllData}
             xarumo={xarumo}
-            onUpdateXarun={async (x) => { 
+            onUpdateXarun={async (x) => {
               try {
-                await API.xarumo.save(x); 
-                refreshAllData(true); 
+                await API.xarumo.save(x);
+                refreshAllData(true);
               } catch (err: any) {
-                alert("Khalad ayaa dhacay markii la cusboonaysiinayay xarunta: " + err.message);
+                alert(
+                  "Khalad ayaa dhacay markii la cusboonaysiinayay xarunta: " +
+                    err.message,
+                );
               }
             }}
           />
         );
-      case 'helpdesk':
-        return <Helpdesk tickets={tickets} users={users} currentUser={user} onRefresh={refreshAllData} />;
-      case 'settings':
+      case "helpdesk":
         return (
-          <Settings 
-            settings={settings} 
-            onSave={(s) => { setSettings(s); localStorage.setItem('smartstock_settings', JSON.stringify(s)); }} 
-            onResetData={() => {}} 
-            items={items} 
+          <Helpdesk
+            tickets={tickets}
+            users={users}
+            currentUser={user}
+            onRefresh={refreshAllData}
+          />
+        );
+      case "settings":
+        return (
+          <Settings
+            settings={settings}
+            onSave={(s) => {
+              setSettings(s);
+              localStorage.setItem("smartstock_settings", JSON.stringify(s));
+            }}
+            onResetData={() => {}}
+            items={items}
             branches={branches}
             xarumo={xarumo}
             transactions={transactions}
@@ -825,17 +1362,40 @@ const App: React.FC = () => {
           />
         );
       default:
-        return <Dashboard user={user} items={items} transactions={transactions} insights={insights} branches={branches} settings={settings} />;
+        return (
+          <Dashboard
+            user={user}
+            items={items}
+            transactions={transactions}
+            insights={insights}
+            branches={branches}
+            settings={settings}
+          />
+        );
     }
   };
 
   return (
     <>
-      <Layout 
-        activeTab={activeTab} setActiveTab={setActiveTab} user={user} currentRole={currentRole} onLogout={() => setUser(null)} 
-        systemName={settings.systemName || "Bariire Building Material"} lowStockCount={items.filter(i => i.quantity <= i.minThreshold).length} 
-        pendingApprovalsCount={transactions.filter(t => t.status === TransactionStatus.PENDING).length}
-        interBranchTransferCount={interBranchTransferRequests.filter(t => t.status === TransferStatus.REQUESTED && t.targetXarunId === user.xarunId).length}
+      <Layout
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        user={user}
+        currentRole={currentRole}
+        onLogout={() => setUser(null)}
+        systemName={settings.systemName || "Bariire Building Material"}
+        lowStockCount={items.filter((i) => i.quantity <= i.minThreshold).length}
+        pendingApprovalsCount={
+          transactions.filter((t) => t.status === TransactionStatus.PENDING)
+            .length
+        }
+        interBranchTransferCount={
+          interBranchTransferRequests.filter(
+            (t) =>
+              t.status === TransferStatus.REQUESTED &&
+              t.targetXarunId === user.xarunId,
+          ).length
+        }
         isAuditMode={isAuditMode}
         enabledFeatures={settings.enabledFeatures}
         xarumo={xarumo}
@@ -846,61 +1406,138 @@ const App: React.FC = () => {
       </Layout>
 
       {/* FORM MODALS */}
-      {isUserFormOpen && <UserForm xarumo={xarumo} editingUser={editingUser} onSave={async (u) => { await API.users.save(u); setIsUserFormOpen(false); refreshAllData(); }} onCancel={() => setIsUserFormOpen(false)} />}
-      {isBranchFormOpen && <BranchForm xarumo={xarumo} branches={branches} user={user} editingBranch={editingBranch} defaultType={branchFormType} onSave={async (b) => { await API.branches.save(b); setIsBranchFormOpen(false); refreshAllData(); }} onCancel={() => setIsBranchFormOpen(false)} />}
-      {isItemFormOpen && <InventoryForm branches={branches} editingItem={editingItem} onSave={async (item, updateAll) => { 
-        // FIX: Ensure xarunId is set based on the selected branch
-        const selectedBranch = branches.find(b => b.id === item.branchId);
-        const validXarunId = selectedBranch?.xarunId || user.xarunId || '';
-        const itemWithXarun = { ...item, xarunId: validXarunId };
-        
-        await API.items.save(itemWithXarun); 
+      {isUserFormOpen && (
+        <UserForm
+          xarumo={xarumo}
+          editingUser={editingUser}
+          onSave={async (u) => {
+            await API.users.save(u);
+            setIsUserFormOpen(false);
+            refreshAllData();
+          }}
+          onCancel={() => setIsUserFormOpen(false)}
+        />
+      )}
+      {isBranchFormOpen && (
+        <BranchForm
+          xarumo={xarumo}
+          branches={branches}
+          user={user}
+          editingBranch={editingBranch}
+          defaultType={branchFormType}
+          onSave={async (b) => {
+            await API.branches.save(b);
+            setIsBranchFormOpen(false);
+            refreshAllData();
+          }}
+          onCancel={() => setIsBranchFormOpen(false)}
+        />
+      )}
+      {isItemFormOpen && (
+        <InventoryForm
+          branches={branches}
+          editingItem={editingItem}
+          onSave={async (item, updateAll) => {
+            // FIX: Ensure xarunId is set based on the selected branch
+            const selectedBranch = branches.find((b) => b.id === item.branchId);
+            const validXarunId = selectedBranch?.xarunId || user.xarunId || "";
+            const itemWithXarun = { ...item, xarunId: validXarunId };
 
-        if (editingItem && updateAll && item.sku) {
-            // Find all other items with same prefix SKU and update their master details
-            const baseSku = item.sku.split('-')[0] + (item.sku.split('-')[1] ? '-' + item.sku.split('-')[1] : '');
-            const relatedItems = items.filter(i => i.sku && i.sku.startsWith(baseSku) && i.id !== item.id);
-            for (const related of relatedItems) {
+            await API.items.save(itemWithXarun);
+
+            if (editingItem && updateAll && item.sku) {
+              // Find all other items with same prefix SKU and update their master details
+              const baseSku =
+                item.sku.split("-")[0] +
+                (item.sku.split("-")[1] ? "-" + item.sku.split("-")[1] : "");
+              const relatedItems = items.filter(
+                (i) => i.sku && i.sku.startsWith(baseSku) && i.id !== item.id,
+              );
+              for (const related of relatedItems) {
                 await API.items.save({
-                    ...related,
-                    name: item.name,
-                    category: item.category,
-                    supplier: item.supplier,
-                    packType: item.packType,
-                    minThreshold: item.minThreshold,
-                    lastKnownPrice: item.lastKnownPrice,
-                    landedCost: item.landedCost
+                  ...related,
+                  name: item.name,
+                  category: item.category,
+                  supplier: item.supplier,
+                  packType: item.packType,
+                  minThreshold: item.minThreshold,
+                  lastKnownPrice: item.lastKnownPrice,
+                  landedCost: item.landedCost,
                 });
+              }
             }
-        }
 
-        setIsItemFormOpen(false); 
-        refreshAllData(); 
-      }} onCancel={() => setIsItemFormOpen(false)} />}
-      {isEmployeeFormOpen && <EmployeeForm branches={user?.role === UserRole.SUPER_ADMIN ? branches : branches.filter(b => b.xarunId === user?.xarunId)} xarumo={user?.role === UserRole.SUPER_ADMIN ? xarumo : xarumo.filter(x => x.id === user?.xarunId)} editingEmployee={editingEmployee} onSave={async (emp) => { await API.employees.save(emp); setIsEmployeeFormOpen(false); refreshAllData(); }} onCancel={() => setIsEmployeeFormOpen(false)} />}
-      
-
+            setIsItemFormOpen(false);
+            refreshAllData();
+          }}
+          onCancel={() => setIsItemFormOpen(false)}
+        />
+      )}
+      {isEmployeeFormOpen && (
+        <EmployeeForm
+          branches={
+            user?.role === UserRole.SUPER_ADMIN
+              ? branches
+              : branches.filter((b) => b.xarunId === user?.xarunId)
+          }
+          xarumo={
+            user?.role === UserRole.SUPER_ADMIN
+              ? xarumo
+              : xarumo.filter((x) => x.id === user?.xarunId)
+          }
+          editingEmployee={editingEmployee}
+          onSave={async (emp) => {
+            await API.employees.save(emp);
+            setIsEmployeeFormOpen(false);
+            refreshAllData();
+          }}
+          onCancel={() => setIsEmployeeFormOpen(false)}
+        />
+      )}
 
       {adjustmentModal && (
-        <StockAdjustmentModal 
-          item={adjustmentModal.item} 
-          branches={branches} 
+        <StockAdjustmentModal
+          item={adjustmentModal.item}
+          branches={branches}
           type={adjustmentModal.type}
           userRole={user.role} // Pass prop
-          onSave={async (data) => { 
+          onSave={async (data) => {
             const type = adjustmentModal.type;
             const item = adjustmentModal.item;
-            
+
             // Logic for status: IF (OUT or MOVE) and NOT privileged, must be PENDING. Otherwise APPROVED.
-            const isPrivileged = user.role === UserRole.SUPER_ADMIN || user.role === UserRole.MANAGER;
-            const status = ((type === TransactionType.OUT || type === TransactionType.MOVE) && !isPrivileged) ? TransactionStatus.PENDING : TransactionStatus.APPROVED;
-            
+            const isPrivileged =
+              user.role === UserRole.SUPER_ADMIN ||
+              user.role === UserRole.MANAGER;
+            const status =
+              (type === TransactionType.OUT || type === TransactionType.MOVE) &&
+              !isPrivileged
+                ? TransactionStatus.PENDING
+                : TransactionStatus.APPROVED;
+
             // CRITICAL FIX: Ensure XarunID is retrieved from the BRANCH, not just the user.
-            const targetBranch = branches.find(b => b.id === data.branchId);
-            const validXarunId = targetBranch?.xarunId || user.xarunId || '';
+            const targetBranch = branches.find((b) => b.id === data.branchId);
+            const validXarunId = targetBranch?.xarunId || user.xarunId || "";
+
+            // Find if the item exists in the target branch (by SKU)
+            const existingTargetItem = items.find(
+              (i) => i.sku === item.sku && i.branchId === data.branchId,
+            );
+
+            let targetItemId = item.id;
+            
+            // Abort early for OUT/MOVE if item doesn't exist in target branch
+            if ((type === TransactionType.OUT || type === TransactionType.MOVE) && !existingTargetItem) {
+               alert(`Error: Item "${item.name}" does not exist in the selected branch.`);
+               return;
+            }
+
+            if (existingTargetItem) {
+               targetItemId = existingTargetItem.id;
+            }
 
             const trans = await API.transactions.create({
-              itemId: item.id,
+              itemId: targetItemId,
               itemName: item.name,
               type: type,
               quantity: data.qty,
@@ -911,92 +1548,109 @@ const App: React.FC = () => {
               placementInfo: data.placement,
               status: status,
               requestedBy: user.id,
-              xarunId: validXarunId // Uses Branch Xarun ID to ensure visibility
+              xarunId: validXarunId, // Uses Branch Xarun ID to ensure visibility
             });
 
             // If Approved (IN always approved, OUT approved for Admin), update stock
             if (status === TransactionStatus.APPROVED) {
-                const targetBranchId = data.branchId;
-                const sourceItem = adjustmentModal.item;
-                
-                // Find if the item exists in the target branch (by SKU)
-                // We use the 'items' state which contains all items
-                const existingTargetItem = items.find(i => i.sku === sourceItem.sku && i.branchId === targetBranchId);
-
-                if (type === TransactionType.IN) {
-                    if (existingTargetItem) {
-                        // Update existing item in target branch
-                        await API.items.save({ 
-                            ...existingTargetItem, 
-                            quantity: existingTargetItem.quantity + data.qty,
-                            shelves: data.shelf !== undefined ? data.shelf : existingTargetItem.shelves,
-                            sections: data.section !== undefined ? data.section : existingTargetItem.sections,
-                            lastKnownPrice: data.unitCost !== undefined ? data.unitCost : existingTargetItem.lastKnownPrice
-                        });
-                    } else {
-                        // Create new item in target branch
-                        const foundTargetBranch = branches.find(b => b.id === targetBranchId);
-                        await API.items.save({
-                            name: sourceItem.name,
-                            category: sourceItem.category,
-                            sku: sourceItem.sku,
-                            quantity: data.qty,
-                            branchId: targetBranchId,
-                            minThreshold: sourceItem.minThreshold,
-                            xarunId: foundTargetBranch?.xarunId || user.xarunId || '',
-                            shelves: data.shelf !== undefined ? data.shelf : 0,
-                            sections: data.section !== undefined ? data.section : 0,
-                            packType: sourceItem.packType,
-                            lastKnownPrice: data.unitCost || sourceItem.lastKnownPrice,
-                            sellingPrice: sourceItem.sellingPrice,
-                            supplier: sourceItem.supplier,
-                            landedCost: sourceItem.landedCost
-                        });
-                    }
-                } else if (type === TransactionType.OUT || type === TransactionType.MOVE) {
-                    if (existingTargetItem) {
-                        if (type === TransactionType.OUT && existingTargetItem.quantity < data.qty) {
-                            alert(`Error: Not enough stock in ${branches.find(b => b.id === targetBranchId)?.name}. Available: ${existingTargetItem.quantity}`);
-                            return;
-                        }
-                        
-                        const updates: any = { ...existingTargetItem };
-                        if (type === TransactionType.OUT) {
-                            updates.quantity = existingTargetItem.quantity - data.qty;
-                        } else if (type === TransactionType.MOVE && data.shelf !== undefined && data.section !== undefined) {
-                            updates.shelves = data.shelf;
-                            updates.sections = data.section;
-                        }
-                        
-                        await API.items.save(updates);
-                    } else {
-                        alert(`Error: Item "${sourceItem.name}" does not exist in the selected branch.`);
-                        return;
-                    }
+              if (type === TransactionType.IN) {
+                if (existingTargetItem) {
+                  // Update existing item in target branch
+                  await API.items.save({
+                    ...existingTargetItem,
+                    quantity: existingTargetItem.quantity + data.qty,
+                    shelves:
+                      data.shelf !== undefined
+                        ? data.shelf
+                        : existingTargetItem.shelves,
+                    sections:
+                      data.section !== undefined
+                        ? data.section
+                        : existingTargetItem.sections,
+                    lastKnownPrice:
+                      data.unitCost !== undefined
+                        ? data.unitCost
+                        : existingTargetItem.lastKnownPrice,
+                  });
+                } else {
+                  // Create new item in target branch
+                  const savedItem = await API.items.save({
+                    name: item.name,
+                    category: item.category,
+                    sku: item.sku,
+                    quantity: data.qty,
+                    branchId: data.branchId,
+                    minThreshold: item.minThreshold,
+                    xarunId: validXarunId,
+                    shelves: data.shelf !== undefined ? data.shelf : 0,
+                    sections: data.section !== undefined ? data.section : 0,
+                    packType: item.packType,
+                    lastKnownPrice: data.unitCost || item.lastKnownPrice,
+                    sellingPrice: item.sellingPrice,
+                    supplier: item.supplier,
+                    landedCost: item.landedCost,
+                  });
+                  
+                  // Update the transaction to use the newly created item's ID!
+                  await API.transactions.update(trans.id, { itemId: savedItem.id });
                 }
-                
-                setReceiptTransaction(trans); // Show receipt
+              } else if (
+                type === TransactionType.OUT ||
+                type === TransactionType.MOVE
+              ) {
+                if (existingTargetItem) {
+                  if (
+                    type === TransactionType.OUT &&
+                    existingTargetItem.quantity < data.qty
+                  ) {
+                    alert(
+                      `Error: Not enough stock in ${targetBranch?.name}. Available: ${existingTargetItem.quantity}`,
+                    );
+                    return;
+                  }
+
+                  const updates: any = { ...existingTargetItem };
+                  if (type === TransactionType.OUT) {
+                    updates.quantity = existingTargetItem.quantity - data.qty;
+                    if (updates.quantity === 0) {
+                      updates.shelves = 0;
+                      updates.sections = 0;
+                    }
+                  } else if (
+                    type === TransactionType.MOVE &&
+                    data.shelf !== undefined &&
+                    data.section !== undefined
+                  ) {
+                    updates.shelves = data.shelf;
+                    updates.sections = data.section;
+                  }
+
+                  await API.items.save(updates);
+                }
+              }
+
+              setReceiptTransaction(trans); // Show receipt
             } else {
-                alert("Codsiga bixinta waa la diray. Sug ogolaanshaha Admin-ka.");
+              alert("Codsiga bixinta waa la diray. Sug ogolaanshaha Admin-ka.");
             }
 
-            setAdjustmentModal(null); 
+            setAdjustmentModal(null);
             refreshAllData(true); // Force update to show new request in queues if visible
-          }} 
-          onCancel={() => setAdjustmentModal(null)} 
+          }}
+          onCancel={() => setAdjustmentModal(null)}
         />
       )}
 
       {transferModalItem && (
-        <TransferModal 
-          item={transferModalItem} 
-          branches={branches} 
-          onCancel={() => setTransferModalItem(null)} 
+        <TransferModal
+          item={transferModalItem}
+          branches={branches}
+          onCancel={() => setTransferModalItem(null)}
           onTransfer={async (data) => {
             const item = transferModalItem;
             // FIX: Get correct xarunId from source branch
-            const sourceBranch = branches.find(b => b.id === item.branchId);
-            const validXarunId = sourceBranch?.xarunId || user.xarunId || '';
+            const sourceBranch = branches.find((b) => b.id === item.branchId);
+            const validXarunId = sourceBranch?.xarunId || user.xarunId || "";
 
             const trans = await API.transactions.create({
               itemId: item.id,
@@ -1006,12 +1660,12 @@ const App: React.FC = () => {
               branchId: item.branchId,
               targetBranchId: data.targetBranchId,
               personnel: data.personnel,
-              originOrSource: `To: ${branches.find(b=>b.id===data.targetBranchId)?.name}`,
+              originOrSource: `To: ${branches.find((b) => b.id === data.targetBranchId)?.name}`,
               placementInfo: `Target: ${formatPlacement(data.targetShelf, data.targetSection)}`,
               notes: data.notes,
               status: TransactionStatus.PENDING,
               requestedBy: user.id,
-              xarunId: validXarunId
+              xarunId: validXarunId,
             });
             setTransferModalItem(null);
             refreshAllData(true);
@@ -1021,145 +1675,263 @@ const App: React.FC = () => {
       )}
 
       {receiptTransaction && (
-        <TransactionReceipt 
-            transaction={receiptTransaction} 
-            item={items.find(i => i.id === receiptTransaction.itemId)}
-            branch={branches.find(b => b.id === receiptTransaction.branchId)}
-            issuedBy={user.name}
-            onClose={() => setReceiptTransaction(null)}
+        <TransactionReceipt
+          transaction={receiptTransaction}
+          item={items.find((i) => i.id === receiptTransaction.itemId)}
+          branch={branches.find((b) => b.id === receiptTransaction.branchId)}
+          issuedBy={user.name}
+          onClose={() => setReceiptTransaction(null)}
         />
       )}
 
-      {historyModalItem && <ItemMovementHistoryModal item={historyModalItem} transactions={transactions} branches={branches} onClose={() => setHistoryModalItem(null)} />}
+      {historyModalItem && (
+        <ItemMovementHistoryModal
+          item={historyModalItem}
+          transactions={transactions}
+          branches={branches}
+          onClose={() => setHistoryModalItem(null)}
+        />
+      )}
       {importModalType && (
-        <ImportModal 
+        <ImportModal
           type={importModalType}
           mode={importModalMode}
-          branches={branches} 
+          branches={branches}
           xarumo={xarumo}
           existingItems={items}
-          userXarunId={user.xarunId} 
-          onImport={async (data) => { 
+          userXarunId={user.xarunId}
+          onImport={async (data) => {
             let success = false;
-            if (importModalType === 'inventory') {
+            if (importModalType === "inventory") {
               success = await API.items.bulkSave(data);
-            } else if (importModalType === 'customer') {
+            } else if (importModalType === "customer") {
               success = await API.customers.bulkSave(data);
-            } else if (importModalType === 'vendor') {
+            } else if (importModalType === "vendor") {
               success = await API.vendors.bulkSave(data);
             }
-            
-            if (success) { 
-              setImportModalType(null); 
-              refreshAllData(); 
-            } 
-            return success; 
-          }} 
-          onCancel={() => setImportModalType(null)} 
+
+            if (success) {
+              setImportModalType(null);
+              refreshAllData();
+            }
+            return success;
+          }}
+          onCancel={() => setImportModalType(null)}
         />
       )}
       {isMultiItemModalOpen && (
-        <MultiItemAddModal 
+        <MultiItemAddModal
           branches={branches}
           xarumo={xarumo}
           userXarunId={user?.xarunId}
           onSave={async (newItems, noLocationAssigned) => {
-             let finalItems = newItems;
-             if (noLocationAssigned) {
-                 // user did not provide warehouse data, so don't assign to ANY branch/xarun
-                 // it will just be a master catalog item.
-                 finalItems = newItems.map(item => {
-                     const catalogItem = { ...item };
-                     delete catalogItem.branchId;
-                     delete catalogItem.xarunId;
-                     catalogItem.quantity = 0;
-                     return catalogItem;
-                 });
-             }
+            let finalItems = newItems;
+            if (noLocationAssigned) {
+              // user did not provide warehouse data, so don't assign to ANY branch/xarun
+              // it will just be a master catalog item.
+              finalItems = newItems.map((item) => {
+                const catalogItem = { ...item };
+                delete catalogItem.branchId;
+                delete catalogItem.xarunId;
+                catalogItem.quantity = 0;
+                return catalogItem;
+              });
+            }
 
-             try {
-                const success = await API.items.bulkSave(finalItems);
-                if (success) {
-                   refreshAllData();
-                }
-                return success;
-             } catch (e) {
-                console.error(" bulkSave threw error:", e);
-                return false;
-             }
+            try {
+              const success = await API.items.bulkSave(finalItems);
+              if (success) {
+                refreshAllData();
+              }
+              return success;
+            } catch (e) {
+              console.error(" bulkSave threw error:", e);
+              return false;
+            }
           }}
           onCancel={() => setIsMultiItemModalOpen(false)}
         />
       )}
-      {isBulkModalOpen && <BulkTransactionModal items={items} branches={branches} onSave={async (type, data) => { 
-          // FIX: Get correct xarunId from the selected branch for bulk ops
-          const targetBranch = branches.find(b => b.id === data.branchId);
-          const validXarunId = targetBranch?.xarunId || user.xarunId || '';
-          const isPrivileged = user.role === UserRole.SUPER_ADMIN || user.role === UserRole.MANAGER;
+      {isBulkModalOpen && (
+        <BulkTransactionModal
+          items={items}
+          branches={branches}
+          onSave={async (type, data) => {
+            // FIX: Get correct xarunId from the selected branch for bulk ops
+            const targetBranch = branches.find((b) => b.id === data.branchId);
+            const validXarunId = targetBranch?.xarunId || user.xarunId || "";
+            const isPrivileged =
+              user.role === UserRole.SUPER_ADMIN ||
+              user.role === UserRole.MANAGER;
 
-          if (type === 'MOVE') {
+            if (type === "MOVE") {
               for (const row of data.items) {
-                  const item = items.find(i => i.id === row.itemId);
-                  if (item && row.shelf !== undefined && row.section !== undefined) {
-                      await API.items.save({
-                          ...item,
-                          shelves: row.shelf,
-                          sections: row.section
-                      });
+                const sourceItem = items.find((i) => i.id === row.itemId);
+                if (
+                  sourceItem &&
+                  row.shelf !== undefined &&
+                  row.section !== undefined
+                ) {
+                  const existingTargetItem = items.find(
+                    (i) =>
+                      i.sku === sourceItem.sku && i.branchId === data.branchId,
+                  );
+                  if (existingTargetItem) {
+                    await API.items.save({
+                      ...existingTargetItem,
+                      shelves:
+                        !existingTargetItem.quantity ||
+                        existingTargetItem.quantity === 0
+                          ? 0
+                          : Number(row.shelf),
+                      sections:
+                        !existingTargetItem.quantity ||
+                        existingTargetItem.quantity === 0
+                          ? 0
+                          : Number(row.section),
+                    });
+                  } else {
+                    alert(
+                      `Error: Item "${sourceItem.name}" does not exist in the selected branch.`,
+                    );
                   }
+                }
               }
               setIsBulkModalOpen(false);
               refreshAllData(true);
               alert("Goobaha alaabta waa la bedelay!");
               return;
-          }
+            }
 
-          const createdTransactions: Transaction[] = [];
+            const createdTransactions: Transaction[] = [];
 
-          for (const row of data.items) {
-              const item = items.find(i => i.id === row.itemId);
-              if (item) {
-                const status = (type === TransactionType.OUT && !isPrivileged) ? TransactionStatus.PENDING : TransactionStatus.APPROVED;
-                
+            for (const row of data.items) {
+              const sourceItem = items.find((i) => i.id === row.itemId);
+              if (sourceItem) {
+                const existingTargetItem = items.find(
+                  (i) =>
+                    i.sku === sourceItem.sku && i.branchId === data.branchId,
+                );
+                const status =
+                  type === TransactionType.OUT && !isPrivileged
+                    ? TransactionStatus.PENDING
+                    : TransactionStatus.APPROVED;
+
+                // For IN, the target item ID will be existingTargetItem.id, or we create a new Trans without itemId but that's complex.
+                // Let's use existingTargetItem?.id or sourceItem.id as fallback, but ideally existingTargetItem.id.
+                const targetItemId = existingTargetItem?.id || sourceItem.id;
+
                 const newTrans = await API.transactions.create({
-                  itemId: item.id, itemName: item.name, type: type as TransactionType, quantity: row.qty, branchId: data.branchId, 
-                  personnel: data.personnel, originOrSource: data.source, notes: data.notes, status: status, 
-                  requestedBy: user.id, xarunId: validXarunId
+                  itemId: targetItemId,
+                  itemName: sourceItem.name,
+                  type: type as TransactionType,
+                  quantity: row.qty,
+                  branchId: data.branchId,
+                  personnel: data.personnel,
+                  originOrSource: data.source,
+                  notes: data.notes,
+                  status: status,
+                  requestedBy: user.id,
+                  xarunId: validXarunId,
                 });
                 createdTransactions.push(newTrans);
-                
-                if (status === TransactionStatus.APPROVED) {
-                    let newQty = item.quantity;
-                    if (type === TransactionType.IN) newQty += row.qty;
-                    else if (type === TransactionType.OUT) newQty -= row.qty;
 
-                    const itemUpdate: Partial<InventoryItem> = { ...item, quantity: newQty };
-                    if (type === TransactionType.IN) {
-                        if (row.shelf !== undefined && row.shelf !== null && row.shelf !== '') itemUpdate.shelves = Number(row.shelf);
-                        if (row.section !== undefined && row.section !== null && row.section !== '') itemUpdate.sections = Number(row.section);
+                if (status === TransactionStatus.APPROVED) {
+                  if (type === TransactionType.IN) {
+                    if (existingTargetItem) {
+                      const newQty = existingTargetItem.quantity + row.qty;
+                      const itemUpdate: Partial<InventoryItem> = {
+                        ...existingTargetItem,
+                        quantity: newQty,
+                      };
+                      if (
+                        row.shelf !== undefined &&
+                        row.shelf !== null &&
+                        row.shelf !== ""
+                      )
+                        itemUpdate.shelves = Number(row.shelf);
+                      if (
+                        row.section !== undefined &&
+                        row.section !== null &&
+                        row.section !== ""
+                      )
+                        itemUpdate.sections = Number(row.section);
+                      if (newQty === 0) {
+                        itemUpdate.shelves = 0;
+                        itemUpdate.sections = 0;
+                      }
+                      await API.items.save(itemUpdate);
+                    } else {
+                      await API.items.save({
+                        name: sourceItem.name,
+                        category: sourceItem.category,
+                        sku: sourceItem.sku,
+                        quantity: row.qty,
+                        branchId: data.branchId,
+                        minThreshold: sourceItem.minThreshold,
+                        xarunId: targetBranch?.xarunId || user.xarunId || "",
+                        shelves:
+                          row.shelf !== undefined &&
+                          row.shelf !== null &&
+                          row.shelf !== ""
+                            ? Number(row.shelf)
+                            : 0,
+                        sections:
+                          row.section !== undefined &&
+                          row.section !== null &&
+                          row.section !== ""
+                            ? Number(row.section)
+                            : 0,
+                        packType: sourceItem.packType,
+                        lastKnownPrice: sourceItem.lastKnownPrice,
+                        sellingPrice: sourceItem.sellingPrice,
+                        supplier: sourceItem.supplier,
+                        landedCost: sourceItem.landedCost,
+                      });
                     }
-                    await API.items.save(itemUpdate);
+                  } else if (type === TransactionType.OUT) {
+                    if (existingTargetItem) {
+                      const newQty = existingTargetItem.quantity - row.qty;
+                      const itemUpdate: Partial<InventoryItem> = {
+                        ...existingTargetItem,
+                        quantity: newQty,
+                      };
+                      if (newQty <= 0) {
+                        itemUpdate.quantity = 0;
+                        itemUpdate.shelves = 0;
+                        itemUpdate.sections = 0;
+                      }
+                      await API.items.save(itemUpdate);
+                    }
+                  }
                 }
               }
-          }
-          setIsBulkModalOpen(false); 
-          refreshAllData(true); 
-          
-          if (createdTransactions.length > 0) {
-             setBulkReceiptData({
+            }
+            setIsBulkModalOpen(false);
+            refreshAllData(true);
+
+            if (createdTransactions.length > 0) {
+              setBulkReceiptData({
                 transactions: createdTransactions,
                 type: type as TransactionType,
                 branch: targetBranch,
                 personnel: data.personnel,
-                date: data.date
-             });
-          } else {
-             alert(type === TransactionType.OUT && !isPrivileged ? "Bulk OUT requests sent for approval!" : "Bulk Operation Processed!");
-          }
-      }} onCancel={() => setIsBulkModalOpen(false)} />}
+                date: data.date,
+              });
+            } else {
+              alert(
+                type === TransactionType.OUT && !isPrivileged
+                  ? "Bulk OUT requests sent for approval!"
+                  : "Bulk Operation Processed!",
+              );
+            }
+          }}
+          onCancel={() => setIsBulkModalOpen(false)}
+        />
+      )}
 
       {bulkReceiptData && (
-        <BulkTransactionReceipt 
+        <BulkTransactionReceipt
           transactions={bulkReceiptData.transactions}
           branch={bulkReceiptData.branch}
           type={bulkReceiptData.type}
