@@ -1862,7 +1862,7 @@ const App: React.FC = () => {
                       }
                       await API.items.save(itemUpdate);
                     } else {
-                      await API.items.save({
+                      const savedItem = await API.items.save({
                         name: sourceItem.name,
                         category: sourceItem.category,
                         sku: sourceItem.sku,
@@ -1888,6 +1888,7 @@ const App: React.FC = () => {
                         supplier: sourceItem.supplier,
                         landedCost: sourceItem.landedCost,
                       });
+                      await API.transactions.update(newTrans.id, { itemId: savedItem.id });
                     }
                   } else if (type === TransactionType.OUT) {
                     if (existingTargetItem) {

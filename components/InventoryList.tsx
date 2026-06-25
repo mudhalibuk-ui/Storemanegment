@@ -298,7 +298,7 @@ const InventoryList: React.FC<InventoryListProps> = ({
 
                   return (
                     <tr
-                      key={item.sku || item.id}
+                      key={item.id}
                       className={`hover:bg-slate-50 transition-colors group ${needsDiscount ? "bg-amber-50/10" : ""}`}
                     >
                       <td className="px-6 md:px-10 py-6 align-top">
@@ -364,40 +364,54 @@ const InventoryList: React.FC<InventoryListProps> = ({
                       </td>
                       <td className="px-6 md:px-10 py-6 align-top">
                         <div className="flex flex-col gap-2">
-                          {group.map((variant) => {
-                            const branch = branches.find(
-                              (b) => b.id === variant.branchId,
-                            );
-                            return (
-                              <div
-                                key={variant.id}
-                                className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-lg px-3 py-2"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[10px] font-black text-slate-500 uppercase">
-                                    🏢 {branch?.name || "Unknown"}
-                                  </span>
-                                  {variant.quantity > 0 &&
-                                    formatPlacement(
-                                      variant.shelves,
-                                      variant.sections,
-                                    ) !== "NULL" && (
-                                      <span className="text-[9px] font-bold text-indigo-400 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 uppercase">
-                                        {formatPlacement(
-                                          variant.shelves,
-                                          variant.sections,
-                                        )}
+                          {(() => {
+                            const variantsWithStock = group.filter(v => v.quantity > 0);
+                            
+                            if (variantsWithStock.length === 0) {
+                               return (
+                                 <div className="flex items-center justify-between bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[10px] font-black text-rose-500 uppercase">
+                                        ❌ Out of Stock
                                       </span>
-                                    )}
-                                </div>
-                                <span
-                                  className={`text-xs font-black ${variant.quantity <= variant.minThreshold ? "text-rose-600" : "text-slate-800"}`}
+                                    </div>
+                                    <span className="text-xs font-black text-rose-600">0</span>
+                                 </div>
+                               );
+                            }
+
+                            return variantsWithStock.map((variant) => {
+                              const branch = branches.find(
+                                (b) => b.id === variant.branchId,
+                              );
+                              return (
+                                <div
+                                  key={variant.id}
+                                  className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-lg px-3 py-2"
                                 >
-                                  {variant.quantity}
-                                </span>
-                              </div>
-                            );
-                          })}
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-black text-slate-500 uppercase">
+                                      🏢 {branch?.name || (variant.branchId ? "Unknown" : "Catalog")}
+                                    </span>
+                                    {variant.quantity > 0 && (
+                                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase ${
+                                          formatPlacement(variant.shelves, variant.sections) === "NULL" 
+                                            ? "text-rose-500 bg-rose-50 border-rose-100" 
+                                            : "text-indigo-400 bg-indigo-50 border-indigo-100"
+                                        }`}>
+                                          {formatPlacement(variant.shelves, variant.sections) === "NULL" ? "Bilaa God" : formatPlacement(variant.shelves, variant.sections)}
+                                        </span>
+                                      )}
+                                  </div>
+                                  <span
+                                    className={`text-xs font-black ${variant.quantity <= variant.minThreshold ? "text-rose-600" : "text-slate-800"}`}
+                                  >
+                                    {variant.quantity}
+                                  </span>
+                                </div>
+                              );
+                            });
+                          })()}
                         </div>
                       </td>
                       <td className="px-6 md:px-10 py-6 align-top">

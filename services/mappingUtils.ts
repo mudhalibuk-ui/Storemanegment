@@ -31,7 +31,16 @@ export const letterToNumber = (letter: string): number => {
  * Isku dara iskafalada iyo godadka (e.g., A-01)
  */
 export const formatPlacement = (shelf: number, section: number): string => {
-  if (!shelf || !section || shelf === 0 || section === 0) return 'NULL';
+  if ((!shelf && !section) || (shelf === 0 && section === 0)) return 'NULL';
+  
+  if (!shelf || shelf === 0) {
+    return `Godka ${section}`;
+  }
+  
+  if (!section || section === 0) {
+    return `Iskafalo ${numberToLetter(shelf)}`;
+  }
+  
   const shelfLetter = numberToLetter(shelf);
   const sectionStr = section < 10 ? `0${section}` : section.toString();
   return `${shelfLetter}-${sectionStr}`;

@@ -19,7 +19,7 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
     sections: 0,
     quantity: 0,
     minThreshold: 5,
-    branchId: branches[0]?.id || '',
+    branchId: '',
     supplier: ''
   });
 
@@ -33,20 +33,13 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
         category: editingItem.category || '',
         sku: editingItem.sku || '',
         supplier: editingItem.supplier || '',
-        branchId: editingItem.branchId || branches[0]?.id || ''
+        branchId: editingItem.branchId || ''
       });
     }
   }, [editingItem]);
 
-  // Ensure default branch is set if not present
-  useEffect(() => {
-    if (!formData.branchId && branches.length > 0) {
-      setFormData(prev => ({ ...prev, branchId: branches[0]?.id || '' }));
-    }
-  }, [branches, formData.branchId]);
-
   // Calculate layout options based on selected branch
-  const selectedBranch = branches.find(b => b.id === formData.branchId);
+  const selectedBranch = formData.branchId ? branches.find(b => b.id === formData.branchId) : null;
   
   const shelfOptions = selectedBranch 
     ? Array.from({ length: selectedBranch.totalShelves }, (_, i) => ({
@@ -76,6 +69,16 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const finalData = { ...formData };
+    
+    if (finalData.quantity > 0 && !finalData.branchId) {
+       alert("Fadlan dooro bakhaarka aad dhigayso alaabtan (Please select a location for the quantity).");
+       return;
+    }
+    
+    if (!finalData.branchId) {
+        delete finalData.branchId; // Treat as catalog item
+    }
+    
     if (!finalData.sku || finalData.sku.trim() === '') {
       const prefix = finalData.category ? finalData.category.substring(0, 3).toUpperCase() : 'ITM';
       finalData.sku = `${prefix}-${Math.floor(100000 + Math.random() * 900000)}`;
@@ -114,13 +117,13 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
             )}
 
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase px-1">Bakhaarka la dhigayo</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase px-1">Bakhaarka la dhigayo (Location)</label>
               <select 
-                required 
                 className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-indigo-500 transition-all" 
-                value={formData.branchId} 
+                value={formData.branchId || ''} 
                 onChange={e => setFormData({...formData, branchId: e.target.value, shelves: 0, sections: 0})}
               >
+                <option value="">No Location (Catalog Only)</option>
                 {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
