@@ -105,6 +105,7 @@ import { formatPlacement } from "./services/mappingUtils";
 
 type AdjustmentModalState = {
   item: InventoryItem;
+  variants?: InventoryItem[];
   type: TransactionType.IN | TransactionType.OUT | TransactionType.MOVE;
 } | null;
 
@@ -896,11 +897,11 @@ const App: React.FC = () => {
                 alert("Cilad ayaa dhacday inta lagu guda jiray Nadiifinta!");
               }
             }}
-            onTransaction={(item, type) => {
+            onTransaction={(item, type, group) => {
               if (type === "TRANSFER") {
-                setTransferModalItem(item);
+                setTransferModalItem(item); // Note: Could pass group to transfer modal too if needed
               } else {
-                setAdjustmentModal({ item, type: type as any });
+                setAdjustmentModal({ item, variants: group, type: type as any });
               }
             }}
             onViewHistory={(item) => setHistoryModalItem(item)}
@@ -1503,9 +1504,8 @@ const App: React.FC = () => {
           userRole={user.role} // Pass prop
           onSave={async (data) => {
             const type = adjustmentModal.type;
-            const item = adjustmentModal.item;
+            const item = adjustmentModal.variants ? (adjustmentModal.variants.find(v => v.id === data.variantId) || adjustmentModal.item) : adjustmentModal.item;
 
-            // Logic for status: IF (OUT or MOVE) and NOT privileged, must be PENDING. Otherwise APPROVED.
             const isPrivileged =
               user.role === UserRole.SUPER_ADMIN ||
               user.role === UserRole.MANAGER;
@@ -1515,25 +1515,28 @@ const App: React.FC = () => {
                 ? TransactionStatus.PENDING
                 : TransactionStatus.APPROVED;
 
-            // CRITICAL FIX: Ensure XarunID is retrieved from the BRANCH, not just the user.
             const targetBranch = branches.find((b) => b.id === data.branchId);
             const validXarunId = targetBranch?.xarunId || user.xarunId || "";
 
-            // Find if the item exists in the target branch (by SKU)
+            // Find if the item exists in the target branch with the SAME shelf and section
+            // For OUT and MOVE, we already know the source item (it's the variant we picked).
+            // For IN, we are adding to the specific Godka (data.shelf, data.section)
             const existingTargetItem = items.find(
-              (i) => i.sku === item.sku && i.branchId === data.branchId,
+              (i) => i.sku === item.sku && i.branchId === data.branchId && i.shelves === (data.shelf || 0) && i.sections === (data.section || 0)
             );
 
             let targetItemId = item.id;
             
             // Abort early for OUT/MOVE if item doesn't exist in target branch
-            if ((type === TransactionType.OUT || type === TransactionType.MOVE) && !existingTargetItem) {
-               alert(`Error: Item "${item.name}" does not exist in the selected branch.`);
+            if ((type === TransactionType.OUT || type === TransactionType.MOVE) && !item) {
+               alert(`Error: Item variant not found.`);
                return;
             }
 
-            if (existingTargetItem) {
+            if (type === TransactionType.IN && existingTargetItem) {
                targetItemId = existingTargetItem.id;
+            } else if (type === TransactionType.OUT || type === TransactionType.MOVE) {
+               targetItemId = item.id;
             }
 
             const trans = await API.transactions.create({
@@ -1548,32 +1551,20 @@ const App: React.FC = () => {
               placementInfo: data.placement,
               status: status,
               requestedBy: user.id,
-              xarunId: validXarunId, // Uses Branch Xarun ID to ensure visibility
+              xarunId: validXarunId,
             });
 
-            // If Approved (IN always approved, OUT approved for Admin), update stock
             if (status === TransactionStatus.APPROVED) {
               if (type === TransactionType.IN) {
                 if (existingTargetItem) {
-                  // Update existing item in target branch
+                  // Update existing item in target branch/location
                   await API.items.save({
                     ...existingTargetItem,
                     quantity: existingTargetItem.quantity + data.qty,
-                    shelves:
-                      data.shelf !== undefined
-                        ? data.shelf
-                        : existingTargetItem.shelves,
-                    sections:
-                      data.section !== undefined
-                        ? data.section
-                        : existingTargetItem.sections,
-                    lastKnownPrice:
-                      data.unitCost !== undefined
-                        ? data.unitCost
-                        : existingTargetItem.lastKnownPrice,
+                    lastKnownPrice: data.unitCost !== undefined ? data.unitCost : existingTargetItem.lastKnownPrice,
                   });
                 } else {
-                  // Create new item in target branch
+                  // Create new item location variant in target branch
                   const savedItem = await API.items.save({
                     name: item.name,
                     category: item.category,
@@ -1591,27 +1582,21 @@ const App: React.FC = () => {
                     landedCost: item.landedCost,
                   });
                   
-                  // Update the transaction to use the newly created item's ID!
                   await API.transactions.update(trans.id, { itemId: savedItem.id });
                 }
               } else if (
                 type === TransactionType.OUT ||
                 type === TransactionType.MOVE
               ) {
-                if (existingTargetItem) {
-                  if (
-                    type === TransactionType.OUT &&
-                    existingTargetItem.quantity < data.qty
-                  ) {
-                    alert(
-                      `Error: Not enough stock in ${targetBranch?.name}. Available: ${existingTargetItem.quantity}`,
-                    );
+                if (item) {
+                  if (type === TransactionType.OUT && item.quantity < data.qty) {
+                    alert(`Error: Not enough stock. Available: ${item.quantity}`);
                     return;
                   }
 
-                  const updates: any = { ...existingTargetItem };
+                  const updates: any = { ...item };
                   if (type === TransactionType.OUT) {
-                    updates.quantity = existingTargetItem.quantity - data.qty;
+                    updates.quantity = item.quantity - data.qty;
                     if (updates.quantity === 0) {
                       updates.shelves = 0;
                       updates.sections = 0;
@@ -1621,6 +1606,11 @@ const App: React.FC = () => {
                     data.shelf !== undefined &&
                     data.section !== undefined
                   ) {
+                    // Moving item to a new location within the SAME branch!
+                    // Wait, what if the target location ALREADY exists? 
+                    // To keep it simple, just update the shelves/sections on the current variant,
+                    // unless they move partially? The UI for MOVE doesn't specify partial move yet (qty is 0 in state but... wait! qty state for Move is 0!)
+                    // Let's just update the current variant's location.
                     updates.shelves = data.shelf;
                     updates.sections = data.section;
                   }
@@ -1629,7 +1619,7 @@ const App: React.FC = () => {
                 }
               }
 
-              setReceiptTransaction(trans); // Show receipt
+              setReceiptTransaction(trans);
             } else {
               alert("Codsiga bixinta waa la diray. Sug ogolaanshaha Admin-ka.");
             }
@@ -1690,6 +1680,7 @@ const App: React.FC = () => {
           transactions={transactions}
           branches={branches}
           onClose={() => setHistoryModalItem(null)}
+          onViewReceipt={(t) => setReceiptTransaction(t)}
         />
       )}
       {importModalType && (

@@ -16,6 +16,7 @@ interface InventoryListProps {
   onTransaction: (
     item: InventoryItem,
     type: "IN" | "OUT" | "TRANSFER" | "MOVE",
+    group?: InventoryItem[],
   ) => void;
   onViewHistory: (item: InventoryItem) => void;
   onRefresh?: () => void;
@@ -475,28 +476,28 @@ const InventoryList: React.FC<InventoryListProps> = ({
                               Since we have multiple branches, we might want to pass the item corresponding to the user's preferred branch or just the first one.
                           */}
                           <button
-                            onClick={() => onTransaction(item, "IN")}
+                            onClick={() => onTransaction(item, "IN", group)}
                             className="w-10 h-10 md:w-11 md:h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-90"
                             title="Stock In"
                           >
                             📥
                           </button>
                           <button
-                            onClick={() => onTransaction(item, "OUT")}
+                            onClick={() => onTransaction(item, "OUT", group)}
                             className="w-10 h-10 md:w-11 md:h-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all shadow-sm active:scale-90"
                             title="Stock Out"
                           >
                             📤
                           </button>
                           <button
-                            onClick={() => onTransaction(item, "MOVE")}
+                            onClick={() => onTransaction(item, "MOVE", group)}
                             className="w-10 h-10 md:w-11 md:h-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-90"
                             title="Adjust Location"
                           >
                             📍
                           </button>
                           <button
-                            onClick={() => onTransaction(item, "TRANSFER")}
+                            onClick={() => onTransaction(item, "TRANSFER", group)}
                             className="w-10 h-10 md:w-11 md:h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center hover:bg-amber-600 hover:text-white transition-all shadow-sm active:scale-90"
                             title="Transfer to Branch"
                           >

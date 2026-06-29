@@ -18,7 +18,7 @@ const TransactionReceipt: React.FC<TransactionReceiptProps> = ({ transaction, it
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[20000] flex items-center justify-center p-4 print:p-0 overflow-y-auto overflow-x-hidden">
+    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[20010] flex items-center justify-center p-4 print:p-0 overflow-y-auto overflow-x-hidden">
       <div className="bg-white w-full max-w-lg rounded-[3rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-500 print:shadow-none print:rounded-none print:max-w-full print:h-full my-auto border border-slate-100 print:border-none">
         {/* Invoice Header */}
         <div className="p-10 border-b-2 border-dashed border-slate-100 text-center relative bg-slate-50/50 print:bg-white print:border-b-4 print:border-black">

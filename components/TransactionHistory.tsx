@@ -1,9 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Transaction, TransactionType, Branch, InventoryItem, Sale, SystemSettings } from '../types';
 import { API } from '../services/api';
 import { FileText } from 'lucide-react';
 import DocumentViewer from './DocumentViewer';
+import { formatPlacement, numberToLetter } from '../services/mappingUtils';
 
 interface TransactionHistoryProps {
   transactions: Transaction[];
@@ -30,6 +31,8 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({
   
   const [itemSearch, setItemSearch] = useState('');
   const [isSearchingItem, setIsSearchingItem] = useState(false);
+  const [editShelf, setEditShelf] = useState<number>(0);
+  const [editSection, setEditSection] = useState<number>(0);
 
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -98,8 +101,15 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({
         if (editingTransaction.type === TransactionType.IN) finalQty += editingTransaction.quantity;
         else if (editingTransaction.type === TransactionType.OUT) finalQty -= editingTransaction.quantity;
         
-        await API.items.save({ ...newItem, quantity: finalQty });
+        await API.items.save({ 
+          ...newItem, 
+          quantity: finalQty, 
+          shelves: (editingTransaction.type === TransactionType.IN || editingTransaction.type === TransactionType.MOVE) ? editShelf : newItem.shelves,
+          sections: (editingTransaction.type === TransactionType.IN || editingTransaction.type === TransactionType.MOVE) ? editSection : newItem.sections
+        });
       }
+
+      const placementStr = (editingTransaction.type === TransactionType.IN || editingTransaction.type === TransactionType.MOVE) ? formatPlacement(editShelf, editSection) : editingTransaction.placementInfo;
 
       await API.transactions.update(editingTransaction.id, {
         itemId: editingTransaction.itemId,
@@ -107,7 +117,8 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({
         quantity: editingTransaction.quantity,
         notes: editingTransaction.notes,
         personnel: editingTransaction.personnel,
-        originOrSource: editingTransaction.originOrSource
+        originOrSource: editingTransaction.originOrSource,
+        placementInfo: placementStr
       });
 
       setEditingTransaction(null);
@@ -125,6 +136,9 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({
     setEditingTransaction({ ...t });
     setItemSearch(t.itemName);
     setIsSearchingItem(false);
+    const item = items.find(i => i.id === t.itemId);
+    setEditShelf(item?.shelves || 0);
+    setEditSection(item?.sections || 0);
   };
 
   return (
@@ -315,6 +329,34 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({
                     </div>
                   </div>
                 </div>
+
+                {(editingTransaction.type === 'IN' || editingTransaction.type === 'MOVE') && (
+                  <div className="bg-indigo-50/50 p-6 rounded-[2rem] border-2 border-dashed border-indigo-100">
+                    <h3 className="text-xs font-black text-indigo-800 mb-4 flex items-center gap-2 uppercase tracking-widest">
+                      📍 Layout Selection (Godka & Iskafalo)
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2 px-1">Iskafalo</label>
+                        <select className="w-full px-5 py-3.5 bg-white border-2 border-indigo-50 rounded-2xl font-black text-indigo-900 shadow-sm" value={editShelf} onChange={e => setEditShelf(parseInt(e.target.value))}>
+                          <option value={0}>Eber (No Shelf)</option>
+                          {Array.from({ length: branches.find(b => b.id === editingTransaction.branchId)?.totalShelves || 1 }, (_, i) => (
+                            <option key={i+1} value={i+1}>Iskafalo: {numberToLetter(i+1)}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2 px-1">Godka</label>
+                        <select className="w-full px-5 py-3.5 bg-white border-2 border-indigo-50 rounded-2xl font-black text-indigo-900 shadow-sm" value={editSection} onChange={e => setEditSection(parseInt(e.target.value))}>
+                          <option value={0}>Eber (No Section)</option>
+                          {Array.from({ length: (branches.find(b => b.id === editingTransaction.branchId)?.customSections?.[editShelf] || branches.find(b => b.id === editingTransaction.branchId)?.totalSections || 1) }, (_, i) => (
+                            <option key={i+1} value={i+1}>Godka: {(i+1).toString().padStart(2, '0')}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-1">
                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Qofka Personnel-ka</label>

@@ -7,9 +7,10 @@ interface ItemMovementHistoryModalProps {
   transactions: Transaction[];
   branches: Branch[];
   onClose: () => void;
+  onViewReceipt: (t: Transaction) => void;
 }
 
-const ItemMovementHistoryModal: React.FC<ItemMovementHistoryModalProps> = ({ item, transactions, branches, onClose }) => {
+const ItemMovementHistoryModal: React.FC<ItemMovementHistoryModalProps> = ({ item, transactions, branches, onClose, onViewReceipt }) => {
   const itemTransactions = transactions
     .filter(t => t.itemId === item.id)
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
@@ -78,6 +79,16 @@ const ItemMovementHistoryModal: React.FC<ItemMovementHistoryModalProps> = ({ ite
                    <p className="text-[10px] font-medium text-slate-400 italic leading-tight truncate" title={t.notes}>
                      {t.notes || 'No extra notes.'}
                    </p>
+                </div>
+                
+                <div className="flex-none text-right">
+                   <button 
+                     onClick={() => onViewReceipt(t)}
+                     className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] rounded-xl uppercase tracking-widest transition-colors shadow-sm"
+                     title="View Receipt (Invoice)"
+                   >
+                     📄 INVOICE
+                   </button>
                 </div>
               </div>
             ))

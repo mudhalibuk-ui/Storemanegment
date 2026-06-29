@@ -5,31 +5,47 @@ import { formatPlacement, numberToLetter } from '../services/mappingUtils';
 
 interface StockAdjustmentModalProps {
   item: InventoryItem;
+  variants?: InventoryItem[];
   branches: Branch[];
   type: TransactionType.IN | TransactionType.OUT | TransactionType.MOVE;
   userRole: UserRole;
-  onSave: (data: { qty: number; unitCost?: number; notes: string; personnel: string; source: string; placement: string; branchId: string; shelf?: number; section?: number }) => void;
+  onSave: (data: { qty: number; unitCost?: number; notes: string; personnel: string; source: string; placement: string; branchId: string; shelf?: number; section?: number; variantId?: string }) => void;
   onCancel: () => void;
 }
 
-const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branches, type, userRole, onSave, onCancel }) => {
+const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, variants = [], branches, type, userRole, onSave, onCancel }) => {
   const isOut = type === TransactionType.OUT;
   const isIn = type === TransactionType.IN;
   const isMove = type === TransactionType.MOVE;
   const isPrivileged = userRole === UserRole.SUPER_ADMIN || userRole === UserRole.MANAGER;
   
-  const currentPlacement = formatPlacement(item.shelves, item.sections);
+  const initialVariant = variants.length > 0 ? (variants.find(v => v.id === item.id) || variants[0]) : item;
+  const [selectedVariantId, setSelectedVariantId] = useState<string>(initialVariant.id);
+  const activeVariant = variants.find(v => v.id === selectedVariantId) || initialVariant;
+
+  const currentPlacement = formatPlacement(activeVariant.shelves, activeVariant.sections);
   
   const [qty, setQty] = useState<number>(isMove ? 0 : 1);
-  const [unitCost, setUnitCost] = useState<number>(item.lastKnownPrice || 0);
+  const [unitCost, setUnitCost] = useState<number>(activeVariant.lastKnownPrice || 0);
   const [notes, setNotes] = useState('');
   const [personnel, setPersonnel] = useState('');
   const [source, setSource] = useState(isMove ? currentPlacement : '');
-  const [selectedBranchId, setSelectedBranchId] = useState(item.branchId);
+  const [selectedBranchId, setSelectedBranchId] = useState(activeVariant.branchId || branches[0]?.id || '');
   
-  const [shelf, setShelf] = useState<number>((item.quantity === 0) ? 0 : (item.shelves || 1));
-  const [section, setSection] = useState<number>((item.quantity === 0) ? 0 : (item.sections || 1));
+  const [shelf, setShelf] = useState<number>((activeVariant.quantity === 0) ? 0 : (activeVariant.shelves || 1));
+  const [section, setSection] = useState<number>((activeVariant.quantity === 0) ? 0 : (activeVariant.sections || 1));
   const [placement, setPlacement] = useState(currentPlacement);
+
+  // Sync state when selectedVariant changes
+  useEffect(() => {
+    setSelectedBranchId(activeVariant.branchId || branches[0]?.id || '');
+    setShelf((activeVariant.quantity === 0) ? 0 : (activeVariant.shelves || 1));
+    setSection((activeVariant.quantity === 0) ? 0 : (activeVariant.sections || 1));
+    if (isMove) {
+      setSource(formatPlacement(activeVariant.shelves, activeVariant.sections));
+    }
+  }, [selectedVariantId]);
+
   
   const selectedBranch = branches.find(b => b.id === selectedBranchId) || branches[0];
 
@@ -55,8 +71,8 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isOut && qty > item.quantity) {
-      alert(`Cilad: Alaabta "${item.name}" ma kugu filna. Haraaga waa: ${item.quantity}.`);
+    if (isOut && qty > activeVariant.quantity) {
+      alert(`Cilad: Alaabta "${activeVariant.name}" ma kugu filna godkan. Haraaga waa: ${activeVariant.quantity}.`);
       return;
     }
     onSave({ 
@@ -68,7 +84,8 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
       placement,
       branchId: selectedBranchId,
       shelf: (isIn || isMove) ? shelf : undefined,
-      section: (isIn || isMove) ? section : undefined
+      section: (isIn || isMove) ? section : undefined,
+      variantId: selectedVariantId
     } as any);
   };
 
@@ -119,31 +136,54 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ item, branc
                 <div>
                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Maduushyada Hada</p>
                    <div className="flex items-baseline gap-2">
-                     <span className="text-4xl font-black text-slate-900">{item.quantity}</span>
+                     <span className="text-4xl font-black text-slate-900">{activeVariant.quantity}</span>
                      <span className="text-xs font-bold text-slate-400">PCS</span>
                    </div>
                 </div>
                 <div className="text-right">
                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Xaalada SKU</p>
                    <p className="text-[10px] font-black text-indigo-600 bg-white px-3 py-1 rounded-lg border border-indigo-50 shadow-sm uppercase">
-                      {item.sku}
+                      {activeVariant.sku}
                    </p>
                 </div>
              </div>
 
-             <div>
-                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 px-1">Branch-ga</label>
-                <select 
-                  required
-                  className="w-full px-5 py-3.5 bg-white border-2 border-slate-200 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-800 transition-all cursor-pointer shadow-sm"
-                  value={selectedBranchId}
-                  onChange={e => setSelectedBranchId(e.target.value)}
-                >
-                  {branches.map(b => (
-                    <option key={b.id} value={b.id}>🏢 {b.name} ({b.location})</option>
-                  ))}
-                </select>
-             </div>
+             {variants.length > 1 && (
+               <div>
+                  <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 px-1">Door Godka (Location Variant)</label>
+                  <select 
+                    className="w-full px-5 py-3.5 bg-white border-2 border-indigo-100 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-800 transition-all cursor-pointer shadow-sm"
+                    value={selectedVariantId}
+                    onChange={e => setSelectedVariantId(e.target.value)}
+                  >
+                    {variants.map(v => {
+                       const b = branches.find(br => br.id === v.branchId);
+                       const loc = formatPlacement(v.shelves, v.sections);
+                       return (
+                         <option key={v.id} value={v.id}>
+                           {b?.name || "Catalog"} - {loc !== "NULL" ? loc : "Bilaa God"} (Qty: {v.quantity})
+                         </option>
+                       );
+                    })}
+                  </select>
+               </div>
+             )}
+
+             {(!isOut && !isMove) && (
+               <div>
+                  <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 px-1">Branch-ga La Dhigayo</label>
+                  <select 
+                    required
+                    className="w-full px-5 py-3.5 bg-white border-2 border-slate-200 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-800 transition-all cursor-pointer shadow-sm"
+                    value={selectedBranchId}
+                    onChange={e => setSelectedBranchId(e.target.value)}
+                  >
+                    {branches.map(b => (
+                      <option key={b.id} value={b.id}>🏢 {b.name} ({b.location})</option>
+                    ))}
+                  </select>
+               </div>
+             )}
           </div>
 
           <div className="space-y-5">
