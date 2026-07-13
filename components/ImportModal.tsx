@@ -143,8 +143,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, mode = 'normal', branch
 
           const quantity = parseInt(findVal(row, MAPPINGS.quantity)) || 0;
           const minThreshold = parseInt(findVal(row, MAPPINGS.minThreshold)) || 5;
-          const rawShelf = (findVal(row, MAPPINGS.shelf) || '1').toString();
-          const rawSection = (findVal(row, MAPPINGS.section) || '1').toString();
+          const rawShelf = (findVal(row, MAPPINGS.shelf) || '').toString();
+          const rawSection = (findVal(row, MAPPINGS.section) || '').toString();
           const sellingPrice = parseFloat(findVal(row, MAPPINGS.price)) || 0;
           const costPrice = parseFloat(findVal(row, MAPPINGS.costPrice)) || 0;
 
@@ -228,7 +228,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, mode = 'normal', branch
 
   const getTemplateData = () => {
     if (type === 'inventory') {
-      return [{'Magaca': 'Tusaale', 'Tirada': 10, 'Soo Iibsi': 4.5, 'Qiimaha Iibka': 5.5, 'Nooca': 'Hardware', 'SKU': '', 'Bakhaar': ''}];
+      return [{'Magaca': 'Tusaale', 'Tirada': 10, 'Iskafalo': 'A', 'Godka': 1, 'Qiimaha Iibka': 5.5}];
     } else if (type === 'customer') {
       return [{'Magaca': 'Macmiil Tusaale', 'Telefoon': '252615000000', 'Haraaga': 0, 'Xarunta': ''}];
     } else {
@@ -349,10 +349,10 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, mode = 'normal', branch
                           {type === 'inventory' ? (
                             <>
                               <th className="px-8 py-5">Status</th>
-                              <th className="px-8 py-5">SKU</th>
                               <th className="px-8 py-5">Bakhaarka</th>
                               <th className="px-8 py-5 text-center">Tirada</th>
-                              <th className="px-8 py-5 text-center">Soo Iibsi</th>
+                              <th className="px-8 py-5 text-center">Iskafalo</th>
+                              <th className="px-8 py-5 text-center">Godka</th>
                               <th className="px-8 py-5 text-center">Iibin</th>
                             </>
                           ) : (
@@ -402,19 +402,13 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, mode = 'normal', branch
                                   )}
                                 </td>
                                 <td className="px-8 py-4">
-                                  {providedSku ? (
-                                    <span className="font-mono text-xs text-slate-400">{providedSku}</span>
-                                  ) : (
-                                    <span className="text-[9px] font-black text-indigo-500 bg-indigo-50 px-2 py-1 rounded border border-indigo-100 uppercase">AUTO ✨</span>
-                                  )}
-                                </td>
-                                <td className="px-8 py-4">
                                   <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${bMatch ? 'bg-indigo-50 text-indigo-600' : 'bg-amber-50 text-amber-600'}`}>
                                     {finalBName}
                                   </span>
                                 </td>
                                 <td className="px-8 py-4 text-center font-black">{findVal(row, MAPPINGS.quantity) || '0'}</td>
-                                <td className="px-8 py-4 text-center font-black text-amber-600">${parseFloat(findVal(row, MAPPINGS.costPrice)) || '0'}</td>
+                                <td className="px-8 py-4 text-center font-black">{findVal(row, MAPPINGS.shelf) || '0'}</td>
+                                <td className="px-8 py-4 text-center font-black">{findVal(row, MAPPINGS.section) || '0'}</td>
                                 <td className="px-8 py-4 text-center font-black text-indigo-600">${parseFloat(findVal(row, MAPPINGS.price)) || '0'}</td>
                               </tr>
                             );
