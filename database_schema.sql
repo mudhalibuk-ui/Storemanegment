@@ -10,22 +10,28 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Enable pgcrypto for gen_random_uuid in older postgres versions (though built-in on PG13+)
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- Clean up existing tables (Optional: Comment out if you want to keep data)
--- DROP TABLE IF EXISTS public.attendance CASCADE;
--- DROP TABLE IF EXISTS public.payroll CASCADE;
--- DROP TABLE IF EXISTS public.transactions CASCADE;
--- DROP TABLE IF EXISTS public.inventory_items CASCADE;
--- DROP TABLE IF EXISTS public.employees CASCADE;
--- DROP TABLE IF EXISTS public.branches CASCADE;
--- DROP TABLE IF EXISTS public.xarumo CASCADE;
--- DROP TABLE IF EXISTS public.users_registry CASCADE;
--- DROP TABLE IF EXISTS public.departments CASCADE;
+-- Clean up existing inventory data and transactions
+DROP TABLE IF EXISTS public.inventory_stock CASCADE;
+DROP TABLE IF EXISTS public.items CASCADE;
+DROP TABLE IF EXISTS public.inventory_items CASCADE;
+DELETE FROM public.transactions;
 
 -- 1. Xarumo (Headquarters/Centers)
 CREATE TABLE IF NOT EXISTS public.xarumo (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     location TEXT NOT NULL,
+    logo TEXT,
+    address TEXT,
+    phone TEXT,
+    email TEXT,
+    website TEXT,
+    tax_id TEXT,
+    currency TEXT DEFAULT 'USD',
+    status TEXT DEFAULT 'ACTIVE',
+    plan TEXT DEFAULT 'PRO',
+    max_users INTEGER,
+    expiry_date TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
@@ -70,20 +76,30 @@ CREATE TABLE IF NOT EXISTS public.employees (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
--- 4. Inventory Items (Stock-ga)
-CREATE TABLE IF NOT EXISTS public.inventory_items (
-    id TEXT PRIMARY KEY,
+-- 4. Items (Global Catalog / Item Master Pattern)
+CREATE TABLE IF NOT EXISTS public.items (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     name TEXT NOT NULL,
     category TEXT,
-    sku TEXT UNIQUE NOT NULL, 
+    sku TEXT UNIQUE NOT NULL,
+    unit_of_measure TEXT DEFAULT 'PCS',
+    cost_price NUMERIC DEFAULT 0,
+    selling_price NUMERIC DEFAULT 0,
+    min_threshold INTEGER DEFAULT 5,
+    xarun_id TEXT REFERENCES public.xarumo(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- 4.5 Inventory Stock (Per Branch / Store Location)
+CREATE TABLE IF NOT EXISTS public.inventory_stock (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    item_id TEXT REFERENCES public.items(id) ON DELETE CASCADE,
+    branch_id TEXT REFERENCES public.branches(id) ON DELETE CASCADE,
+    quantity INTEGER DEFAULT 0,
     shelves INTEGER DEFAULT 1,
     sections INTEGER DEFAULT 1,
-    quantity INTEGER DEFAULT 0,
-    min_threshold INTEGER DEFAULT 5,
-    branch_id TEXT REFERENCES public.branches(id) ON DELETE CASCADE,
-    xarun_id TEXT REFERENCES public.xarumo(id) ON DELETE CASCADE,
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT now(),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    UNIQUE(item_id, branch_id)
 );
 
 -- 5. Transactions (Dhaqdhaqaaqa)
@@ -149,7 +165,8 @@ CREATE TABLE IF NOT EXISTS public.payroll (
 );
 
 -- DISABLE RLS for all tables to avoid permission errors
-ALTER TABLE public.inventory_items DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.items DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.inventory_stock DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.branches DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.xarumo DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transactions DISABLE ROW LEVEL SECURITY;

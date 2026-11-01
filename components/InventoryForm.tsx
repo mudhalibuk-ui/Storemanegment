@@ -70,7 +70,7 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ branches, editingItem, on
     e.preventDefault();
     const finalData = { ...formData };
     
-    if (finalData.quantity > 0 && !finalData.branchId) {
+    if ((finalData.quantity || 0) > 0 && !finalData.branchId) {
        alert("Fadlan dooro bakhaarka aad dhigayso alaabtan (Please select a location for the quantity).");
        return;
     }

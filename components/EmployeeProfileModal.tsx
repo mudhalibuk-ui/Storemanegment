@@ -1,7 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
-import { Employee, Attendance, Payroll, Branch, Xarun, LeaveRequest, EmployeeDocument } from '../types';
+import { Employee, Attendance, Payroll, Branch, Xarun, LeaveRequest, EmployeeDocument, PerformanceGoal } from '../types';
 import { API } from '../services/api';
+import { 
+  calculateEmployeeMonthStats, 
+  formatWallClockTime, 
+  calculateHoursBetween, 
+  consolidateDayRecords 
+} from '../services/payrollHelper';
 
 interface EmployeeProfileModalProps {
   employee: Employee;
@@ -15,15 +21,18 @@ interface EmployeeProfileModalProps {
 const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({ 
   employee, attendance, payrolls, branches, xarumo, onClose 
 }) => {
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'ATTENDANCE' | 'PAYROLL' | 'DOCS' | 'LEAVE'>('ATTENDANCE');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'ATTENDANCE' | 'PAYROLL' | 'DOCS' | 'LEAVE' | 'GOALS'>('ATTENDANCE');
   const [documents, setDocuments] = useState<EmployeeDocument[]>([]);
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
+  const [goals, setGoals] = useState<PerformanceGoal[]>([]);
   const [newDoc, setNewDoc] = useState({ title: '', notes: '' });
   const [newLeave, setNewLeave] = useState({ type: 'ANNUAL', startDate: '', endDate: '', reason: '' });
+  const [newGoal, setNewGoal] = useState({ title: '', category: 'Sales', weight: 25, targetValue: 100, currentValue: 0, quarter: 'Q2 2026', notes: '' });
 
   useEffect(() => {
     API.documents.getAll(employee.id).then(setDocuments);
     API.leaves.getAll().then(data => setLeaves(data.filter(l => l.employeeId === employee.id)));
+    API.performanceGoals.getAll(employee.id).then(setGoals);
   }, [employee.id]);
 
   // Month mapping for sorting
@@ -32,51 +41,22 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
     'July': 7, 'August': 8, 'September': 9, 'October': 10, 'November': 11, 'December': 12
   };
 
-  // --- 1. PROCESS ATTENDANCE (Strict Deduplication & Merging) ---
-  const processedAttendanceMap = new Map<string, any>();
+  // --- 1. PROCESS ATTENDANCE (Strict Deduplication & Merging via Shared Engine) ---
   const rawEmpAttendance = attendance.filter(a => a.employeeId === employee.id);
-
+  const recordsByDate = new Map<string, Attendance[]>();
   rawEmpAttendance.forEach(record => {
-      // Use substring for safer, strictly string-based date grouping (YYYY-MM-DD)
-      const dateKey = record.date ? record.date.substring(0, 10) : '';
-      if (!dateKey) return;
-
-      const existing = processedAttendanceMap.get(dateKey);
-
-      if (!existing) {
-          processedAttendanceMap.set(dateKey, { ...record, date: dateKey });
-      } else {
-          // Merge Logic: Best Status & Widest Time Range
-          let status = existing.status;
-          
-          // Priority: PRESENT > LATE > HOLIDAY > LEAVE > ABSENT
-          if (record.status === 'PRESENT') status = 'PRESENT';
-          else if (record.status === 'LATE' && status !== 'PRESENT') status = 'LATE';
-          else if (record.status === 'HOLIDAY' && status !== 'PRESENT' && status !== 'LATE') status = 'HOLIDAY';
-          else if (record.status === 'LEAVE' && status === 'ABSENT') status = 'LEAVE';
-          
-          // Merge Times (Earliest IN, Latest OUT)
-          const getTs = (d: string | undefined) => d ? new Date(d).getTime() : null;
-          
-          const tIn = getTs(record.clockIn);
-          const eIn = getTs(existing.clockIn);
-          const bestIn = (tIn && eIn) ? Math.min(tIn, eIn) : (tIn || eIn);
-          
-          const tOut = getTs(record.clockOut);
-          const eOut = getTs(existing.clockOut);
-          const bestOut = (tOut && eOut) ? Math.max(tOut, eOut) : (tOut || eOut);
-
-          processedAttendanceMap.set(dateKey, {
-              ...existing,
-              status,
-              clockIn: bestIn ? new Date(bestIn).toISOString() : null,
-              clockOut: bestOut ? new Date(bestOut).toISOString() : null
-          });
-      }
+    const dateKey = record.date ? record.date.substring(0, 10) : '';
+    if (!dateKey) return;
+    if (!recordsByDate.has(dateKey)) recordsByDate.set(dateKey, []);
+    recordsByDate.get(dateKey)!.push(record);
   });
 
-  const empAttendance = Array.from(processedAttendanceMap.values())
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const empAttendance = Array.from(recordsByDate.entries())
+    .map(([dateKey, recs]) => {
+      const consolidated = consolidateDayRecords(recs);
+      return { ...consolidated, date: dateKey };
+    })
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   
   // PAYROLL HISTORY
   const empPayrolls = payrolls
@@ -89,60 +69,17 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
 
   const branch = branches.find(b => b.id === employee.branchId)?.name || 'N/A';
   
-  // --- CALCULATIONS (CURRENT MONTH) --- //
+  // --- CALCULATIONS (CURRENT MONTH) USING UNIFIED payrollHelper --- //
   const now = new Date();
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
   const monthName = now.toLocaleString('default', { month: 'long' });
   
-  let hoursWorkedThisMonth = 0;
-  let totalScore = 0;
-  let countableDays = 0;
-
-  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const calc = calculateEmployeeMonthStats(employee, attendance, leaves, currentMonth, currentYear);
+  const hoursWorkedThisMonth = calc.totalWorkedHours;
+  const performanceScore = calc.performanceScore;
   
-  for (let d = 1; d <= daysInMonth; d++) {
-      const dateObj = new Date(currentYear, currentMonth, d);
-      const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      const isFriday = dateObj.getDay() === 5;
-      
-      const logsForDay = empAttendance.filter(a => a.date === dateStr);
-      const log = logsForDay.find(a => a.status !== 'ABSENT') || logsForDay[0];
-
-      if (log) {
-          if (log.status === 'PRESENT') { totalScore += 100; countableDays++; }
-          else if (log.status === 'LATE') { totalScore += 50; countableDays++; }
-          else if (log.status === 'ABSENT') { totalScore += 0; countableDays++; }
-      }
-
-      if (isFriday) {
-          hoursWorkedThisMonth += 10;
-          if (log && log.clockIn && log.clockOut) {
-              const start = new Date(log.clockIn).getTime();
-              const end = new Date(log.clockOut).getTime();
-              const hours = (end - start) / (1000 * 60 * 60);
-              if (hours > 0 && hours < 24) hoursWorkedThisMonth += hours;
-          }
-      } else {
-          if (log) {
-              if (log.status === 'HOLIDAY' || log.status === 'LEAVE') {
-                  hoursWorkedThisMonth += 10;
-              } else if (log.clockIn && log.clockOut) {
-                  const start = new Date(log.clockIn).getTime();
-                  const end = new Date(log.clockOut).getTime();
-                  const hours = (end - start) / (1000 * 60 * 60);
-                  if (hours > 0 && hours < 24) hoursWorkedThisMonth += hours;
-              }
-          }
-      }
-  }
-
-  const performanceScore = countableDays > 0 ? Math.round(totalScore / countableDays) : 100;
-  
-  // Payroll Estimation (Based on 300h/month standard)
-  const standardHours = 300; 
-  const hourlyRate = (employee.salary || 0) / standardHours;
-  const accruedSalary = Math.floor(hoursWorkedThisMonth * hourlyRate);
+  const accruedSalary = calc.netPay;
   const paidMonthsCount = empPayrolls.filter(p => p.status === 'PAID').length;
 
   const latestPayroll = empPayrolls.length > 0 ? empPayrolls[0] : null;
@@ -179,7 +116,7 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
   let attStatusColor = "bg-slate-100 text-slate-500 border-slate-200";
   let attEmoji = "⚪";
 
-  if (countableDays > 0) {
+  if (calc.countableDays > 0) {
       if (performanceScore >= 90) { 
           attStatusMsg = "Aad u Wanaagsan (Excellent)"; 
           attStatusColor = "bg-emerald-50 text-emerald-700 border-emerald-100";
@@ -209,11 +146,10 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
   // Helper: Format Time Duration
   const getDuration = (start?: string, end?: string) => {
       if (!start || !end) return null;
-      const s = new Date(start).getTime();
-      const e = new Date(end).getTime();
-      const diffMs = e - s;
-      const hours = Math.floor(diffMs / (1000 * 60 * 60));
-      const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      const hrs = calculateHoursBetween(start, end);
+      if (hrs <= 0) return null;
+      const hours = Math.floor(hrs);
+      const minutes = Math.round((hrs - hours) * 60);
       return `${hours}h ${minutes}m`;
   };
 
@@ -251,54 +187,14 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
     const targetYear = printYear !== undefined ? printYear : currentYear;
     const targetMonthName = new Date(targetYear, targetMonth).toLocaleString('default', { month: 'long' });
 
-    // Calculate hours, salary, score for target month
-    let targetHours = 0;
-    let targetScoreTotal = 0;
-    let targetCountableDays = 0;
-    const daysInTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
-
-    for (let d = 1; d <= daysInTargetMonth; d++) {
-        const dateStr = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-        const dateObj = new Date(targetYear, targetMonth, d);
-        const isFriday = dateObj.getDay() === 5;
-        
-        const logsForDay = empAttendance.filter(a => a.date === dateStr);
-        const log = logsForDay.find(a => a.status !== 'ABSENT') || logsForDay[0];
-
-        if (log) {
-            if (log.status === 'PRESENT') { targetScoreTotal += 100; targetCountableDays++; }
-            else if (log.status === 'LATE') { targetScoreTotal += 50; targetCountableDays++; }
-            else if (log.status === 'ABSENT') { targetScoreTotal += 0; targetCountableDays++; }
-        }
-
-        if (isFriday) {
-            targetHours += 10;
-            if (log && log.clockIn && log.clockOut) {
-                const start = new Date(log.clockIn).getTime();
-                const end = new Date(log.clockOut).getTime();
-                const hours = (end - start) / (1000 * 60 * 60);
-                if (hours > 0 && hours < 24) targetHours += hours;
-            }
-        } else {
-            if (log) {
-                if (log.status === 'HOLIDAY' || log.status === 'LEAVE') {
-                    targetHours += 10;
-                } else if (log.clockIn && log.clockOut) {
-                    const start = new Date(log.clockIn).getTime();
-                    const end = new Date(log.clockOut).getTime();
-                    const hours = (end - start) / (1000 * 60 * 60);
-                    if (hours > 0 && hours < 24) targetHours += hours;
-                }
-            }
-        }
-    }
-
-    const targetScore = targetCountableDays > 0 ? Math.round(targetScoreTotal / targetCountableDays) : 100;
+    // Calculate hours, salary, score for target month using unified helper
+    const targetCalc = calculateEmployeeMonthStats(employee, attendance, leaves, targetMonth, targetYear);
     
-    // Check if there's a payroll for this month
+    // Check if there's a finalized payroll record for this month
     const targetPayroll = empPayrolls.find(p => (monthMap[p.month] - 1) === targetMonth && p.year === targetYear);
-    const finalHours = targetPayroll?.totalHours ?? targetHours;
-    const finalSalary = targetPayroll?.netPay ?? Math.floor(targetHours * hourlyRate);
+    const finalHours = targetPayroll?.totalHours ?? targetCalc.totalWorkedHours;
+    const finalSalary = targetPayroll?.netPay ?? targetCalc.netPay;
+    const targetScore = targetCalc.performanceScore;
 
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
@@ -442,13 +338,13 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
 
         {/* Tab Navigation */}
         <div className="flex border-b border-slate-100 px-8 gap-6 overflow-x-auto no-scrollbar shrink-0">
-            {['OVERVIEW', 'ATTENDANCE', 'PAYROLL', 'LEAVE', 'DOCS'].map(tab => (
+            {['OVERVIEW', 'ATTENDANCE', 'PAYROLL', 'LEAVE', 'DOCS', 'GOALS'].map(tab => (
                 <button 
                     key={tab}
                     onClick={() => setActiveTab(tab as any)}
                     className={`py-5 text-[10px] font-black uppercase tracking-[0.15em] border-b-4 transition-all ${activeTab === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                 >
-                    {tab}
+                    {tab === 'GOALS' ? '🎯 KPI GOALS' : tab}
                 </button>
             ))}
         </div>
@@ -456,6 +352,79 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
         {/* Content Area */}
         <div className="p-8 overflow-y-auto no-scrollbar bg-slate-50 flex-1">
             
+            {activeTab === 'GOALS' && (
+                <div className="space-y-6">
+                    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Set Quarterly KPI Goal (Ujeeddooyinka Shaqada)</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <input className="p-3 bg-slate-50 rounded-xl font-bold text-sm outline-none" placeholder="Goal Title (e.g. Monthly Sales)" value={newGoal.title} onChange={e => setNewGoal({...newGoal, title: e.target.value})} />
+                            <select className="p-3 bg-slate-50 rounded-xl font-bold text-sm outline-none" value={newGoal.category} onChange={e => setNewGoal({...newGoal, category: e.target.value})}>
+                                <option value="Sales">Sales & Revenue</option>
+                                <option value="Accuracy">Inventory Accuracy</option>
+                                <option value="Punctuality">Attendance & Punctuality</option>
+                                <option value="Customer">Customer Satisfaction</option>
+                            </select>
+                            <input type="number" className="p-3 bg-slate-50 rounded-xl font-bold text-sm outline-none" placeholder="Weight % (e.g. 25)" value={newGoal.weight} onChange={e => setNewGoal({...newGoal, weight: parseFloat(e.target.value) || 25})} />
+                            <input type="number" className="p-3 bg-slate-50 rounded-xl font-bold text-sm outline-none" placeholder="Target Value" value={newGoal.targetValue} onChange={e => setNewGoal({...newGoal, targetValue: parseFloat(e.target.value) || 100})} />
+                            <input type="number" className="p-3 bg-slate-50 rounded-xl font-bold text-sm outline-none" placeholder="Current Progress Value" value={newGoal.currentValue} onChange={e => setNewGoal({...newGoal, currentValue: parseFloat(e.target.value) || 0})} />
+                            <button onClick={async () => {
+                                if (!newGoal.title) return;
+                                await API.performanceGoals.save({ ...newGoal, employeeId: employee.id, status: newGoal.currentValue >= newGoal.targetValue ? 'ACHIEVED' : 'IN_PROGRESS' });
+                                setGoals(await API.performanceGoals.getAll(employee.id));
+                                setNewGoal({ title: '', category: 'Sales', weight: 25, targetValue: 100, currentValue: 0, quarter: 'Q2 2026', notes: '' });
+                            }} className="bg-indigo-600 text-white rounded-xl font-black text-xs uppercase shadow-lg hover:bg-indigo-700 transition-all py-3">Add KPI Goal</button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {goals.length > 0 ? goals.map(g => {
+                            const pct = Math.min(Math.round((g.currentValue / g.targetValue) * 100), 150);
+                            return (
+                                <div key={g.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <span className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg text-[9px] font-black uppercase">{g.category} • {g.quarter}</span>
+                                            <h4 className="font-black text-slate-800 text-lg mt-2">{g.title}</h4>
+                                        </div>
+                                        <button onClick={async () => {
+                                            if (confirm("Ma hubtaa inaad tirtirto goolkan?")) {
+                                                await API.performanceGoals.delete(g.id);
+                                                setGoals(await API.performanceGoals.getAll(employee.id));
+                                            }
+                                        }} className="text-rose-500 hover:text-rose-700 font-bold">🗑️</button>
+                                    </div>
+                                    <div>
+                                        <div className="flex justify-between text-xs font-bold text-slate-500 mb-1">
+                                            <span>Progress: {g.currentValue} / {g.targetValue} ({pct}%)</span>
+                                            <span>Weight: {g.weight}%</span>
+                                        </div>
+                                        <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+                                            <div className={`h-full rounded-full ${pct >= 100 ? 'bg-emerald-500' : 'bg-indigo-600'}`} style={{ width: `${Math.min(pct, 100)}%` }}></div>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between items-center pt-2 border-t border-slate-50">
+                                        <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase ${g.status === 'ACHIEVED' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>{g.status}</span>
+                                        <button onClick={async () => {
+                                            const newVal = prompt("Geli horumarka cusub (Current Value):", String(g.currentValue));
+                                            if (newVal !== null) {
+                                                const val = parseFloat(newVal) || 0;
+                                                const status = val >= g.targetValue ? 'ACHIEVED' : 'IN_PROGRESS';
+                                                await API.performanceGoals.save({ ...g, currentValue: val, status });
+                                                setGoals(await API.performanceGoals.getAll(employee.id));
+                                            }
+                                        }} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-[9px] font-black uppercase hover:bg-indigo-600 hover:text-white transition-all">Update Progress</button>
+                                    </div>
+                                </div>
+                            );
+                        }) : (
+                            <div className="col-span-2 py-12 text-center bg-white rounded-[2rem] border border-slate-100 border-dashed">
+                                <p className="text-xs font-black text-slate-400 uppercase">Weli gool ama KPI looma dejin shaqaalahan.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {activeTab === 'OVERVIEW' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
@@ -542,8 +511,8 @@ const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                                             <div className="flex-1">
                                                 <p className="font-black text-slate-700">{dateStr}</p>
                                                 <div className="flex gap-4 text-[10px] font-bold text-slate-400 uppercase mt-1">
-                                                    <span>IN: <span className="text-emerald-600">{a.clockIn ? new Date(a.clockIn).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', timeZone: 'UTC'}) : '--:--'}</span></span>
-                                                    <span>OUT: <span className={a.clockOut ? "text-rose-600" : "text-amber-500"}>{a.clockOut ? new Date(a.clockOut).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', timeZone: 'UTC'}) : 'Pending'}</span></span>
+                                                    <span>IN: <span className="text-emerald-600">{formatWallClockTime(a.clockIn)}</span></span>
+                                                    <span>OUT: <span className={a.clockOut ? "text-rose-600" : "text-amber-500"}>{a.clockOut ? formatWallClockTime(a.clockOut) : 'Pending'}</span></span>
                                                 </div>
                                             </div>
                                             

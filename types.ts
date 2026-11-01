@@ -207,6 +207,9 @@ export interface InventoryItem {
   expiryDate?: string; // Smart Expiry
   lastSoldDate?: string; // For demand forecasting
   itemType?: ItemType;
+  unitOfMeasure?: string;
+  costPrice?: number;
+  stocks?: Array<{ stockId?: string; branchId: string; quantity: number; shelves: number; sections: number }>;
 }
 
 export interface Customer {
@@ -427,6 +430,19 @@ export interface EmployeeDocument {
   type: string;
   url?: string;
   uploadDate: string;
+  notes?: string;
+}
+
+export interface PerformanceGoal {
+  id: string;
+  employeeId: string;
+  title: string;
+  category: string;
+  weight: number; // percentage weight e.g. 25
+  targetValue: number;
+  currentValue: number;
+  status: 'PENDING' | 'IN_PROGRESS' | 'ACHIEVED' | 'EXCEEDED';
+  quarter: string; // e.g. "Q2 2026"
   notes?: string;
 }
 

@@ -12,7 +12,12 @@ interface HRMReportsProps {
 }
 
 const HRMReports: React.FC<HRMReportsProps> = ({ employees, attendance, payrolls, xarumo, branch = 'all' }) => {
-  const filteredEmployees = employees.filter(emp => branch === 'all' || emp.branchId === branch);
+  const filteredEmployees = employees.filter(emp => 
+    (branch === 'all' || emp.branchId === branch) &&
+    emp.status?.toUpperCase() !== 'TERMINATED' &&
+    emp.status?.toUpperCase() !== 'SUSPENDED' &&
+    emp.status?.toUpperCase() !== 'INACTIVE'
+  );
   const filteredAttendance = attendance.filter(a => branch === 'all' || filteredEmployees.some(e => e.id === a.employeeId));
   const filteredPayrolls = payrolls.filter(p => branch === 'all' || filteredEmployees.some(e => e.id === p.employeeId));
 

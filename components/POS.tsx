@@ -178,7 +178,7 @@ const POS: React.FC<POSProps> = ({ mode = 'pos', user, items, customers, branche
           isReturnMode ? 'RETURN' : 'SALE',
           'SALE',
           result.id,
-          `${isReturnMode ? 'Celis' : 'Iib'} ${sale.total.toFixed(2)} - ${sale.customerName}`
+          `${isReturnMode ? 'Celis' : 'Iib'} ${(sale.total || 0).toFixed(2)} - ${sale.customerName}`
         );
       }
 

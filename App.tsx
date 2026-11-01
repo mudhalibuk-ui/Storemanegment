@@ -47,6 +47,8 @@ import SaaSManager from "./components/SaaSManager";
 import Helpdesk from "./components/Helpdesk";
 import InventoryAdjustment from "./components/InventoryAdjustment";
 import StockTakeAudit from "./components/StockTakeAudit";
+import StockDiscrepancyReport from "./components/StockDiscrepancyReport";
+import PredictiveRestocking from "./components/PredictiveRestocking";
 import {
   Settings2,
   Plus,
@@ -236,7 +238,7 @@ const App: React.FC = () => {
   ) => {
     if (!user) return;
     try {
-      await API.auditLogs.create({
+      await API.auditLogs.log({
         userId: user.id,
         userName: user.name,
         action,
@@ -915,6 +917,33 @@ const App: React.FC = () => {
             inventory={items}
             sessions={stockTakeSessions}
             onRefresh={refreshAllData}
+            onNavigateToDiscrepancy={() => setActiveTab("stock-discrepancy")}
+          />
+        );
+      case "stock-discrepancy":
+        return (
+          <StockDiscrepancyReport
+            user={user}
+            items={items}
+            branches={branches}
+            sessions={stockTakeSessions}
+            settings={settings}
+            onRefresh={refreshAllData}
+            onNavigateToStockTake={() => setActiveTab("stock-take")}
+          />
+        );
+      case "predictive-restocking":
+        return (
+          <PredictiveRestocking
+            user={user}
+            items={items}
+            branches={branches}
+            transactions={transactions}
+            sales={sales}
+            purchaseOrders={purchaseOrders}
+            settings={settings}
+            onRefresh={refreshAllData}
+            onNavigateToPurchases={() => setActiveTab("purchases")}
           />
         );
       case "inventory-adjustment":
@@ -1294,7 +1323,6 @@ const App: React.FC = () => {
             onRefresh={refreshAllData}
             settings={settings}
             items={items}
-            mode="audit"
           />
         );
       case "saas-manager":
@@ -1838,13 +1866,13 @@ const App: React.FC = () => {
                       if (
                         row.shelf !== undefined &&
                         row.shelf !== null &&
-                        row.shelf !== ""
+                        String(row.shelf) !== ""
                       )
                         itemUpdate.shelves = Number(row.shelf);
                       if (
                         row.section !== undefined &&
                         row.section !== null &&
-                        row.section !== ""
+                        String(row.section) !== ""
                       )
                         itemUpdate.sections = Number(row.section);
                       if (newQty === 0) {
@@ -1864,13 +1892,13 @@ const App: React.FC = () => {
                         shelves:
                           row.shelf !== undefined &&
                           row.shelf !== null &&
-                          row.shelf !== ""
+                          String(row.shelf) !== ""
                             ? Number(row.shelf)
                             : 0,
                         sections:
                           row.section !== undefined &&
                           row.section !== null &&
-                          row.section !== ""
+                          String(row.section) !== ""
                             ? Number(row.section)
                             : 0,
                         packType: sourceItem.packType,

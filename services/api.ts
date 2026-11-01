@@ -116,11 +116,17 @@ async function cloudSave(table: string, data: any, conflictColumn: string = 'id'
       }
     }
 
-    if (result.error === "Not Found" || result.status === 404) {
-      console.warn(`Table ${table} not found in Supabase. Saving locally only.`);
+    if (result.error === "Not Found" || result.status === 404 || errorMsg.includes("violates row-level security") || errorMsg.includes("42501") || errorMsg.includes("401") || errorMsg.includes("permission denied")) {
+      console.warn(`Table ${table} Supabase restriction / RLS or Not Found. Saving locally only.`);
       const localData = getLocal(table) || [];
-      setLocal(table, [...localData, data]);
-      return null;
+      const existingIdx = localData.findIndex((item: any) => item.id === data.id);
+      if (existingIdx >= 0) {
+        localData[existingIdx] = data;
+      } else {
+        localData.push(data);
+      }
+      setLocal(table, localData);
+      return data;
     }
     console.error(`Supabase cloudSave error for table ${table}:`, result.error, result.message, result.details);
     throw new Error(`Database Error: ${result.message || result.error}`);
@@ -187,14 +193,14 @@ async function fetchAllPages(table: string, queryParams: string = '', orderBy: s
       }
     }
     
-    if (data && typeof data === 'object' && 'error' in data) {
-      const erpTables = ['customers', 'vendors', 'sales', 'ledger', 'chart_of_accounts', 'xarun_orders', 'inter_branch_transfer_requests', 'journal_entries', 'payments', 'purchase_orders', 'inventory_items', 'inventory_adjustments', 'stock_take_sessions', 'xarumo', 'branches', 'devices', 'users_registry', 'employees', 'attendance', 'payroll', 'shifts', 'leaves', 'employee_documents', 'audit_logs', 'leads', 'bills_of_materials', 'work_orders', 'projects', 'project_tasks', 'vehicles', 'fuel_logs', 'qc_inspections', 'documents', 'tickets', 'currencies'];
-      if ((data.error === "Not Found" || data.status === 404) && erpTables.includes(table)) {
-        console.warn(`Table ${table} not found, returning local data.`);
+    if (data && typeof data === 'object' && ('error' in data || 'message' in data)) {
+      const errorMsg = String(data.error || '') + ' ' + String(data.details || '') + ' ' + String(data.message || '');
+      if (data.error === "Not Found" || data.status === 404 || errorMsg.includes("violates row-level security") || errorMsg.includes("42501") || errorMsg.includes("401") || errorMsg.includes("permission denied")) {
+        console.warn(`Table ${table} Supabase restriction / RLS or Not Found. Returning local data.`);
         return getLocal(table) || [];
       }
-      console.error(`Error fetching ${table}:`, data.error);
-      throw new Error(data.error);
+      console.error(`Error fetching ${table}:`, data.error, data.message);
+      return getLocal(table) || [];
     }
 
     if (!Array.isArray(data)) {
@@ -221,7 +227,48 @@ export const API = {
   // ... (Previous APIs remain the same: xarumo, branches, devices, items, transactions, users) ...
   xarumo: {
     async getAll(): Promise<Xarun[]> {
-      const data = await fetchAllPages('xarumo', '', 'id');
+      let data = await fetchAllPages('xarumo', '', 'id');
+      if (!Array.isArray(data)) data = [];
+      
+      const local = getLocal('xarumo') || [];
+      if (data.length === 0 && local.length > 0) {
+        data = local;
+      }
+
+      // Ensure Bariire companies exist
+      const hasBariire = data.some(x => x.name && x.name.toLowerCase().includes('bariire'));
+      if (!hasBariire) {
+        const bariireCompanies = [
+          {
+            id: 'e9f9c362-0ab3-415c-9981-7d0fd9d6ed10',
+            name: 'Bariire Xamar weyne',
+            location: 'Xamar weyne',
+            status: 'ACTIVE',
+            plan: 'PRO',
+            currency: 'USD',
+            created_at: new Date().toISOString()
+          },
+          {
+            id: 'b1a2c3d4-e5f6-7890-1234-567890abcdef',
+            name: 'Bariire Bakaaro',
+            location: 'Bakaaro',
+            status: 'ACTIVE',
+            plan: 'PRO',
+            currency: 'USD',
+            created_at: new Date().toISOString()
+          }
+        ];
+        for (const bc of bariireCompanies) {
+          if (!data.some(d => d.id === bc.id)) {
+            data.push(bc);
+            if (isDbConnected()) {
+              await cloudSave('xarumo', bc).catch(() => {});
+            }
+          }
+        }
+        setLocal('xarumo', data);
+      }
+      
       return Array.isArray(data) ? data.map(x => ({
         id: x.id,
         name: x.name,
@@ -231,13 +278,13 @@ export const API = {
         phone: x.phone,
         email: x.email,
         website: x.website,
-        taxId: x.tax_id,
-        currency: x.currency,
+        taxId: x.tax_id || x.taxId,
+        currency: x.currency || 'USD',
         status: x.status || 'ACTIVE',
-        plan: x.plan || 'BASIC',
-        maxUsers: x.max_users,
-        expiryDate: x.expiry_date,
-        createdAt: x.created_at
+        plan: x.plan || 'PRO',
+        maxUsers: x.max_users || x.maxUsers,
+        expiryDate: x.expiry_date || x.expiryDate,
+        createdAt: x.created_at || x.createdAt
       })) : [];
     },
     async save(xarun: Partial<Xarun>): Promise<Xarun> {
@@ -246,13 +293,54 @@ export const API = {
         id, 
         name: xarun.name, 
         location: xarun.location,
-        createdAt: xarun.createdAt || new Date().toISOString()
+        logo: xarun.logo,
+        address: xarun.address,
+        phone: xarun.phone,
+        email: xarun.email,
+        website: xarun.website,
+        tax_id: xarun.taxId,
+        currency: xarun.currency || 'USD',
+        status: xarun.status || 'ACTIVE',
+        plan: xarun.plan || 'PRO',
+        max_users: xarun.maxUsers,
+        expiry_date: xarun.expiryDate,
+        created_at: xarun.createdAt || new Date().toISOString()
       };
       const saved = await cloudSave('xarumo', payload);
-      return (Array.isArray(saved) ? saved[0] : saved) || { ...xarun, id };
+      const resultObj = (Array.isArray(saved) ? saved[0] : saved) || payload;
+      
+      // Update local storage cache
+      const local = getLocal('xarumo') || [];
+      const index = local.findIndex((x: any) => x.id === id);
+      if (index >= 0) {
+        local[index] = resultObj;
+      } else {
+        local.push(resultObj);
+      }
+      setLocal('xarumo', local);
+
+      return {
+        id: resultObj.id,
+        name: resultObj.name,
+        location: resultObj.location,
+        logo: resultObj.logo,
+        address: resultObj.address,
+        phone: resultObj.phone,
+        email: resultObj.email,
+        website: resultObj.website,
+        taxId: resultObj.tax_id || resultObj.taxId,
+        currency: resultObj.currency || 'USD',
+        status: resultObj.status || 'ACTIVE',
+        plan: resultObj.plan || 'PRO',
+        maxUsers: resultObj.max_users || resultObj.maxUsers,
+        expiryDate: resultObj.expiry_date || resultObj.expiryDate,
+        createdAt: resultObj.created_at || resultObj.createdAt
+      };
     },
     async delete(id: string): Promise<void> {
       await supabaseFetch(`xarumo?id=eq.${id}`, { method: 'DELETE' });
+      const local = getLocal('xarumo') || [];
+      setLocal('xarumo', local.filter((x: any) => x.id !== id));
     }
   },
 
@@ -329,91 +417,195 @@ export const API = {
   items: {
     async getAll(xarunId?: string): Promise<InventoryItem[]> {
       const query = xarunId ? `xarun_id=eq.${xarunId}` : '';
-      const data = await fetchAllPages('inventory_items', query, 'last_updated');
-      return data.map((item: any) => ({
-        id: item.id, name: item.name, category: item.category, sku: item.sku, 
-        shelves: item.shelves, sections: item.sections, quantity: item.quantity, 
-        minThreshold: item.min_threshold, branchId: item.branch_id, 
-        lastUpdated: item.last_updated, xarunId: item.xarun_id,
-        packType: item.pack_type, lastKnownPrice: item.last_known_price,
-        sellingPrice: item.selling_price, landedCost: item.landed_cost,
-        supplier: item.supplier
-      }));
+      const itemsData = await fetchAllPages('items', query, 'created_at');
+      const stockData = await fetchAllPages('inventory_stock', '', 'last_updated');
+
+      const stockMap = new Map<string, any[]>();
+      stockData.forEach((s: any) => {
+        const itemId = s.item_id;
+        if (!stockMap.has(itemId)) {
+          stockMap.set(itemId, []);
+        }
+        stockMap.get(itemId)?.push(s);
+      });
+
+      return itemsData.map((item: any) => {
+        const stocks = stockMap.get(item.id) || [];
+        const totalQty = stocks.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
+        const primaryStock = stocks[0] || {};
+
+        return {
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          sku: item.sku,
+          unitOfMeasure: item.unit_of_measure,
+          costPrice: Number(item.cost_price) || 0,
+          sellingPrice: Number(item.selling_price) || 0,
+          minThreshold: item.min_threshold || 5,
+          xarunId: item.xarun_id,
+          lastUpdated: primaryStock.last_updated || item.created_at,
+          quantity: totalQty,
+          branchId: primaryStock.branch_id || '',
+          shelves: Number(primaryStock.shelves) || 1,
+          sections: Number(primaryStock.sections) || 1,
+          stocks: stocks.map((s: any) => ({
+            stockId: s.id,
+            branchId: s.branch_id,
+            quantity: Number(s.quantity) || 0,
+            shelves: Number(s.shelves) || 1,
+            sections: Number(s.sections) || 1
+          }))
+        };
+      });
     },
     async getById(id: string): Promise<InventoryItem | null> {
-      const data = await supabaseFetch(`inventory_items?id=eq.${id}`);
-      return Array.isArray(data) && data.length > 0 ? {
-        id: data[0].id, name: data[0].name, category: data[0].category, sku: data[0].sku, 
-        shelves: data[0].shelves, sections: data[0].sections, quantity: data[0].quantity, 
-        minThreshold: data[0].min_threshold, branchId: data[0].branch_id, 
-        lastUpdated: data[0].last_updated, xarunId: data[0].xarun_id,
-        packType: data[0].pack_type, lastKnownPrice: data[0].last_known_price,
-        sellingPrice: data[0].selling_price, landedCost: data[0].landed_cost,
-        supplier: data[0].supplier
-      } : null;
+      const itemsData = await supabaseFetch(`items?id=eq.${id}`);
+      if (!Array.isArray(itemsData) || itemsData.length === 0) return null;
+      const item = itemsData[0];
+      const stockData = await supabaseFetch(`inventory_stock?item_id=eq.${id}`);
+      const stocks = Array.isArray(stockData) ? stockData : [];
+      const totalQty = stocks.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
+      const primaryStock = stocks[0] || {};
+
+      return {
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        sku: item.sku,
+        unitOfMeasure: item.unit_of_measure,
+        costPrice: Number(item.cost_price) || 0,
+        sellingPrice: Number(item.selling_price) || 0,
+        minThreshold: item.min_threshold || 5,
+        xarunId: item.xarun_id,
+        lastUpdated: primaryStock.last_updated || item.created_at,
+        quantity: totalQty,
+        branchId: primaryStock.branch_id || '',
+        shelves: Number(primaryStock.shelves) || 1,
+        sections: Number(primaryStock.sections) || 1,
+        stocks: stocks.map((s: any) => ({
+          stockId: s.id,
+          branchId: s.branch_id,
+          quantity: Number(s.quantity) || 0,
+          shelves: Number(s.shelves) || 1,
+          sections: Number(s.sections) || 1
+        }))
+      };
     },
     async save(item: Partial<InventoryItem>): Promise<InventoryItem> {
-      const id = item.id || generateId();
-      const payload = { ...item, id, lastUpdated: new Date().toISOString() };
-      
-      if (payload.quantity === 0 || !payload.quantity) {
-          payload.shelves = 0;
-          payload.sections = 0;
+      const itemId = item.id || generateId();
+      const globalPayload = {
+        id: itemId,
+        name: item.name,
+        category: item.category || 'General',
+        sku: item.sku,
+        unit_of_measure: item.unitOfMeasure || 'PCS',
+        cost_price: item.costPrice ?? item.lastKnownPrice ?? 0,
+        selling_price: item.sellingPrice || 0,
+        min_threshold: item.minThreshold || 5,
+        xarun_id: item.xarunId
+      };
+
+      await cloudSave('items', globalPayload, 'id');
+
+      if (item.branchId) {
+        const stockPayload = {
+          item_id: itemId,
+          branch_id: item.branchId,
+          quantity: item.quantity || 0,
+          shelves: item.shelves || 1,
+          sections: item.sections || 1,
+          last_updated: new Date().toISOString()
+        };
+        const existingStock = await supabaseFetch(`inventory_stock?item_id=eq.${itemId}&branch_id=eq.${item.branchId}`);
+        if (Array.isArray(existingStock) && existingStock.length > 0) {
+          await supabaseFetch(`inventory_stock?id=eq.${existingStock[0].id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(stockPayload)
+          });
+        } else {
+          await supabaseFetch(`inventory_stock`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+            body: JSON.stringify({ id: generateId(), ...stockPayload })
+          });
+        }
       }
 
-      // Strip missing columns to prevent Supabase errors
-      const safePayload = { ...payload };
-      delete safePayload.packType;
-      delete safePayload.lastKnownPrice;
-      delete safePayload.sellingPrice;
-      delete safePayload.landedCost;
-      delete safePayload.supplier;
-      delete safePayload.itemType;
-
-      await cloudSave('inventory_items', safePayload, 'id');
-      return payload as InventoryItem;
+      const updated = await API.items.getById(itemId);
+      return updated || (item as InventoryItem);
     },
     async bulkSave(items: Partial<InventoryItem>[]): Promise<boolean> {
       if (!isDbConnected()) return false;
       try {
-        const payload = items.map(item => {
-          const safeItem = { ...item };
-          
-          if (safeItem.quantity === 0 || !safeItem.quantity) {
-              safeItem.shelves = 0;
-              safeItem.sections = 0;
+        for (const item of items) {
+          const sku = item.sku;
+          if (!sku) continue;
+
+          const existingItems = await supabaseFetch(`items?sku=eq.${encodeURIComponent(sku)}`);
+          let itemId: string;
+
+          if (Array.isArray(existingItems) && existingItems.length > 0) {
+            itemId = existingItems[0].id;
+            await supabaseFetch(`items?id=eq.${itemId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: item.name || existingItems[0].name,
+                category: item.category || existingItems[0].category,
+                cost_price: item.costPrice ?? item.lastKnownPrice ?? existingItems[0].cost_price,
+                selling_price: item.sellingPrice ?? existingItems[0].selling_price,
+                min_threshold: item.minThreshold ?? existingItems[0].min_threshold
+              })
+            });
+          } else {
+            itemId = item.id || generateId();
+            await supabaseFetch(`items`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+              body: JSON.stringify({
+                id: itemId,
+                name: item.name || 'Unnamed Item',
+                category: item.category || 'General',
+                sku: sku,
+                unit_of_measure: item.unitOfMeasure || 'PCS',
+                cost_price: item.costPrice ?? item.lastKnownPrice ?? 0,
+                selling_price: item.sellingPrice || 0,
+                min_threshold: item.minThreshold || 5,
+                xarun_id: item.xarunId
+              })
+            });
           }
 
-          delete safeItem.packType;
-          delete safeItem.lastKnownPrice;
-          delete safeItem.sellingPrice;
-          delete safeItem.landedCost;
-          delete safeItem.supplier;
-          delete safeItem.itemType;
-          return toSnakeCase({
-            ...safeItem,
-            lastUpdated: new Date().toISOString()
-          });
-        });
-        
-        // Chunking the payload to prevent huge POST requests that can freeze or timeout
-        const CHUNK_SIZE = 500;
-        let allSuccess = true;
-        for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
-          const chunk = payload.slice(i, i + CHUNK_SIZE);
-          const result = await supabaseFetch(`inventory_items?on_conflict=id`, {
-            method: 'POST',
-            headers: {
-              'Prefer': 'resolution=merge-duplicates'
-            },
-            body: JSON.stringify(chunk)
-          });
-          if (result && result.error) {
-            console.error("Bulk Save Chunk Error:", result.error, result.details);
-            allSuccess = false;
+          const branchId = item.branchId;
+          if (branchId) {
+            const existingStock = await supabaseFetch(`inventory_stock?item_id=eq.${itemId}&branch_id=eq.${branchId}`);
+            const stockPayload = {
+              item_id: itemId,
+              branch_id: branchId,
+              quantity: item.quantity || 0,
+              shelves: item.shelves || 1,
+              sections: item.sections || 1,
+              last_updated: new Date().toISOString()
+            };
+
+            if (Array.isArray(existingStock) && existingStock.length > 0) {
+              await supabaseFetch(`inventory_stock?id=eq.${existingStock[0].id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(stockPayload)
+              });
+            } else {
+              await supabaseFetch(`inventory_stock`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+                body: JSON.stringify({ id: generateId(), ...stockPayload })
+              });
+            }
           }
         }
-        return allSuccess;
+        return true;
       } catch (e) {
         console.error("Bulk Save Exception:", e);
         return false;
@@ -422,14 +614,30 @@ export const API = {
     async delete(id: string): Promise<{success: boolean, error?: string}> {
       if (isDbConnected()) {
         try {
-          await supabaseFetch(`transactions?item_id=eq.${id}`, { method: 'DELETE' });
-          await supabaseFetch(`inventory_items?id=eq.${id}`, { method: 'DELETE' });
+          await supabaseFetch(`inventory_stock?item_id=eq.${id}`, { method: 'DELETE' });
+          await supabaseFetch(`items?id=eq.${id}`, { method: 'DELETE' });
           return { success: true };
         } catch (e: any) {
           return { success: false, error: e.message };
         }
       }
       return { success: true };
+    },
+    async wipeInventory(): Promise<boolean> {
+      if (isDbConnected()) {
+        try {
+          await supabaseFetch('inventory_stock', { method: 'DELETE' });
+          await supabaseFetch('items', { method: 'DELETE' });
+          await supabaseFetch('transactions', { method: 'DELETE' });
+          await supabaseFetch('inventory_adjustments', { method: 'DELETE' });
+        } catch (e) {
+          console.error("Wipe DB Error:", e);
+        }
+      }
+      localStorage.removeItem('stock_local_items');
+      localStorage.removeItem('stock_local_inventory_stock');
+      localStorage.removeItem('stock_local_transactions');
+      return true;
     }
   },
 
@@ -663,9 +871,9 @@ export const API = {
           const isTodayPast17 = a.date === todayStr && currentHour >= 17;
           
           if (isPastDate || isTodayPast17) {
-            const clockInTime = new Date(a.clock_in);
-            if (clockInTime.getUTCHours() < 17) {
-              clockOut = `${a.date}T17:00:00+00:00`;
+            const inHour = parseInt((String(a.clock_in).match(/(\d{1,2}):\d{2}/)?.[1] || '0'), 10);
+            if (inHour < 17) {
+              clockOut = `${a.date}T17:00:00`;
             }
           }
         }
@@ -697,9 +905,9 @@ export const API = {
           const isTodayPast17 = a.date === todayStr && currentHour >= 17;
           
           if (isPastDate || isTodayPast17) {
-            const clockInTime = new Date(a.clock_in);
-            if (clockInTime.getUTCHours() < 17) {
-              clockOut = `${a.date}T17:00:00+00:00`;
+            const inHour = parseInt((String(a.clock_in).match(/(\d{1,2}):\d{2}/)?.[1] || '0'), 10);
+            if (inHour < 17) {
+              clockOut = `${a.date}T17:00:00`;
             }
           }
         }
@@ -1001,14 +1209,46 @@ export const API = {
         }
       }
 
-      // Update Inventory if items are returned/sold
-      if (payload.items) {
+      // Update Inventory if items are returned/sold with Strict Negative Prevention & Smart Alerts
+      if (payload.items && payload.branchId) {
         for (const item of payload.items) {
           const invItem = await API.items.getById(item.itemId);
           if (invItem) {
-            // If it's a sale, quantity decreases. If return, quantity increases.
+            const targetBranchId = payload.branchId;
+            const stockEntry = invItem.stocks?.find(s => s.branchId === targetBranchId);
+            const currentStoreQty = stockEntry ? stockEntry.quantity : 0;
+
+            if (!isReturn) {
+              if (currentStoreQty < item.quantity) {
+                const otherStoresWithStock = invItem.stocks?.filter(s => s.branchId !== targetBranchId && s.quantity > 0) || [];
+                let warningMsg = `Cilad: Alaabtan "${item.name}" kuma filna bakhaarka la doortay (Available: ${currentStoreQty}, Requested: ${item.quantity}).`;
+                if (otherStoresWithStock.length > 0) {
+                  const storeNames = otherStoresWithStock.map(s => `Bakhaar ID (${s.branchId}): ${s.quantity} units`).join(', ');
+                  warningMsg += ` Talo: Bakhaarada kale ee leh waa: ${storeNames}.`;
+                }
+                throw new Error(warningMsg);
+              }
+            }
+
             const qtyChange = isReturn ? item.quantity : -item.quantity;
-            await API.items.save({ ...invItem, quantity: invItem.quantity + qtyChange });
+            const newStoreQty = currentStoreQty + qtyChange;
+
+            if (isDbConnected()) {
+              const existingStock = await supabaseFetch(`inventory_stock?item_id=eq.${item.itemId}&branch_id=eq.${targetBranchId}`);
+              if (Array.isArray(existingStock) && existingStock.length > 0) {
+                await supabaseFetch(`inventory_stock?id=eq.${existingStock[0].id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ quantity: newStoreQty, last_updated: new Date().toISOString() })
+                });
+              } else if (!isReturn && newStoreQty >= 0) {
+                await supabaseFetch(`inventory_stock`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+                  body: JSON.stringify({ id: generateId(), item_id: item.itemId, branch_id: targetBranchId, quantity: newStoreQty, shelves: 1, sections: 1, last_updated: new Date().toISOString() })
+                });
+              }
+            }
           }
         }
       }
@@ -1563,6 +1803,49 @@ export const API = {
       };
       await cloudSave('stock_take_sessions', payload);
       return { ...session, id };
+    }
+  },
+
+  performanceGoals: {
+    async getAll(employeeId?: string): Promise<any[]> {
+      const query = employeeId ? `employee_id=eq.${employeeId}` : '';
+      const data = await fetchAllPages('performance_goals', query, 'id');
+      return Array.isArray(data) ? data.map(g => ({
+        id: g.id,
+        employeeId: g.employee_id || g.employeeId,
+        title: g.title,
+        category: g.category,
+        weight: g.weight || 25,
+        targetValue: g.target_value || g.targetValue || 100,
+        currentValue: g.current_value || g.currentValue || 0,
+        status: g.status || 'PENDING',
+        quarter: g.quarter || 'Q2 2026',
+        notes: g.notes
+      })) : [];
+    },
+    async save(goal: any): Promise<any> {
+      const id = goal.id || generateId();
+      const payload = {
+        id,
+        employee_id: goal.employeeId,
+        title: goal.title,
+        category: goal.category,
+        weight: goal.weight,
+        target_value: goal.targetValue,
+        current_value: goal.currentValue,
+        status: goal.status,
+        quarter: goal.quarter,
+        notes: goal.notes
+      };
+      await cloudSave('performance_goals', payload);
+      return { ...goal, id };
+    },
+    async delete(id: string): Promise<void> {
+      if (isDbConnected()) {
+        await supabaseFetch(`performance_goals?id=eq.${id}`, { method: 'DELETE' }).catch(() => {});
+      }
+      const local = getLocal('performance_goals') || [];
+      setLocal('performance_goals', local.filter((item: any) => item.id !== id));
     }
   }
 };

@@ -142,6 +142,8 @@ const Layout: React.FC<LayoutProps> = ({
       items: [
         { id: 'inventory', label: 'Stock Items', icon: '📦', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'inventory' },
         { id: 'stock-take', label: 'Year-End Audit', icon: '📋', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.AUDITOR], auditOnly: false, badge: 0, featureId: 'stock-take' },
+        { id: 'stock-discrepancy', label: 'Discrepancy Report', icon: '⚖️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.AUDITOR, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'inventory' },
+        { id: 'predictive-restocking', label: 'Predictive Restocking', icon: '📈', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.BUYER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'inventory' },
         { id: 'inventory-adjustment', label: 'Adjustment', icon: '⚙️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], auditOnly: false, badge: 0, featureId: 'inventory' },
         { id: 'approvals', label: 'Ogolaanshaha', icon: '🛡️', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER], badge: pendingApprovalsCount, auditOnly: false, featureId: 'inventory' },
         { id: 'transactions', label: 'Dhaqdhaqaaqa', icon: '🔄', roles: [UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF], auditOnly: false, badge: 0, featureId: 'inventory' },

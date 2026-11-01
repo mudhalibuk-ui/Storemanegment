@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Employee, Payroll, Xarun, Attendance } from '../types';
+import { Employee, Payroll, Xarun, Attendance, LeaveRequest } from '../types';
 import { API } from '../services/api';
+import { calculateEmployeeMonthStats } from '../services/payrollHelper';
 
 interface HRMPayrollProps {
   employees: Employee[];
@@ -14,8 +15,14 @@ const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo, branch = 'al
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [isProcessing, setIsProcessing] = useState(false);
   const [attendanceData, setAttendanceData] = useState<Attendance[]>([]);
+  const [leavesData, setLeavesData] = useState<LeaveRequest[]>([]);
 
-  const filteredEmployees = employees.filter(emp => branch === 'all' || emp.branchId === branch);
+  const filteredEmployees = employees.filter(emp => 
+    (branch === 'all' || emp.branchId === branch) &&
+    emp.status?.toUpperCase() !== 'TERMINATED' &&
+    emp.status?.toUpperCase() !== 'SUSPENDED' &&
+    emp.status?.toUpperCase() !== 'INACTIVE'
+  );
 
   useEffect(() => {
     loadPayrollData();
@@ -27,78 +34,22 @@ const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo, branch = 'al
     setPayrolls(payr);
 
     const att = await API.attendance.getAll();
-    const monthIndex = new Date(`${selectedMonth} 1, ${selectedYear}`).getMonth();
-    setAttendanceData(att.filter(a => {
-        if (!a.date) return false;
-        const [y, m] = a.date.split('-');
-        return parseInt(m, 10) - 1 === monthIndex && parseInt(y, 10) === selectedYear;
-    }));
-  };
+    setAttendanceData(att);
 
-  const calculateHours = (inTime: string, outTime: string): number => {
-    if (!inTime || !outTime) return 0;
-    const start = new Date(inTime).getTime();
-    const end = new Date(outTime).getTime();
-    return (end - start) / (1000 * 60 * 60); 
+    const leaves = await API.leaves.getAll();
+    setLeavesData(leaves);
   };
 
   const processPayroll = async () => {
     setIsProcessing(true);
     
     const allAttendance = await API.attendance.getAll();
-    const monthIndex = new Date(`${selectedMonth} 1, ${selectedYear}`).getMonth();
-    const targetAttendance = allAttendance.filter(a => {
-        if (!a.date) return false;
-        const [year, month, day] = a.date.split('-');
-        return parseInt(month, 10) - 1 === monthIndex && parseInt(year, 10) === selectedYear;
-    });
-
-    const daysInMonth = new Date(selectedYear, monthIndex + 1, 0).getDate();
-    const STANDARD_MONTHLY_HOURS = daysInMonth * 10;
-    const todayStr = new Date().toISOString().split('T')[0];
+    const allLeaves = await API.leaves.getAll();
+    const monthIndex = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].indexOf(selectedMonth);
 
     for (const emp of filteredEmployees) {
       const existing = payrolls.find(p => p.employeeId === emp.id);
-      const empLogs = targetAttendance.filter(a => a.employeeId === emp.id);
-      
-      let totalWorkedHours = 0;
-      let totalAbsentHours = 0;
-
-      for (let d = 1; d <= daysInMonth; d++) {
-          const dateObj = new Date(selectedYear, monthIndex, d);
-          const dateStr = `${selectedYear}-${String(monthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-          
-          const isFriday = dateObj.getDay() === 5;
-          const isPastOrCurrent = dateStr <= todayStr;
-          
-          const logsForDay = empLogs.filter(a => a.date === dateStr);
-          const log = logsForDay.find(a => a.status !== 'ABSENT') || logsForDay[0];
-
-          if (isFriday) {
-              if (log && log.clockIn && log.clockOut) {
-                   totalWorkedHours += calculateHours(log.clockIn, log.clockOut);
-              }
-          } else {
-              if (log) {
-                  if (log.status === 'HOLIDAY' || log.status === 'LEAVE') {
-                      // Paid
-                  } else if (log.status === 'ABSENT') {
-                      totalAbsentHours += 10;
-                  } else if (log.clockIn && log.clockOut) {
-                      const hours = calculateHours(log.clockIn, log.clockOut);
-                      totalWorkedHours += hours;
-                      if (hours < 10) totalAbsentHours += (10 - hours);
-                  }
-              } else if (isPastOrCurrent) {
-                  totalAbsentHours += 10;
-                  await API.attendance.save({ employeeId: emp.id, date: dateStr, status: 'ABSENT' });
-              }
-          }
-      }
-      
-      const hourlyRate = emp.salary / STANDARD_MONTHLY_HOURS;
-      const calculatedDeductions = Math.round(totalAbsentHours * hourlyRate);
-      const calculatedNetPay = Math.round(emp.salary - calculatedDeductions);
+      const calc = calculateEmployeeMonthStats(emp, allAttendance, allLeaves, monthIndex, selectedYear);
 
       if (!existing) {
         const newPay: Partial<Payroll> = {
@@ -107,21 +58,21 @@ const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo, branch = 'al
           year: selectedYear,
           base_salary: emp.salary,
           bonus: 0, 
-          deduction: calculatedDeductions,
-          netPay: calculatedNetPay > 0 ? calculatedNetPay : 0, 
+          deduction: calc.deductions,
+          netPay: calc.netPay, 
           status: 'UNPAID',
           xarunId: emp.xarunId,
-          totalHours: parseFloat(totalWorkedHours.toFixed(2))
+          totalHours: calc.totalWorkedHours
         };
         await API.payroll.save(newPay);
       } else {
           if (existing.status === 'UNPAID') {
              await API.payroll.save({
                  ...existing,
-                 totalHours: parseFloat(totalWorkedHours.toFixed(2)),
+                 totalHours: calc.totalWorkedHours,
                  base_salary: emp.salary,
-                 deduction: calculatedDeductions, 
-                 netPay: calculatedNetPay > 0 ? calculatedNetPay : 0
+                 deduction: calc.deductions, 
+                 netPay: calc.netPay
              });
           }
       }
@@ -131,44 +82,10 @@ const HRMPayroll: React.FC<HRMPayrollProps> = ({ employees, xarumo, branch = 'al
   };
 
   const getEmpMonthlyStats = (empId: string) => {
-      const empLogs = attendanceData.filter(a => a.employeeId === empId);
       const monthIndex = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].indexOf(selectedMonth);
-      const daysInMonth = new Date(selectedYear, monthIndex + 1, 0).getDate();
-      const todayStr = new Date().toISOString().split('T')[0];
-
-      let worked = 0;
-      let left = 0;
-      let absent = 0;
-
-      for (let d = 1; d <= daysInMonth; d++) {
-          const dateObj = new Date(selectedYear, monthIndex, d);
-          const dateStr = `${selectedYear}-${String(monthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-          
-          const isFriday = dateObj.getDay() === 5;
-          const isPastOrCurrent = dateStr <= todayStr;
-          
-          const logsForDay = empLogs.filter(a => a.date === dateStr);
-          const log = logsForDay.find(a => a.status !== 'ABSENT') || logsForDay[0];
-
-          if (isFriday) {
-              left += 10;
-              if (log && log.clockIn && log.clockOut) worked += calculateHours(log.clockIn, log.clockOut);
-          } else {
-              if (log) {
-                  if (log.status === 'ABSENT') absent += 10;
-                  else if (log.status === 'HOLIDAY' || log.status === 'LEAVE') left += 10;
-                  else if (log.clockIn && log.clockOut) {
-                      const h = calculateHours(log.clockIn, log.clockOut);
-                      worked += h;
-                      if (h < 10) absent += (10 - h);
-                  }
-              } else if (isPastOrCurrent) {
-                  absent += 10;
-              }
-          }
-      }
-
-      return { worked: parseFloat(worked.toFixed(1)), paidLeave: left, absent: parseFloat(absent.toFixed(1)) };
+      const emp = employees.find(e => e.id === empId) || { salary: 0 };
+      const calc = calculateEmployeeMonthStats(emp, attendanceData, leavesData, monthIndex, selectedYear);
+      return calc.stats;
   };
 
   const markAsPaid = async (payroll: Payroll) => {

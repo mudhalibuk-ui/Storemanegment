@@ -17,7 +17,8 @@ import {
   Download,
   Lock,
   Unlock,
-  ArrowRight
+  ArrowRight,
+  Scale
 } from 'lucide-react';
 
 interface StockTakeAuditProps {
@@ -25,9 +26,10 @@ interface StockTakeAuditProps {
   inventory: InventoryItem[];
   sessions: StockTakeSession[];
   onRefresh: () => void;
+  onNavigateToDiscrepancy?: () => void;
 }
 
-const StockTakeAudit: React.FC<StockTakeAuditProps> = ({ user, inventory, sessions, onRefresh }) => {
+const StockTakeAudit: React.FC<StockTakeAuditProps> = ({ user, inventory, sessions, onRefresh, onNavigateToDiscrepancy }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSession, setSelectedSession] = useState<StockTakeSession | null>(null);
@@ -192,7 +194,15 @@ const StockTakeAudit: React.FC<StockTakeAuditProps> = ({ user, inventory, sessio
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">Xisaab-xirka sanadlaha ah iyo xaqiijinta alaabta</p>
         </div>
         
-        <div className="flex gap-4 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          {onNavigateToDiscrepancy && (
+            <button
+              onClick={onNavigateToDiscrepancy}
+              className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-6 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-sm hover:scale-105 transition-all flex items-center gap-2"
+            >
+              <Scale size={16} /> Discrepancy Report
+            </button>
+          )}
           {!activeSession && (
             <button 
               onClick={() => setIsModalOpen(true)}

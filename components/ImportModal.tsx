@@ -132,13 +132,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, mode = 'normal', branch
             ei => (ei.name.toLowerCase() === name.toLowerCase() || (ei.sku && ei.sku.toLowerCase() === sku.toLowerCase())) && ei.branchId === finalBranchId
           );
           
-          // Check if it exists in ANY branch (to allow multi-branch creation during update)
-          const isExistingAnywhere = existingItems?.some(
-            ei => ei.name.toLowerCase() === name.toLowerCase() || (ei.sku && ei.sku.toLowerCase() === sku.toLowerCase())
-          );
-
-          if (!isExistingAnywhere && !allowCreateNew) {
-            return null; // Skip this item as it doesn't exist anywhere and we aren't allowing new creation
+          if (!existingMatchInTargetBranch && !allowCreateNew) {
+            return null; // Skip this item as it doesn't exist in this branch and we aren't allowing new creation
           }
 
           const quantity = parseInt(findVal(row, MAPPINGS.quantity)) || 0;
@@ -149,20 +144,20 @@ const ImportModal: React.FC<ImportModalProps> = ({ type, mode = 'normal', branch
           const costPrice = parseFloat(findVal(row, MAPPINGS.costPrice)) || 0;
 
           return {
-            id: existingMatchInTargetBranch?.id,
-            name,
-            category,
-            sku,
+            id: existingMatchInTargetBranch?.id || crypto.randomUUID(),
+            name: existingMatchInTargetBranch?.name || name,
+            category: existingMatchInTargetBranch?.category || category,
+            sku: existingMatchInTargetBranch?.sku || sku,
             shelves: rawShelf ? letterToNumber(rawShelf) : 0,
             sections: rawSection ? (parseInt(rawSection) || 0) : 0,
-            quantity,
+            quantity: existingMatchInTargetBranch ? existingMatchInTargetBranch.quantity + quantity : quantity,
             sellingPrice,
             lastKnownPrice: costPrice > 0 ? costPrice : sellingPrice,
             branchId: finalBranchId,
             lastUpdated: new Date().toISOString(),
             minThreshold,
             xarunId: itemXarunId
-          } as Partial<InventoryItem>;
+          } as InventoryItem;
         });
       } else if (type === 'customer' || type === 'vendor') {
         processedData = previewData.map((row, index) => {

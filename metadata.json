@@ -3,5 +3,8 @@
   "description": "An advanced multi-branch inventory management system with real-time tracking, shelf-mapping (Iskafalo/Dog), and AI-powered insights.",
   "requestFramePermissions": [
     "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]
 }
